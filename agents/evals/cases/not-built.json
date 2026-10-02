@@ -1,0 +1,18 @@
+{
+  "id": "not-built",
+  "description": "A wish for something the shop does not have. The writer has to look and say built is false.",
+  "stage": "draft",
+  "input": {
+    "wish": "Shoppers can search the product list by name.",
+    "openTickets": []
+  },
+  "checks": [
+    {
+      "check": "built",
+      "value": false
+    },
+    {
+      "check": "no-blocking-question"
+    }
+  ]
+}

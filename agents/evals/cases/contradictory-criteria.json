@@ -1,0 +1,24 @@
+{
+  "id": "contradictory-criteria",
+  "description": "Two criteria that cannot both hold. The analyst must block on a question about them instead of picking one silently.",
+  "stage": "requirements",
+  "input": {
+    "title": "Cart badge count",
+    "body": "As a shopper I want the cart badge to tell me how many items I have.\n\nAcceptance criteria:\n- AC-1: Given an empty cart, when I look at the header, then the badge shows 0.\n- AC-2: Given an empty cart, when I look at the header, then no badge is shown.\n- AC-3: Given one item in the cart, when I look at the header, then the badge shows 1."
+  },
+  "checks": [
+    {
+      "check": "blocking-question"
+    },
+    {
+      "check": "question-mentions",
+      "any": [
+        "badge",
+        "empty",
+        "contradict",
+        "AC-1",
+        "AC-2"
+      ]
+    }
+  ]
+}

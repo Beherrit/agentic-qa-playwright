@@ -1,0 +1,53 @@
+{
+  "title": "Search products by name",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to search the product list by name",
+    "soThat": "I can find an item without scrolling"
+  },
+  "why": "With more products, scrolling stops working as a way to find one.",
+  "built": false,
+  "alreadyThere": "There is no search box on the product list today.",
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "the product list",
+      "when": "the shopper searches for Onesie",
+      "then": "only Sauce Labs Onesie is listed"
+    },
+    {
+      "id": "AC-2",
+      "kind": "negative",
+      "given": "the product list",
+      "when": "the shopper searches for a name no product has",
+      "then": "the list says no products match"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "a search with results",
+      "when": "the shopper clears the search",
+      "then": "all six products are listed again"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "risk": "medium",
+  "riskReason": "",
+  "technical": {
+    "covered": [],
+    "pages": [],
+    "touches": [],
+    "related": [],
+    "notes": ""
+  },
+  "duplicates": [],
+  "questions": [
+    {
+      "question": "Should the search match part of a word?",
+      "blocking": false,
+      "why": "Changes one edge case."
+    }
+  ]
+}

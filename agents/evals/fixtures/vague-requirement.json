@@ -1,0 +1,42 @@
+{
+  "title": "Search is bad",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to find products",
+    "soThat": "I can buy what I came for"
+  },
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "the product list",
+      "when": "the shopper looks for a product",
+      "then": "the product can be found"
+    },
+    {
+      "id": "AC-2",
+      "kind": "negative",
+      "given": "the product list",
+      "when": "the shopper looks for a product that does not exist",
+      "then": "no product is shown"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "the product list",
+      "when": "the shopper looks for an empty name",
+      "then": "all products are shown"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "openQuestions": [
+    {
+      "question": "What should be different about search when this is done, and for whom?",
+      "blocking": true,
+      "why": "The ticket says users are unhappy but not what would make them happy, so no test could tell done from not done."
+    }
+  ],
+  "risk": "medium",
+  "riskReason": ""
+}

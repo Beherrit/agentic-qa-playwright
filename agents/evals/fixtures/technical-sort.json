@@ -1,0 +1,49 @@
+{
+  "covered": [
+    {
+      "file": "tests/sort.spec.ts",
+      "test": "Price (low to high) shows the cheapest product first",
+      "covers": "AC-1"
+    },
+    {
+      "file": "tests/sort.spec.ts",
+      "test": "after a reload the control label matches the displayed order",
+      "covers": "AC-3"
+    }
+  ],
+  "pages": [
+    {
+      "file": "pages/InventoryPage.ts",
+      "member": "sortBy(label)",
+      "exists": true,
+      "note": "Selects by visible label."
+    },
+    {
+      "file": "pages/InventoryPage.ts",
+      "member": "itemPrices",
+      "exists": true,
+      "note": ""
+    }
+  ],
+  "touches": [
+    {
+      "area": "the cart badge after sorting",
+      "why": "Same page and header",
+      "guardedBy": "tests/sort.spec.ts: sorting by price keeps the cart badge and the Remove button"
+    },
+    {
+      "area": "opening a product from a sorted list",
+      "why": "Same product cards",
+      "guardedBy": null
+    }
+  ],
+  "related": [
+    {
+      "ref": "11",
+      "why": "The product page is opened from the same list."
+    }
+  ],
+  "notes": "The sort control is a select with data-test=\"product-sort-container\".",
+  "risk": "medium",
+  "riskReason": "Every shopper sees the list; the suite already guards most of it."
+}

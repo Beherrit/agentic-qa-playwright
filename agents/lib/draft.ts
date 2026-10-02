@@ -5,7 +5,7 @@ import { checkTechnical, guardHolds } from './technical.ts';
 /** The pure parts of the ticket writer: the definition of ready, the ticket text and its labels. */
 
 // Phrases that say nothing a test could check.
-const VAGUE = ['works correctly', 'works as expected', 'is correct', 'as expected', 'properly'];
+export const VAGUE = ['works correctly', 'works as expected', 'is correct', 'as expected', 'properly'];
 
 const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ');
 const bare = (ref: string): string => ref.replace(/^#/, '');

@@ -394,6 +394,34 @@ Node 22.18 or newer runs the TypeScript directly. The server finds the repositor
 matter where the client starts it. For GitHub issues it uses `gh` as you are signed in; for Jira, put the three
 `JIRA_*` variables in the server's `env`.
 
+## How the agents are tested
+
+Three layers, from cheapest to dearest.
+
+- **Unit tests** (`npm run test:unit`, part of `npm run check`) cover everything that is code: the gates' parsing, the
+  plan score, the verdict rules, the technical checks, the report shapes, the MCP server's input checks (and a
+  smoke test that starts it and speaks MCP to it over stdio). No agent is called.
+- **Evaluations** (`agents/evals/`) cover what the agents decide. Each case in `cases/` is a canned input for one
+  stage (the ticket writer, the analyst or the technical reviewer) with checks written in code against the stage's
+  structured answer: a vague wish must produce a blocking question; a clear one must give at least one negative
+  criterion and no blocking question; a wish for something the shop already has must come back with `built` true,
+  and one for something it does not, false; a duplicate of an open ticket must be named; contradictory criteria must
+  be asked about; criteria already on a ticket must be kept with their numbers; a technical review may only name
+  tests and tickets that exist.
+
+  ```bash
+  npm run evals -- --dry          # the checks against hand-made answers in fixtures/. No agent, runs in a second
+  npm run evals                   # every case through the real agent. Spends the plan or API budget
+  npm run evals -- --repeat 3     # each case three times: the agents are not deterministic, so a rate means more
+  npm run evals -- --case vague-wish
+  ```
+
+  It prints a pass rate per stage and per case, with the failed checks, and the agent cost from the ledger. It exits
+  1 when a case fails. The dry run is part of the unit tests, together with tests that change one thing in each
+  recorded answer and show the checks catch it.
+- **The pipeline's own runs.** The run history on the `qa-history` branch shows, run by run, how often the gates
+  passed and the review approved first time.
+
 ## Try the demo
 
 Sorting the product list was deliberately left out of the baseline suite, which made it a good first requirement:
@@ -433,6 +461,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/prompts/` | One instruction file per role |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, the technical checks, keys and labels, markdown rendering, the run folder |
 | `agents/test/` | Unit tests for the pipeline itself (`npm run test:unit`) |
+| `agents/evals/` | The agent evaluations: canned cases, their checks, and recorded answers for the dry run (`npm run evals`) |
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
 | `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history) |
 | `.github/actions/setup/` | Shared setup steps for the jobs |

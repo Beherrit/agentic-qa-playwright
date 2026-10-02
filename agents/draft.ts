@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import { runAgent } from './lib/agent.ts';
 import { checkedDuplicates, checkedTechnical, readiness, ticketBody, ticketLabels, withAnswers } from './lib/draft.ts';
-import { config, LABELS, projectDoc } from './lib/paths.ts';
+import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
+import { repoAt } from './lib/repo.ts';
 import { TicketDraft } from './lib/schemas.ts';
 import { prompt, save } from './lib/store.ts';
 import { sourceFor } from './sources/index.ts';
-import { repo } from './stages.ts';
 
 /**
  * The ticket writer: a sentence or two in, a complete requirement ticket out, filed after a person says yes.
@@ -94,6 +94,7 @@ export async function draft(options: DraftOptions): Promise<DraftResult> {
     if (answers?.trim()) result = await writeTicket(withAnswers(wish, result.questions.map((q) => q.question), answers), open);
   }
 
+  const repo = repoAt(ROOT);
   result = {
     ...result,
     duplicates: checkedDuplicates(result, open),

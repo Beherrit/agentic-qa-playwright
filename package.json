@@ -16,7 +16,8 @@
     "draft": "tsx agents/cli.ts draft",
     "heal": "tsx agents/heal.ts",
     "history": "tsx agents/history.ts",
-    "mcp": "tsx agents/mcp.ts"
+    "mcp": "tsx agents/mcp.ts",
+    "evals": "tsx agents/evals/run.ts"
   },
   "author": "Lawrence Moran",
   "license": "MIT",

@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { applyPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
 import { checkedRisks } from './lib/draft.ts';
@@ -18,7 +16,8 @@ import {
   type Strategy,
 } from './lib/schemas.ts';
 import { planHealth } from './lib/score.ts';
-import { checkTechnical, inRepo, mergeRisks, specTitles, technicalFromTicket, type Repo, type TechnicalResult } from './lib/technical.ts';
+import { repoAt } from './lib/repo.ts';
+import { checkTechnical, mergeRisks, technicalFromTicket, type TechnicalResult } from './lib/technical.ts';
 import { requirementsFromTicket } from './lib/ticket.ts';
 import { exists, jobSummary, load, loadText, prompt, save, setOutput, type RunRecord } from './lib/store.ts';
 import { sourceFor } from './sources/index.ts';
@@ -91,11 +90,8 @@ export async function requirements(): Promise<boolean> {
 
 // ── 1b. Technical review ─────────────────────────────────────────────────────
 
-/** What the checks may ask about this repository. Only paths inside it are ever read. */
-export const repo: Repo = {
-  fileExists: (file) => inRepo(file) && fs.existsSync(path.join(ROOT, file)),
-  titlesIn: (file) => (file.endsWith('.spec.ts') && repo.fileExists(file) ? specTitles(fs.readFileSync(path.join(ROOT, file), 'utf8')) : null),
-};
+/** What the checks may ask about this repository. */
+const repo = repoAt(ROOT);
 
 /** The tickets that were open when the ticket was read. The intake job saves them; agent jobs have no tracker token. */
 const openTickets = (): OpenTicket[] => (exists('open-tickets.json') ? load<OpenTicket[]>('open-tickets.json') : []);

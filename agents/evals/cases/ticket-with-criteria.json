@@ -1,0 +1,31 @@
+{
+  "id": "ticket-with-criteria",
+  "description": "A ticket that already lists criteria. The analyst must keep them and their numbers, and add rather than renumber.",
+  "stage": "requirements",
+  "input": {
+    "title": "Log out from the menu",
+    "body": "As a shopper I want to log out from the menu so that nobody else can use my session.\n\n| | Kind | Given | When | Then |\n|---|---|---|---|---|\n| AC-1 | happy | a signed-in shopper | they choose Logout in the menu | the login page is shown |\n| AC-2 | negative | a shopper who logged out | they open /inventory.html directly | the login page is shown with an error |\n| AC-3 | edge | a shopper with items in the cart | they log out and sign in again | the cart still holds the items |"
+  },
+  "checks": [
+    {
+      "check": "keeps-criteria",
+      "criteria": [
+        {
+          "id": "AC-1",
+          "kind": "happy"
+        },
+        {
+          "id": "AC-2",
+          "kind": "negative"
+        },
+        {
+          "id": "AC-3",
+          "kind": "edge"
+        }
+      ]
+    },
+    {
+      "check": "no-blocking-question"
+    }
+  ]
+}

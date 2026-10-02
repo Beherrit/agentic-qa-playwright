@@ -1,0 +1,18 @@
+{
+  "id": "already-built",
+  "description": "A wish for something the shop already has. The writer has to look and say built is true.",
+  "stage": "draft",
+  "input": {
+    "wish": "Shoppers can sort the product list by price, low to high and high to low.",
+    "openTickets": []
+  },
+  "checks": [
+    {
+      "check": "built",
+      "value": true
+    },
+    {
+      "check": "negative-criterion"
+    }
+  ]
+}

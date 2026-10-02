@@ -1,0 +1,24 @@
+{
+  "id": "clear-requirement",
+  "description": "A plain, testable requirement written by a person. No blocking question, at least one negative criterion, outcomes a test can check.",
+  "stage": "requirements",
+  "input": {
+    "title": "Continue shopping from the cart",
+    "body": "As a shopper on the cart page I want a Continue Shopping button that takes me back to the product list, with my cart unchanged."
+  },
+  "checks": [
+    {
+      "check": "no-blocking-question"
+    },
+    {
+      "check": "negative-criterion"
+    },
+    {
+      "check": "no-vague-then"
+    },
+    {
+      "check": "min-criteria",
+      "min": 3
+    }
+  ]
+}

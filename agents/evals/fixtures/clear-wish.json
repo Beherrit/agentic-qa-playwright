@@ -1,0 +1,69 @@
+{
+  "title": "Remove an item from the cart page",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to remove an item from the cart page",
+    "soThat": "my cart holds only what I mean to buy"
+  },
+  "why": "A shopper who cannot remove an item pays for something they did not want.",
+  "built": true,
+  "alreadyThere": "The cart page has a Remove button on each item, and the header shows a cart badge.",
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "a cart with two items",
+      "when": "the shopper clicks Remove on one",
+      "then": "that item is no longer listed and the other still is"
+    },
+    {
+      "id": "AC-2",
+      "kind": "happy",
+      "given": "a cart with two items",
+      "when": "the shopper removes one",
+      "then": "the cart badge shows 1"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "a cart with one item",
+      "when": "the shopper removes it",
+      "then": "the cart is empty and the badge is not shown"
+    },
+    {
+      "id": "AC-4",
+      "kind": "negative",
+      "given": "a cart with one item that was removed",
+      "when": "the shopper reloads the cart page",
+      "then": "the removed item does not come back"
+    }
+  ],
+  "assumptions": [
+    "The badge is hidden when the cart is empty."
+  ],
+  "outOfScope": [],
+  "risk": "medium",
+  "riskReason": "Every purchase goes through the cart; a wrong count is visible but not blocking.",
+  "technical": {
+    "covered": [
+      {
+        "file": "tests/cart.spec.ts",
+        "test": "removing an item in the cart leaves the others",
+        "covers": "Removal of one item"
+      }
+    ],
+    "pages": [
+      {
+        "file": "pages/CartPage.ts",
+        "member": "remove(name)",
+        "exists": true,
+        "note": ""
+      }
+    ],
+    "touches": [],
+    "related": [],
+    "notes": ""
+  },
+  "duplicates": [],
+  "questions": []
+}

@@ -1,0 +1,49 @@
+{
+  "title": "Cart badge count",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "the cart badge to show how many items I have",
+    "soThat": "I know what is in my cart"
+  },
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "edge",
+      "given": "an empty cart",
+      "when": "the shopper looks at the header",
+      "then": "the badge shows 0"
+    },
+    {
+      "id": "AC-2",
+      "kind": "edge",
+      "given": "an empty cart",
+      "when": "the shopper looks at the header",
+      "then": "no badge is shown"
+    },
+    {
+      "id": "AC-3",
+      "kind": "happy",
+      "given": "one item in the cart",
+      "when": "the shopper looks at the header",
+      "then": "the badge shows 1"
+    },
+    {
+      "id": "AC-4",
+      "kind": "negative",
+      "given": "one item in the cart that is removed",
+      "when": "the shopper looks at the header",
+      "then": "the badge no longer shows 1"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "openQuestions": [
+    {
+      "question": "With an empty cart, should the badge show 0 (AC-1) or not be shown at all (AC-2)?",
+      "blocking": true,
+      "why": "The two criteria contradict each other, so one of the tests would fail whatever the app does."
+    }
+  ],
+  "risk": "medium",
+  "riskReason": ""
+}

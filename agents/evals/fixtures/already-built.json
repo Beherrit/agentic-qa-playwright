@@ -1,0 +1,53 @@
+{
+  "title": "Sort products by price",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to sort the product list by price",
+    "soThat": "I find the cheapest or the dearest item first"
+  },
+  "why": "Shoppers on a budget look for the cheapest item first.",
+  "built": true,
+  "alreadyThere": "The product list has a sort control with Price (low to high) and Price (high to low).",
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "the product list",
+      "when": "the shopper picks Price (low to high)",
+      "then": "Sauce Labs Onesie at $7.99 is first"
+    },
+    {
+      "id": "AC-2",
+      "kind": "happy",
+      "given": "the product list",
+      "when": "the shopper picks Price (high to low)",
+      "then": "Sauce Labs Fleece Jacket at $49.99 is first"
+    },
+    {
+      "id": "AC-3",
+      "kind": "negative",
+      "given": "the list sorted by price",
+      "when": "the shopper adds an item to the cart",
+      "then": "the order of the list does not change"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "risk": "medium",
+  "riskReason": "",
+  "technical": {
+    "covered": [
+      {
+        "file": "tests/sort.spec.ts",
+        "test": "Price (low to high) shows the cheapest product first",
+        "covers": "Low to high"
+      }
+    ],
+    "pages": [],
+    "touches": [],
+    "related": [],
+    "notes": ""
+  },
+  "duplicates": [],
+  "questions": []
+}
