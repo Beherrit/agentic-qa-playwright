@@ -1,0 +1,37 @@
+name: QA tests
+
+# The second half: the latest analysis of a ticket becomes tests, gates, a review and a pull request.
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled]
+  repository_dispatch:
+    types: [qa-generate]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Where the requirement lives
+        type: choice
+        options: [github, jira, pr]
+        default: github
+      ref:
+        description: Issue or pull request number (github, pr) or ticket key (jira)
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  tests:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-tests.yml@main
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      source: ${{ inputs.source }}
+      ref: ${{ inputs.ref }}
+    secrets: inherit

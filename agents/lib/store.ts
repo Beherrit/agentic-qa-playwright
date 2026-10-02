@@ -29,12 +29,17 @@ export const prompt = (role: string): string => fs.readFileSync(path.join(PROMPT
 
 export type RunRecord = { role: string; turns: number; seconds: number; costUsd: number };
 
-/** Every agent call is logged here, so the pull request can say what the run took. */
-export function recordRun(run: RunRecord): void {
+/** Every agent call is logged here, so the pull request can say what the run took. Returns the run's total so far. */
+export function recordRun(run: RunRecord): number {
   const ledger = exists('ledger.json') ? load<RunRecord[]>('ledger.json') : [];
   ledger.push(run);
   save('ledger.json', ledger);
+  return spent(ledger);
 }
+
+/** What the agents of this run have cost so far, as the SDK estimates it. */
+export const spent = (ledger: RunRecord[] = exists('ledger.json') ? load<RunRecord[]>('ledger.json') : []): number =>
+  ledger.reduce((sum, run) => sum + (Number.isFinite(run.costUsd) ? run.costUsd : 0), 0);
 
 /** Hands a value to later workflow steps. Does nothing outside GitHub Actions. */
 export function setOutput(name: string, value: string | number | boolean): void {

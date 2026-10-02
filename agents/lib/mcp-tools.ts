@@ -24,8 +24,8 @@ export const AnalyzeInput = z
   .object({
     text: z.string().trim().min(10).max(20000).optional().describe('The requirement as plain text, when it is not on a ticket'),
     title: z.string().trim().max(200).optional().describe('A title for a requirement given as text'),
-    source: z.enum(['github', 'jira']).optional().describe('Where the ticket lives, with ref'),
-    ref: z.string().trim().max(40).optional().describe('The GitHub issue number or the Jira ticket key'),
+    source: z.enum(['github', 'jira', 'pr', 'azure', 'linear']).optional().describe('Where the ticket lives, with ref'),
+    ref: z.string().trim().max(40).optional().describe('The issue, pull request or work item number, or the Jira or Linear key'),
     testFirst: z.boolean().default(false).describe('For text: the feature is not built yet. A ticket says so itself'),
   })
   .superRefine((input, ctx) => {
@@ -33,10 +33,10 @@ export const AnalyzeInput = z
     if (ticket && input.text !== undefined) ctx.addIssue({ code: 'custom', message: 'Give either text, or source and ref, not both.' });
     if (!ticket && input.text === undefined) ctx.addIssue({ code: 'custom', message: 'Give the requirement as text, or as source and ref.' });
     if (ticket && (input.source === undefined || input.ref === undefined)) ctx.addIssue({ code: 'custom', message: 'A ticket needs both source and ref.' });
-    if (input.source === 'github' && input.ref !== undefined && !/^[1-9]\d*$/.test(input.ref))
-      ctx.addIssue({ code: 'custom', message: `"${input.ref}" is not a GitHub issue number.`, path: ['ref'] });
-    if (input.source === 'jira' && input.ref !== undefined && !KEY.test(input.ref))
-      ctx.addIssue({ code: 'custom', message: `"${input.ref}" is not a Jira ticket key.`, path: ['ref'] });
+    if ((input.source === 'github' || input.source === 'pr' || input.source === 'azure') && input.ref !== undefined && !/^[1-9]\d*$/.test(input.ref))
+      ctx.addIssue({ code: 'custom', message: `"${input.ref}" is not a ${input.source === 'github' ? 'GitHub issue' : input.source === 'pr' ? 'pull request' : 'work item'} number.`, path: ['ref'] });
+    if ((input.source === 'jira' || input.source === 'linear') && input.ref !== undefined && !KEY.test(input.ref))
+      ctx.addIssue({ code: 'custom', message: `"${input.ref}" is not a ${input.source === 'jira' ? 'Jira' : 'Linear'} ticket key.`, path: ['ref'] });
   });
 export type AnalyzeInput = z.infer<typeof AnalyzeInput>;
 

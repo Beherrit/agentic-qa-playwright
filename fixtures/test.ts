@@ -5,6 +5,7 @@ import { CheckoutPage } from '../pages/CheckoutPage.ts';
 import { InventoryPage } from '../pages/InventoryPage.ts';
 import { ProductPage } from '../pages/ProductPage.ts';
 import { LoginPage } from '../pages/LoginPage.ts';
+import { applyFault, faultFromEnv } from './fault.ts';
 import { defaultUser, PASSWORD } from './personas.ts';
 
 type Fixtures = {
@@ -25,6 +26,13 @@ const brief = (results: AxeResult[]) =>
   results.map((r) => ({ rule: r.id, impact: r.impact ?? 'unknown', help: r.help, helpUrl: r.helpUrl, elements: r.nodes.length }));
 
 export const test = base.extend<Fixtures>({
+  // The sensitivity gate can hand every test a broken version of the app (QA_FAULT). Nothing happens otherwise.
+  page: async ({ page }, use) => {
+    const fault = faultFromEnv();
+    if (fault) await applyFault(page, fault);
+    await use(page);
+  },
+
   loginPage: async ({ page }, use) => use(new LoginPage(page)),
   inventoryPage: async ({ page }, use) => use(new InventoryPage(page)),
   cartPage: async ({ page }, use) => use(new CartPage(page)),

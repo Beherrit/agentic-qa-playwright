@@ -35,6 +35,8 @@ import type { OpenTicket } from './sources/types.ts';
 export { planHealth, checkedRisks };
 
 const request = (): Request => load<Request>('request.json');
+/** Where the build under test answers: a pull request's preview when the requirement names one, else the app. */
+const appUrl = (r: Request): string => r.baseUrl ?? config.app.baseUrl;
 const brief = (): string => `<product-brief>\n${projectDoc(config.app.brief)}\n</product-brief>`;
 const conventions = (): string => `<test-conventions>\n${projectDoc(config.conventions)}\n</test-conventions>`;
 const design = (): string => `<test-design-notes>\n${projectDoc('docs/test-design.md')}\n</test-design-notes>`;
@@ -103,7 +105,7 @@ export async function reviewTechnically(req: Request, requirementsText: string, 
   const { output } = await runAgent({
     role: 'technical-reviewer',
     instructions: prompt('technical-reviewer'),
-    task: `Write the technical review for this requirement. The app is ${config.app.name} at ${config.app.baseUrl}.
+    task: `Write the technical review for this requirement. The app is ${config.app.name} at ${appUrl(req)}.
 
 <requirements>
 ${requirementsText}
@@ -164,7 +166,7 @@ export async function plan(): Promise<void> {
   const { output } = await runAgent({
     role: 'test-architect',
     instructions: prompt('test-architect'),
-    task: `Write the test plan for this requirement. The app is ${config.app.name} at ${config.app.baseUrl}.
+    task: `Write the test plan for this requirement. The app is ${config.app.name} at ${appUrl(req)}.
 ${req.mode === 'test-first' ? TEST_FIRST_PLAN : BUILT_PLAN}
 
 ${criteriaText()}
@@ -323,7 +325,7 @@ function readBrief(): Brief {
 function engineerBrief(req: Request, strategy: Strategy, review: TechnicalResult | null): string {
   const cases = strategy.cases.filter((c) => c.layer === 'e2e');
   const others = strategy.cases.filter((c) => c.layer !== 'e2e').map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
-  return `The app is ${config.app.name} at ${config.app.baseUrl}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
+  return `The app is ${config.app.name} at ${appUrl(req)}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
 
 You may write only inside: ${config.writable.join(', ')}
 
@@ -362,30 +364,80 @@ async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Runs the gates, and gives the engineer one chance to fix what they find. */
+const WRITE_TASK = (brief: Brief): string => `Write the Playwright tests for the cases below.\n\n${brief.text}`;
+
+const FIX_TASK = (gates: GateReport, brief: Brief): string =>
+  `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${brief.text}`;
+
+function saveGates(gates: GateReport): void {
+  save('gates.json', gates);
+  save('gates.md', gatesMd(gates));
+  jobSummary(gatesMd(gates));
+  setOutput('gates', gates.passed ? 'passed' : 'failed');
+}
+
+/** Runs the gates, and gives the engineer one chance to fix what they find. One process: a run on your machine. */
 async function gated(generation: Generation, brief: Brief): Promise<{ generation: Generation; gates: GateReport }> {
   let gates = runGates(brief.request, brief.strategy, generation);
   if (!gates.passed) {
     console.log('\nGates failed. Sending the report back to the engineer once.');
-    generation = await engineer(
-      `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${brief.text}`,
-    );
+    generation = await engineer(FIX_TASK(gates, brief));
     gates = runGates(brief.request, brief.strategy, generation);
   }
   savePatch();
   save('generation.json', generation);
-  save('gates.json', gates);
-  save('gates.md', gatesMd(gates));
-  jobSummary(`## Code generation\n\n${generation.summary}\n\n${gatesMd(gates)}`);
-  setOutput('gates', gates.passed ? 'passed' : 'failed');
+  jobSummary(`## Code generation\n\n${generation.summary}\n\n`);
+  saveGates(gates);
   return { generation, gates };
 }
 
 export async function generate(): Promise<boolean> {
   const brief = readBrief();
   return protectingRunFiles(async () => {
-    const first = await engineer(`Write the Playwright tests for the cases below.\n\n${brief.text}`);
+    const first = await engineer(WRITE_TASK(brief));
     return (await gated(first, brief)).gates.passed;
+  });
+}
+
+/*
+ * In CI the same work is three jobs, so the model credentials and the generated test code are never in one job
+ * for longer than they must be. `write` and `fix` hold the credentials and run the engineer, who runs the tests
+ * it writes as it goes. `gates` holds no credentials at all: it applies the patch and runs the whole suite, the
+ * stability runs, the sensitivity targets and the accessibility scan.
+ */
+
+/** 3a. The engineer writes. Nothing is gated here. */
+export async function write(): Promise<void> {
+  const brief = readBrief();
+  await protectingRunFiles(async () => {
+    const generation = await engineer(WRITE_TASK(brief));
+    savePatch();
+    save('generation.json', generation);
+    jobSummary(`## Code generation\n\n${generation.summary}`);
+  });
+}
+
+/** 3b. The gates over the change already applied to the working tree. Never throws on a failed gate: the workflow decides. */
+export async function gates(): Promise<boolean> {
+  const brief = readBrief();
+  const generation = load<Generation>('generation.json');
+  return protectingRunFiles(async () => {
+    const report = runGates(brief.request, brief.strategy, generation);
+    saveGates(report);
+    console.log(report.passed ? '\nAll gates passed.' : '\nGates failed. See qa-run/gates.md.');
+    return report.passed;
+  });
+}
+
+/** 3c. The one fix round, back in a job with credentials, from the gate report. */
+export async function fix(): Promise<void> {
+  const brief = readBrief();
+  const report = load<GateReport>('gates.json');
+  await protectingRunFiles(async () => {
+    const generation = await engineer(FIX_TASK(report, brief));
+    savePatch();
+    save('generation.json', generation);
+    jobSummary(`## Code generation, fix round\n\n${generation.summary}`);
   });
 }
 
@@ -496,6 +548,9 @@ export function report(): void {
   setOutput('title', `test: ${requirementsDoc.title} (${req.key})`);
   setOutput('branch', branchFor(req.key));
   setOutput('draft', reviewDoc.verdict !== 'approve');
+  // For the publish job, which has no config loaded: what to commit, and where to open the pull request.
+  setOutput('writable', config.writable.join(' '));
+  setOutput('base', req.base ?? '');
 }
 
 // ── 6. Tell the ticket ───────────────────────────────────────────────────────

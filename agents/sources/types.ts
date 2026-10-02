@@ -1,5 +1,5 @@
-/** A ticket as the pipeline sees it, wherever it came from. */
-export type Ticket = { ref: string; url: string | null; title: string; body: string; labels: string[] };
+/** A ticket as the pipeline sees it, wherever it came from. A pull request also says where its build answers and which branch it is. */
+export type Ticket = { ref: string; url: string | null; title: string; body: string; labels: string[]; baseUrl?: string; base?: string };
 
 /** Where requirements come from and where reports go back to. One per tracker. */
 export interface Source {

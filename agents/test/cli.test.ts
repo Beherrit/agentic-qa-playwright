@@ -28,9 +28,9 @@ describe('command line', () => {
     const [help, word] = await Promise.all([cli('--help'), cli('help')]);
     for (const run of [help, word]) {
       assert.equal(run.status, 0);
-      assert.match(run.stdout, /^Usage: npm run pipeline -- <command> \[options\]/);
+      assert.match(run.stdout, /^Usage: npx agentic-qa <command> \[options\]/);
     }
-    for (const command of ['doctor', 'draft', 'analyze', 'tests', 'all', 'intake', 'requirements', 'technical', 'plan', 'critic', 'reconcile', 'check-plan', 'generate', 'apply', 'review', 'rework', 'report', 'notify']) {
+    for (const command of ['init', 'survey', 'doctor', 'draft', 'analyze', 'tests', 'all', 'suite', 'check', 'coverage', 'triage', 'heal', 'mcp', 'intake', 'requirements', 'technical', 'plan', 'critic', 'reconcile', 'check-plan', 'generate', 'write', 'gates', 'fix', 'apply', 'review', 'rework', 'report', 'notify', 'history']) {
       assert.match(help.stdout, new RegExp(`\\b${command}\\b`), command);
     }
     assert.match(help.stdout, /Exit codes: 0 done, 1 a stage or a check failed, 2 the command line was wrong\./);
@@ -41,7 +41,7 @@ describe('command line', () => {
     const [stopped, ...runs] = await Promise.all([cli('check-plan'), ...wrong.map((args) => cli(...args))]);
     runs.forEach((run, i) => {
       assert.equal(run.status, 2, wrong[i].join(' '));
-      assert.match(run.stderr, /npm run pipeline -- --help/);
+      assert.match(run.stderr, /npx agentic-qa --help/);
     });
     assert.equal(stopped.status, 1);
     assert.match(stopped.stderr.trim().split('\n').pop() ?? '', /no test plan yet/);

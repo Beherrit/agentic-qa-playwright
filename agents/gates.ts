@@ -2,9 +2,11 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { targetEnv } from './lib/fault.ts';
 import { tagGrep } from './lib/keys.ts';
 import { config, ROOT, RUN_DIR } from './lib/paths.ts';
 import type { Generation, Request, Strategy } from './lib/schemas.ts';
+import { commands, lintCommand, prepareAuth, suiteEnv, testCommand } from './lib/suite.ts';
 
 /**
  * The checks generated code has to pass before a reviewer, human or otherwise, spends time on it.
@@ -27,7 +29,7 @@ function sh(command: string, env: Record<string, string> = {}): Shell {
     shell: true,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, ...env },
+    env: { ...process.env, ...suiteEnv(), ...env },
   });
   return { ok: run.status === 0, output: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() };
 }
@@ -162,7 +164,7 @@ function commandGate(name: string, command: string, okSummary: string): Gate {
     name,
     passed: result.ok,
     summary: result.ok ? okSummary : `\`${command}\` failed`,
-    output: result.ok ? undefined : command.includes('playwright test') ? failureDigest(result.output) : tail(result.output),
+    output: result.ok ? undefined : command.startsWith(commands.test) ? failureDigest(result.output) : tail(result.output),
   };
 }
 
@@ -317,7 +319,7 @@ export function wrongReasons(results: TestOutcome[]): string[] {
 /** Runs the tests matching a grep with a JSON report written to a temporary file, and returns both. */
 function runJson(grep: string, extra: string, env: Record<string, string> = {}): Shell & { report: TestOutcome[] } {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-gate-')), 'report.json');
-  const result = sh(`npx playwright test --grep "${grep}" --retries=0 --reporter=line,json ${extra}`, {
+  const result = sh(testCommand(`--grep "${grep}" --retries=0 --reporter=line,json ${extra}`), {
     ...env,
     PLAYWRIGHT_JSON_OUTPUT_NAME: file,
   });
@@ -348,7 +350,7 @@ export function missingCriteria(
 function traceabilityGate(request: Request, strategy: Strategy): Gate {
   // The JSON goes to a file: anything a tool prints on stderr would otherwise end up in the middle of it.
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-list-')), 'list.json');
-  const listing = sh('npx playwright test --list --reporter=json', { PLAYWRIGHT_JSON_OUTPUT_NAME: file });
+  const listing = sh(testCommand('--list --reporter=json'), { PLAYWRIGHT_JSON_OUTPUT_NAME: file });
   let specs: { title: string; tags: string[] }[];
   try {
     specs = (JSON.parse(fs.readFileSync(file, 'utf8')).suites as ListedSuite[]).flatMap(listedSpecs);
@@ -397,7 +399,7 @@ function sensitivityGate(request: Request): Gate | null {
 
   const tests = new Map<string, string[]>();
   for (const target of targets) {
-    const run = runJson(tagGrep(request.key), '', target.env);
+    const run = runJson(tagGrep(request.key), '', targetEnv(target));
     for (const outcome of run.report.filter((t) => !t.expectedToFail)) {
       const name = `${outcome.file}: ${outcome.title}`;
       const caught = tests.get(name) ?? [];
@@ -491,7 +493,7 @@ export function a11ySummary(report: A11yReport): { summary: string; table: strin
 function accessibilityGate(request: Request): Gate | null {
   if (!config.accessibility?.enabled || request.mode !== 'built') return null;
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-a11y-')), 'report.json');
-  sh(`npx playwright test --grep "${tagGrep(request.key)}" --retries=0 --reporter=json`, { QA_A11Y: '1', PLAYWRIGHT_JSON_OUTPUT_NAME: file });
+  sh(testCommand(`--grep "${tagGrep(request.key)}" --retries=0 --reporter=json`), { QA_A11Y: '1', PLAYWRIGHT_JSON_OUTPUT_NAME: file });
   if (!fs.existsSync(file)) return { name: 'Accessibility', passed: false, advisory: true, summary: 'the scan run produced no report' };
 
   const report = a11yReport(JSON.parse(fs.readFileSync(file, 'utf8')));
@@ -534,6 +536,7 @@ export function assertionBalance(patch: string): { file: string; removed: number
  * assertions than it had.
  */
 export function runHealGates(files: string[], env: Record<string, string> = {}): GateReport {
+  prepareAuth();
   const changes = changedFiles();
   const patch = currentPatch();
   const inside = (file: string): boolean => config.writable.some((dir) => file.startsWith(dir));
@@ -553,19 +556,19 @@ export function runHealGates(files: string[], env: Record<string, string> = {}):
   const results: Gate[] = [
     { name: 'Scope', passed: scope.length === 0, summary: scope.length ? scope.join('; ') : `files changed: ${changes.map((c) => c.file).join(', ')}` },
     { name: 'Nothing weakened', passed: weakened.length === 0, summary: weakened.length ? weakened.join('; ') : 'no skips, no expected-failure markers, no assertions lost' },
-    commandGate('Types', 'npx tsc --noEmit', 'compiles'),
-    commandGate('Lint', `npx eslint ${config.writable.join(' ')}`, 'no lint errors'),
+    commandGate('Types', commands.typecheck, 'compiles'),
+    commandGate('Lint', lintCommand(), 'no lint errors'),
   ];
 
   if (results.every((gate) => gate.passed)) {
-    const healed = sh(`npx playwright test ${files.map((file) => `"${file}"`).join(' ')} --repeat-each=${config.stabilityRuns} --retries=0 --reporter=line`, env);
+    const healed = sh(testCommand(`${files.map((file) => `"${file}"`).join(' ')} --repeat-each=${config.stabilityRuns} --retries=0 --reporter=line`), env);
     results.push({
       name: 'Healed tests',
       passed: healed.ok,
       summary: healed.ok ? `the repaired files pass ${config.stabilityRuns} times in a row` : 'the repaired files still fail',
       output: healed.ok ? undefined : failureDigest(healed.output),
     });
-    const suite = sh('npx playwright test --retries=0 --reporter=line', env);
+    const suite = sh(testCommand('--retries=0 --reporter=line'), env);
     results.push({
       name: 'Full suite',
       passed: suite.ok,
@@ -579,18 +582,19 @@ export function runHealGates(files: string[], env: Record<string, string> = {}):
 // ── All together ─────────────────────────────────────────────────────────────
 
 export function runGates(request: Request, strategy: Strategy, generation: Generation): GateReport {
+  prepareAuth();
   const changes = changedFiles();
   const results: Gate[] = [
     scopeGate(changes),
-    commandGate('Types', 'npx tsc --noEmit', 'compiles'),
-    commandGate('Lint', `npx eslint ${config.writable.join(' ')}`, 'no lint errors'),
+    commandGate('Types', commands.typecheck, 'compiles'),
+    commandGate('Lint', lintCommand(), 'no lint errors'),
     markerGate(currentPatch(), request, generation),
   ];
 
   // No point starting a browser for code that does not compile.
   if (results.every((gate) => gate.passed)) {
     results.push(traceabilityGate(request, strategy));
-    results.push(commandGate('Full suite', 'npx playwright test --retries=0 --reporter=line', 'every test in the suite passes'));
+    results.push(commandGate('Full suite', testCommand('--retries=0 --reporter=line'), 'every test in the suite passes'));
 
     const stability = runJson(tagGrep(request.key), `--repeat-each=${config.stabilityRuns}`);
     results.push({

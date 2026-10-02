@@ -51,7 +51,7 @@ A repair may change how a test finds things, or a value that is now out of date.
 ${gatesMd(gates, 3)}`;
 }
 
-async function main(): Promise<void> {
+export async function heal(): Promise<void> {
   if (!exists('triage.json')) {
     console.error('qa-run/triage.json not found. Run the triage first.');
     process.exit(1);
@@ -83,8 +83,7 @@ ${projectDoc(config.conventions)}
     maxTurns: 60,
   });
 
-  const persona: Record<string, string> = process.env.SAUCE_USER ? { SAUCE_USER: process.env.SAUCE_USER } : {};
-  const gates = output.fixes.length ? runHealGates(specFiles(toHeal), persona) : null;
+  const gates = output.fixes.length ? runHealGates(specFiles(toHeal)) : null;
   const healed = gates?.passed ?? false;
   if (gates) {
     const markdown = healMd(output, gates, process.env.RUN_URL || null);
@@ -99,8 +98,10 @@ ${projectDoc(config.conventions)}
   save('heal.json', { ...output, gates });
   setOutput('healed', healed);
   setOutput('title', `fix(tests): repair ${output.fixes.length} test defect(s) found by triage`);
+  // For the job that opens the pull request, which has no config loaded.
+  setOutput('writable', config.writable.join(' '));
   console.log(healed ? '\nRepair ready: qa-run/heal.patch' : '\nNo repair to offer.');
 }
 
 // Only when run as a script, so the unit tests can import the helpers above.
-if (process.argv[1]?.replace(/\\/g, '/').endsWith('agents/heal.ts')) await main();
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('agents/heal.ts')) await heal();

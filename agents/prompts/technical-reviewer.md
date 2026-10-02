@@ -11,8 +11,8 @@ The architect starts from your notes, and the engineer reads them while writing 
    - `covered`: existing tests that already prove part of it. Name the file and the test title exactly as they are
      written, copied from the file, never from memory.
    - `pages`: each page object member the new tests will use, and whether it exists today. Say which are missing.
-3. Open the app in the browser, sign in with the default persona from `fixtures/personas.ts`, and look at the
-   pages the requirement is about. Note routes, test ids and behaviour the engineer will need in `notes`. If what
+3. Open the app in the browser. If it is not already signed in, sign in the way the product brief says, as the
+   default persona. Look at the pages the requirement is about. Note routes, test ids and behaviour the engineer will need in `notes`. If what
    you see disagrees with a criterion, say so there. Close the browser when you are done.
 4. `touches`: nearby behaviour the change could break because it shares a control, a page or a piece of state. For
    each, name the test that guards it as `tests/<file>: <test title>`, but only after reading the test and only if

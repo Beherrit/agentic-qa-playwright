@@ -9,8 +9,8 @@ from your plan and nothing else, so it has to be precise.
    cover part of the requirement, the page objects the tests will use and the nearby behaviour at risk, already
    checked against the repository. Start from it. Search `tests/` and `pages/` for anything it does not answer.
    List the existing tests that already prove part of it. Do not plan a test that duplicates one.
-2. **Look at the real thing.** Open the app in the browser, sign in with the default persona from
-   `fixtures/personas.ts`, and walk through the feature. Note what you see that the engineer will need: the exact
+2. **Look at the real thing.** Open the app in the browser. If it is not already signed in, sign in the way the
+   product brief says, as the default persona. Walk through the feature. Note what you see that the engineer will need: the exact
    labels, the controls and their accessible names, what changes on screen after each action. If the app behaves
    differently from an acceptance criterion, say so in your site notes. That is a finding, not something to plan
    around.

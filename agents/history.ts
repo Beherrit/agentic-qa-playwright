@@ -23,7 +23,7 @@ function readJson(file: string): unknown {
   }
 }
 
-function record(dir: string, out: string): void {
+export function record(dir: string, out: string): void {
   const files: RunFiles = {};
   for (const name of FILES) {
     const value = readJson(path.join(dir, name));
@@ -51,7 +51,7 @@ function record(dir: string, out: string): void {
 
 const readLog = (file: string): RunEntry[] => (fs.existsSync(file) ? parseRunLog(fs.readFileSync(file, 'utf8')) : []);
 
-function render(dir: string, entryFile?: string): void {
+export function render(dir: string, entryFile?: string): void {
   fs.mkdirSync(dir, { recursive: true });
   const log = path.join(dir, 'runs.jsonl');
   let entries = newestFirst(readLog(log));
@@ -66,10 +66,13 @@ function render(dir: string, entryFile?: string): void {
   console.log(`History has ${entries.length} runs.`);
 }
 
-const [command, first, second] = process.argv.slice(2);
-if (command === 'record' && first && second) record(first, second);
-else if (command === 'render' && first) render(first, second);
-else {
-  console.error('Usage: history.ts record <qa-run dir> <out file> | render <history dir> [entry file]');
-  process.exit(2);
+// Only when run as a script; the CLI imports record and render.
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('agents/history.ts')) {
+  const [command, first, second] = process.argv.slice(2);
+  if (command === 'record' && first && second) record(first, second);
+  else if (command === 'render' && first) render(first, second);
+  else {
+    console.error('Usage: history.ts record <qa-run dir> <out file> | render <history dir> [entry file]');
+    process.exit(2);
+  }
 }

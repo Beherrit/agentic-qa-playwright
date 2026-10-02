@@ -7,8 +7,12 @@ name: QA tests
 # The ticket is read again here, because whether the feature is built may have changed since the
 # analysis: a story analysed before development can get its tests written test-first, or after.
 
+# Another repository runs this same workflow with `uses:` (see qa-analysis.yml).
+
 on:
   issues:
+    types: [labeled]
+  pull_request:
     types: [labeled]
   repository_dispatch:
     types: [qa-generate]
@@ -17,31 +21,48 @@ on:
       source:
         description: Where the requirement lives
         type: choice
-        options: [github, jira]
+        options: [github, jira, pr]
         default: github
       ref:
-        description: Issue number (GitHub) or ticket key (Jira)
+        description: Issue or pull request number (github, pr) or ticket key (jira)
         required: true
         type: string
+  workflow_call:
+    inputs:
+      source:
+        description: Where the requirement lives, for a manual run of the caller
+        type: string
+        default: ''
+      ref:
+        description: The ticket, for a manual run of the caller
+        type: string
+        default: ''
+      analysis_workflow:
+        description: The caller's path for the analysis half, whose artifact this picks up
+        type: string
+        default: .github/workflows/qa-analysis.yml
 
 concurrency:
   group: >-
-    ${{ (github.event_name != 'issues' || github.event.label.name == 'qa-generate')
-    && format('qa-tests-{0}', github.event.issue.number || github.event.client_payload.ref || inputs.ref)
+    ${{ ((github.event_name != 'issues' && github.event_name != 'pull_request') || github.event.label.name == 'qa-generate')
+    && format('qa-tests-{0}', github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref)
     || format('qa-ignored-{0}', github.run_id) }}
   cancel-in-progress: true
 
 permissions: {}
 
 env:
-  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event.client_payload.source || inputs.source }}
-  REF: ${{ github.event.issue.number || github.event.client_payload.ref || inputs.ref }}
+  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event_name == 'pull_request' && 'pr' || github.event.client_payload.source || inputs.source }}
+  REF: ${{ github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 jobs:
   prepare:
     name: 0 Ticket and analysis
-    if: github.event_name != 'issues' || github.event.label.name == 'qa-generate'
+    if: >-
+      ${{ (github.event_name != 'issues' && github.event_name != 'pull_request')
+      || (github.event.label.name == 'qa-generate'
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10
@@ -49,12 +70,13 @@ jobs:
       actions: read
       contents: read
       issues: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -67,7 +89,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
-          npm run pipeline -- intake --source "$SOURCE" --ref "$REF"
+          npx agentic-qa intake --source "$SOURCE" --ref "$REF"
           cp qa-run/request.json "$RUNNER_TEMP/request.json"
 
       # Kept even if a later step fails, so the report job can tell the ticket why.
@@ -86,6 +108,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT: ${{ steps.intake.outputs.artifact }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          ANALYSIS_WORKFLOW: ${{ inputs.analysis_workflow || '.github/workflows/qa-analysis.yml' }}
         run: |
           candidates=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT&per_page=50" --jq '
             [.artifacts[]
@@ -97,9 +120,10 @@ jobs:
           for id in $candidates; do
             run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq '[.path, .event] | join(" ")')
             case "$run" in
-              ".github/workflows/qa-analysis.yml issues" | \
-              ".github/workflows/qa-analysis.yml repository_dispatch" | \
-              ".github/workflows/qa-analysis.yml workflow_dispatch")
+              "$ANALYSIS_WORKFLOW issues" | \
+              "$ANALYSIS_WORKFLOW pull_request" | \
+              "$ANALYSIS_WORKFLOW repository_dispatch" | \
+              "$ANALYSIS_WORKFLOW workflow_dispatch")
                 run_id=$id
                 break ;;
             esac
@@ -121,7 +145,7 @@ jobs:
       - name: Check the plan is good enough to write tests from
         run: |
           cp "$RUNNER_TEMP/request.json" qa-run/request.json
-          npm run pipeline -- check-plan
+          npx agentic-qa check-plan
 
       - uses: actions/upload-artifact@v4
         with:
@@ -129,14 +153,16 @@ jobs:
           path: qa-run/
           overwrite: true
 
-  generate:
-    name: 1 Code generation + gates
+  # The engineer writes, with the credentials. The gates run in the next job, which has none: the whole
+  # suite, the stability runs, the known-broken targets and the accessibility scan all execute generated
+  # test code, and that code never sees a model token. The engineer still runs the tests it writes as it
+  # goes, so the token is exposed to generated code for that long; see SECURITY.md.
+  write:
+    name: 1 Code generation
     needs: prepare
     runs-on: ubuntu-latest
     environment: POC
-    # The engineer can take a second pass when the gates fail, and the gates run the whole suite
-    # each time, plus the new tests against each known-broken target.
-    timeout-minutes: 60
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -144,22 +170,59 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
       - uses: actions/download-artifact@v4
         with:
           name: qa-run
           path: qa-run
 
-      - name: Write the tests and run the gates
+      - name: Write the tests
         id: stage
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- generate
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa write
 
-      # Uploaded on failure too: the patch and the gate report are what you need to see why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  gates:
+    name: 1b Quality gates
+    needs: write
+    runs-on: ubuntu-latest
+    # The gates run the whole suite each time, plus the new tests against each known-broken target.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      gates: ${{ steps.stage.outputs.gates }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      # Exits 0 whether the gates pass or fail; the `gates` output says which, and the fix job reads it.
+      - name: Run the gates
+        id: stage
+        run: npx agentic-qa gates
+
       - uses: actions/upload-artifact@v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
@@ -168,18 +231,113 @@ jobs:
           overwrite: true
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: steps.stage.outputs.gates != 'passed'
         with:
-          name: generate-playwright-output
+          name: gates-playwright-output
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 14
 
+  # One fix round: the gate report goes back to the engineer once, and the gates run again.
+  fix:
+    name: 1c Fix round
+    needs: gates
+    if: needs.gates.outputs.gates == 'failed'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      - name: Fix what the gates found
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa fix
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  gates-again:
+    name: 1d Quality gates again
+    needs: fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      gates: ${{ steps.stage.outputs.gates }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      - name: Run the gates
+        id: stage
+        run: npx agentic-qa gates
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - uses: actions/upload-artifact@v4
+        if: steps.stage.outputs.gates != 'passed'
+        with:
+          name: gates-playwright-output
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+          overwrite: true
+
+      # The tests failed the gates twice. The job turns red here, so the run says so.
+      - if: steps.stage.outputs.gates != 'passed'
+        run: |
+          echo "::error title=Gates failed::The generated tests did not pass the quality gates after the fix round. See qa-run/gates.md in the artifact."
+          exit 1
+
   review:
     name: 2 Code review
-    needs: generate
+    needs: [gates, gates-again]
+    # The gates passed first time (the fix round was skipped), or after the fix round.
+    if: ${{ !cancelled() && (needs.gates.outputs.gates == 'passed' || needs.gates-again.outputs.gates == 'passed') }}
     runs-on: ubuntu-latest
     environment: POC
     timeout-minutes: 20
@@ -192,7 +350,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -202,7 +360,7 @@ jobs:
           path: qa-run
 
       - name: Apply the generated change
-        run: npm run pipeline -- apply
+        run: npx agentic-qa apply
 
       - name: Review the change
         id: stage
@@ -210,7 +368,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- review
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa review
 
       - uses: actions/upload-artifact@v4
         with:
@@ -234,7 +393,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
       - uses: actions/download-artifact@v4
         with:
@@ -242,7 +401,7 @@ jobs:
           path: qa-run
 
       - name: Apply the generated change
-        run: npm run pipeline -- apply
+        run: npx agentic-qa apply
 
       - name: Rework and review again
         id: stage
@@ -250,7 +409,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- rework
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa rework
 
       # Uploaded on failure too, so the ticket gets the gate report of the reworked tests.
       - uses: actions/upload-artifact@v4
@@ -284,7 +444,7 @@ jobs:
           persist-credentials: false
 
       # The report stage runs through tsx, so the dependencies are needed. The browser is not.
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -295,15 +455,16 @@ jobs:
 
       - name: Write the pull request description
         id: report
-        run: npm run pipeline -- report
+        run: npx agentic-qa report
 
       - name: Apply the generated change
-        run: npm run pipeline -- apply
+        run: npx agentic-qa apply
 
       - name: Push the branch
         env:
           BRANCH: ${{ steps.report.outputs.branch }}
           TITLE: ${{ steps.report.outputs.title }}
+          WRITABLE: ${{ steps.report.outputs.writable }}
           GH_TOKEN: ${{ github.token }}
         run: |
           # The branch is force-pushed, so make sure it is one of ours before going on.
@@ -314,7 +475,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add -- tests pages fixtures
+          # The writable folders from qa.config.json, as the report stage listed them.
+          # shellcheck disable=SC2086
+          git add -- $WRITABLE
           if git diff --cached --quiet; then
             echo "::error::The generated change is empty. Nothing to open a pull request for."
             exit 1
@@ -330,7 +493,8 @@ jobs:
           BRANCH: ${{ steps.report.outputs.branch }}
           TITLE: ${{ steps.report.outputs.title }}
           DRAFT: ${{ steps.report.outputs.draft }}
-          BASE: ${{ github.event.repository.default_branch }}
+          # A requirement that arrived as a pull request gets its tests on that pull request's branch.
+          BASE: ${{ steps.report.outputs.base || github.event.repository.default_branch }}
         run: |
           existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
@@ -351,7 +515,7 @@ jobs:
   # Tells the ticket how it went: the pull request, the failed gates, or that the run broke.
   report:
     name: 4 Report on the ticket
-    needs: [prepare, generate, review, rework, publish]
+    needs: [prepare, write, gates, fix, gates-again, review, rework, publish]
     # Also when prepare failed: the ticket should hear that there was no analysis to work from.
     if: ${{ !cancelled() && needs.prepare.result != 'skipped' }}
     runs-on: ubuntu-latest
@@ -360,12 +524,13 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -384,4 +549,4 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           PR_URL: ${{ needs.publish.outputs.url }}
-        run: npm run pipeline -- notify tests
+        run: npx agentic-qa notify tests

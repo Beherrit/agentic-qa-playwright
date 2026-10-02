@@ -1,0 +1,30 @@
+name: Regression
+
+# The whole suite on push, pull requests, nightly and on demand. Failures are triaged by an agent; product bugs
+# are filed as issues and test defects are repaired in a pull request.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      persona:
+        description: Sign in as this account (empty for the suite's default)
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  regression:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/regression.yml@main
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      persona: ${{ inputs.persona }}
+    secrets: inherit

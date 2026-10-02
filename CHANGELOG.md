@@ -3,7 +3,41 @@
 What changed, newest first, reconstructed from the git history. There are no version numbers yet: the pipeline is
 deployed from `main`, so each entry is dated by its commits.
 
-## Unreleased (branch `cloud/improvements`)
+## Unreleased
+
+### Added
+
+- **The engine is a tool a project installs.** `npx agentic-qa` is the command line; the package installs from git
+  into any Playwright project; `npx agentic-qa init` writes the config, the documents, the four caller workflows,
+  the issue form, `.mcp.json` and the fault fixture; the engine's workflows take `workflow_call`. Two roots: the
+  package (prompts, templates) and the project (the nearest `qa.config.json`, or `QA_PROJECT_ROOT`).
+- **`survey`:** an agent reads an existing suite and drafts the product brief, the conventions and the `suite`,
+  `personas` and `auth` settings. Every path and command it names is checked before anything is written.
+- **A pull request as a requirement** (`source: pr`): its description, files and diff are the ticket; the analyst
+  derives behaviour from the change; the tests are opened against the pull request's own branch, and run against
+  `app.previewUrl` when set.
+- **Sign-in through a storage state** (`auth.setup`, `auth.storageState`), run once before the tests and before any
+  agent gets a browser, which starts from it.
+- **Fault injection** as a sensitivity target: an init script and route rules make a broken version of the app for
+  one run, applied by `fixtures/fault.ts`. The demo has one that removes the cart badge.
+- **Model providers and a budget:** `QA_PROVIDER_ENV` carries Bedrock or Vertex settings in one secret;
+  `budget.maxUsdPerRun` stops a run at the cap and gives each agent what is left.
+- **Azure DevOps Boards and Linear** as trackers, and `coverage --export junit|xray|testrail`.
+- Commands `suite`, `check`, `coverage`, `triage`, `heal`, `history` and `mcp` on the one command line.
+
+### Changed
+
+- The config is read through a zod schema with defaults, so a host config can be five lines and `doctor` names
+  every wrong field. `suite.commands`, `suite.specGlob`, `suite.testImport` and `personas.envVar` replace what used
+  to be this repository's own shape; `QA_PERSONA` replaces `SAUCE_USER` in the engine and the workflows, and the
+  suite receives it under the variable it reads.
+- Code generation is three jobs: the engineer writes with the credentials, the gates run in a job with none, and
+  the one fix round is a job of its own.
+- The prompts no longer name `fixtures/personas.ts`; an agent signs in the way the product brief says, or starts
+  from the storage state.
+- The demo guide is written around a fresh end-to-end run (issue #17) and a two-minute install into another project.
+
+## 2026-10-02, second pass (pull request #16)
 
 ### Added
 
@@ -19,6 +53,7 @@ deployed from `main`, so each entry is dated by its commits.
 - `docs/ARCHITECTURE.md`, `docs/OPERATIONS.md`, `SECURITY.md`, `CONTRIBUTING.md`, this changelog and a pull request
   template.
 - `npm run check` (types, lint, unit tests) and `npm run pipeline -- --help`.
+- `.mcp.json`, so Claude Code in this checkout finds the MCP server without `claude mcp add`.
 
 ### Changed
 
