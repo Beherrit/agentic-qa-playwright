@@ -38,6 +38,12 @@ Start here. This ticket went through both halves of the pipeline.
    run for this ticket. Each stage is a job in the graph. Click "1 Code generation + gates" to see the agent's work
    line by line, including the tools it was refused.
 
+5. **The ticket writer, before and after:** the [last comment on the ticket](https://github.com/Beherrit/agentic-qa-playwright/issues/11#issuecomment-5958202688).
+   The same one-sentence wish, given to the writer (`npm run draft`), came back as a full ticket in about a minute: it
+   opened the shop, walked the product page, wrote ten criteria, listed what is out of scope, and refused to file
+   because it spotted that this ticket already asks for the same thing. That is how tickets get written from now on;
+   a person still reads the preview and says yes.
+
 The ticket has two comments in the middle that say no tests were produced. Leave them in the story: the first run
 was stopped by the gates because three of its tests failed, and the second by a safety check of mine that was too
 strict. The third is the pull request. A pipeline that only ever shows green has not been tested.
