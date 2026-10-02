@@ -21,6 +21,10 @@ Start here. This ticket went through both halves of the pipeline.
    - the critic's checklist. A second agent wrote it without seeing the plan, and the cases marked `*` were added
      because of it
    - **Nearby behaviour at risk**: what this feature could break, and which existing test would notice
+   - the **Technical review** under the requirements (on runs since it was added): the existing tests that already
+     cover part of the ticket, the page objects the tests will use, related open tickets, and a line for each claim
+     the checks took out because the file, test or ticket it named does not exist. A ticket from the ticket writer
+     says "No reviewer run": its notes were read back from the ticket and checked, not written again
 3. **The pull request:** [#12](https://github.com/Beherrit/agentic-qa-playwright/pull/12), 32 tests. Point at:
    - **Suspected product bugs**: the engineer found that the page for a product that does not exist still offers
      Add to cart, and that the item can be added. The tests assert the right behaviour and are marked as expected

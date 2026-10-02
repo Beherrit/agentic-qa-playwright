@@ -6,7 +6,7 @@ import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
 import { config } from './lib/paths.ts';
 import { Request } from './lib/schemas.ts';
 import { exists, reset, save, setOutput } from './lib/store.ts';
-import { intakeTicket } from './sources/index.ts';
+import { intakeTicket, sourceFor } from './sources/index.ts';
 import * as stages from './stages.ts';
 
 /**
@@ -58,6 +58,12 @@ async function intake(): Promise<void> {
   // A new requirement starts from an empty run folder, so nothing left by the last one is mistaken for its own.
   reset();
   save('request.json', request);
+  // The technical review checks related tickets against these. Its job has no tracker token, so they are kept now.
+  try {
+    save('open-tickets.json', await sourceFor(request.source).list());
+  } catch (error) {
+    console.warn(`Could not list the open tickets, so no related ticket will be kept: ${error instanceof Error ? error.message : error}`);
+  }
   setOutput('key', request.key);
   setOutput('artifact', artifactFor(request.key));
   setOutput('mode', request.mode);
@@ -77,6 +83,7 @@ async function analyze(): Promise<boolean> {
   if (!exists('request.json') || values.source !== undefined || values.text || values.file) await intake();
   let ok = await stages.requirements();
   if (ok) {
+    await stages.technical();
     await Promise.all([stages.plan(), stages.critic()]);
     ok = await stages.reconcile();
   }
@@ -103,6 +110,7 @@ const commands: Record<string, () => unknown> = {
   intake,
   draft: () => writeTicket({ text: values.text, file: values.file, source: values.source, answers: values.answers, yes: values.yes }),
   requirements: stages.requirements,
+  technical: stages.technical,
   plan: stages.plan,
   critic: stages.critic,
   reconcile: async () => (await stages.reconcile()) || stop(`The plan scored below ${config.minPlanScore}.`),

@@ -58,6 +58,53 @@ export const Requirements = z.object({
 });
 export type Requirements = z.infer<typeof Requirements>;
 
+// ── Technical notes: the ticket writer's, or the technical review's ─────────
+
+export const Technical = z
+  .object({
+    covered: z
+      .array(
+        z.object({
+          file: z.string().describe('Repo path, e.g. tests/cart.spec.ts'),
+          test: z.string().describe('The exact test title'),
+          covers: z.string().describe('Which part of the wish it already proves'),
+        }),
+      )
+      .describe('Existing tests that already prove part of the wish'),
+    pages: z
+      .array(
+        z.object({
+          file: z.string().describe('Page object path, e.g. pages/CartPage.ts'),
+          member: z.string().describe('Locator or method the tests will use, e.g. cartBadge or remove(name)'),
+          exists: z.boolean().describe('False when it would have to be added'),
+          note: z.string(),
+        }),
+      )
+      .describe('Page objects and the locators or methods the tests will use'),
+    touches: z
+      .array(
+        z.object({
+          area: z.string().describe('Existing behaviour this change could break'),
+          why: z.string().describe('What the two share: a control, a page, a piece of state'),
+          guardedBy: z.string().nullable().describe('The existing test that would catch it, as "tests/<file>: <title>". Null when nothing does.'),
+        }),
+      )
+      .describe('Nearby behaviour the change could break, and whether the suite would notice'),
+    related: z.array(z.object({ ref: z.string(), why: z.string() })).describe('Open tickets or bugs that bear on this wish'),
+    notes: z.string().describe('Anything else the engineer needs: routes, test ids, behaviour seen in the browser'),
+  })
+  .describe('What an engineer needs to know about the code and tests, checked against the repository');
+export type Technical = z.infer<typeof Technical>;
+
+// ── Stage 1b: technical review ───────────────────────────────────────────────
+
+/** The technical notes every ticket gets, written by the reviewer or taken from the ticket writer's notes. */
+export const TechnicalReview = Technical.extend({
+  risk: z.enum(['high', 'medium', 'low']),
+  riskReason: z.string().describe('What breaks for the user if this is wrong, and how likely it is'),
+});
+export type TechnicalReview = z.infer<typeof TechnicalReview>;
+
 // ── Before stage 1: the ticket writer ────────────────────────────────────────
 
 export const TicketDraft = z.object({
@@ -75,40 +122,7 @@ export const TicketDraft = z.object({
   outOfScope: z.array(z.string()),
   risk: z.enum(['high', 'medium', 'low']),
   riskReason: z.string(),
-  technical: z
-    .object({
-      covered: z
-        .array(
-          z.object({
-            file: z.string().describe('Repo path, e.g. tests/cart.spec.ts'),
-            test: z.string().describe('The exact test title'),
-            covers: z.string().describe('Which part of the wish it already proves'),
-          }),
-        )
-        .describe('Existing tests that already prove part of the wish'),
-      pages: z
-        .array(
-          z.object({
-            file: z.string().describe('Page object path, e.g. pages/CartPage.ts'),
-            member: z.string().describe('Locator or method the tests will use, e.g. cartBadge or remove(name)'),
-            exists: z.boolean().describe('False when it would have to be added'),
-            note: z.string(),
-          }),
-        )
-        .describe('Page objects and the locators or methods the tests will use'),
-      touches: z
-        .array(
-          z.object({
-            area: z.string().describe('Existing behaviour this change could break'),
-            why: z.string().describe('What the two share: a control, a page, a piece of state'),
-            guardedBy: z.string().nullable().describe('The existing test that would catch it, as "tests/<file>: <title>". Null when nothing does.'),
-          }),
-        )
-        .describe('Nearby behaviour the change could break, and whether the suite would notice'),
-      related: z.array(z.object({ ref: z.string(), why: z.string() })).describe('Open tickets or bugs that bear on this wish'),
-      notes: z.string().describe('Anything else the engineer needs: routes, test ids, behaviour seen in the browser'),
-    })
-    .describe('What an engineer needs to know about the code and tests, checked against the repository'),
+  technical: Technical,
   duplicates: z.array(z.object({ ref: z.string(), reason: z.string() })).describe('Open tickets that ask for the same thing'),
   questions: z.array(
     z.object({

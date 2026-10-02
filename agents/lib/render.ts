@@ -1,7 +1,9 @@
 import type { GateReport } from '../gates.ts';
 import type { Generation, Request, Requirements, Review, Strategy, Triage } from './schemas.ts';
+import { technicalSection } from './draft.ts';
 import { config, LABELS } from './paths.ts';
 import type { RunRecord } from './store.ts';
+import type { TechnicalResult } from './technical.ts';
 
 /** Turns each stage's structured output into the markdown people read on the issue, the job summary and the PR. */
 
@@ -19,7 +21,36 @@ export function ticketRef(request: Request): string {
 const TEST_FIRST_NOTE =
   'Written test-first: the feature is not built yet, so these tests are marked as expected failures. On the day it lands, Playwright reports them as "expected to fail, but passed". That is the signal to remove the markers.';
 
-export function requirementsMd(request: Request, req: Requirements): string {
+/** The technical review, as a section of the requirements. */
+export function technicalMd(review: TechnicalResult): string {
+  const origin =
+    review.by === 'ticket-writer'
+      ? "_Taken from the ticket writer's notes and checked against the repository. No reviewer run._"
+      : '_Written by the technical reviewer and checked against the repository._';
+  const unguarded = review.touches.filter((t) => !t.guardedBy).length;
+  const facts = `${review.covered.length} existing test(s) already cover part of it, ${review.pages.filter((p) => !p.exists).length} page object member(s) to add, ${
+    review.touches.length ? `${unguarded} of ${review.touches.length} nearby behaviours unguarded` : 'no nearby behaviour at risk'
+  }.`;
+  const dropped = review.dropped.length
+    ? `
+
+<details><summary>Taken out by the checks (${review.dropped.length})</summary>
+
+${list(review.dropped)}
+
+</details>`
+    : '';
+  return `### Technical review
+
+${origin} ${facts}
+
+**Technical risk:** ${review.risk}. ${review.riskReason}
+
+${technicalSection(review)}${dropped}
+`;
+}
+
+export function requirementsMd(request: Request, req: Requirements, technical: TechnicalResult | null = null): string {
   const blocking = req.openQuestions.filter((q) => q.blocking);
   const other = req.openQuestions.filter((q) => !q.blocking);
   return `## Requirements: ${req.title} (${request.key})
@@ -45,7 +76,7 @@ ${
   blocking.length
     ? `\n### Questions that block testing\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\nThe pipeline has stopped here. Answer these on the ticket, then add the \`${LABELS.analyze}\` label again.\n`
     : ''
-}${other.length ? `\n### Open questions (not blocking)\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''}`;
+}${other.length ? `\n### Open questions (not blocking)\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''}${technical ? `\n${technicalMd(technical)}` : ''}`;
 }
 
 export function strategyMd(request: Request, strategy: Strategy, compact = false): string {
@@ -219,8 +250,9 @@ export function pullRequestMd(input: {
   review: Review;
   round: number;
   ledger: RunRecord[];
+  technical?: TechnicalResult | null;
 }): string {
-  const { request, requirements: req, strategy, generation, gates, review, round, ledger } = input;
+  const { request, requirements: req, strategy, generation, gates, review, round, ledger, technical = null } = input;
   const approved = review.verdict === 'approve';
   const testsFor = (criterion: string): string =>
     generation.automated
@@ -264,7 +296,7 @@ ${gatesMd(gates).replace(/^## /, '### ').trim()}
 
 <details><summary>Requirements</summary>
 
-${requirementsMd(request, req)}
+${requirementsMd(request, req, technical)}
 
 </details>
 
@@ -325,10 +357,11 @@ export function analysisMd(input: {
   request: Request;
   requirements: Requirements | null;
   strategy: Strategy | null;
+  technical?: TechnicalResult | null;
   runUrl: string | null;
   compact?: boolean;
 }): string {
-  const { request, requirements: req, strategy, runUrl, compact = false } = input;
+  const { request, requirements: req, strategy, technical = null, runUrl, compact = false } = input;
   const run = runUrl ? ` [See the run](${runUrl}).` : '';
   const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
 
@@ -347,7 +380,7 @@ export function analysisMd(input: {
 
 ${status}
 
-${req ? requirementsMd(request, req) : ''}
+${req ? requirementsMd(request, req, technical) : ''}
 ${strategy ? strategyMd(request, strategy, compact) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
   return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
