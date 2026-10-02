@@ -16,7 +16,7 @@ name: QA run history
 
 on:
   workflow_run:
-    workflows: ['QA analysis', 'QA tests']
+    workflows: ['QA analysis', 'QA tests', 'Regression']
     types: [completed]
   # Another repository runs this same workflow with `uses:` from its own workflow_run trigger.
   workflow_call: {}
@@ -31,8 +31,11 @@ concurrency:
 jobs:
   record:
     name: Record the run
-    # A trigger that did nothing (another label, say) is not a run.
-    if: github.event.workflow_run.conclusion != 'skipped'
+    # A trigger that did nothing (another label, say) is not a run. A regression run counts only on the default
+    # branch: pull request runs would record every branch's flakes against the suite.
+    if: >-
+      ${{ github.event.workflow_run.conclusion != 'skipped'
+      && (github.event.workflow_run.name != 'Regression' || github.event.workflow_run.head_branch == github.event.repository.default_branch) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -45,19 +48,28 @@ jobs:
       CONCLUSION: ${{ github.event.workflow_run.conclusion }}
       FINISHED_AT: ${{ github.event.workflow_run.updated_at }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
       # The run may have stopped before it uploaded anything, so a missing artifact is not an error.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: qa-run
+          path: qa-run
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      # A regression run that failed leaves its triage verdicts in an artifact of their own.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        continue-on-error: true
+        with:
+          name: triage
           path: qa-run
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}

@@ -9,9 +9,9 @@ import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFir
  * Only this script reads the artifact, and it only parses JSON. Nothing in it is executed.
  */
 
-const FILES = ['request.json', 'requirements.json', 'strategy.json', 'generation.json', 'gates.json', 'review.json', 'round.json', 'ledger.json'];
+const FILES = ['request.json', 'requirements.json', 'strategy.json', 'generation.json', 'gates.json', 'review.json', 'round.json', 'ledger.json', 'triage.json'];
 const MAX_BYTES = 5 * 1024 * 1024;
-const WORKFLOWS: Record<string, 'analysis' | 'tests'> = { 'QA analysis': 'analysis', 'QA tests': 'tests' };
+const WORKFLOWS: Record<string, 'analysis' | 'tests' | 'regression'> = { 'QA analysis': 'analysis', 'QA tests': 'tests', Regression: 'regression' };
 
 /** The parsed file, or undefined when it is missing, too big or not JSON. */
 function readJson(file: string): unknown {
@@ -29,7 +29,9 @@ export function record(dir: string, out: string): void {
     const value = readJson(path.join(dir, name));
     if (value !== undefined) files[name] = value;
   }
-  if (!files['request.json']) {
+  // A regression run leaves no request; a green one leaves no artifact at all, and still counts (nothing was flaky).
+  const workflow = WORKFLOWS[process.env.WORKFLOW_NAME ?? ''];
+  if (!files['request.json'] && workflow !== 'regression') {
     console.log('No request.json in the artifact: the run was a skipped trigger. Nothing recorded.');
     return;
   }
@@ -37,7 +39,7 @@ export function record(dir: string, out: string): void {
     {
       runId: process.env.RUN_ID,
       runUrl: process.env.RUN_URL,
-      workflow: WORKFLOWS[process.env.WORKFLOW_NAME ?? ''],
+      workflow,
       conclusion: process.env.CONCLUSION,
       finishedAt: process.env.FINISHED_AT,
     },

@@ -112,6 +112,11 @@ export const ConfigSchema = z.object({
     .prefault({}),
   sensitivity: z.object({ required: z.boolean().default(false), targets: z.array(TargetSchema).default([]) }).prefault({}),
   accessibility: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false) }).prefault({}),
+  /**
+   * The full-suite gate. New tests must pass first time. An existing test that fails gets one retry when this is
+   * on; passing then counts as flaky and is reported, not blocked. Off, any failure in the suite blocks.
+   */
+  gates: z.object({ retryExistingOnce: z.boolean().default(true) }).prefault({}),
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
   /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0) }).prefault({}),

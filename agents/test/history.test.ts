@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, summary, type RunEntry } from '../lib/history.ts';
+import { buildEntry, cleanEntry, flakeCounts, historyHtml, historyMd, mergeEntries, summary, type RunEntry } from '../lib/history.ts';
 
 const META = {
   runId: 123,
@@ -226,5 +226,51 @@ describe('pages', () => {
   it('renders with no runs', () => {
     assert.ok(historyHtml([]).includes('No runs recorded yet.'));
     assert.ok(historyMd([]).includes('No runs recorded yet.'));
+  });
+});
+
+describe('regression runs and flaky tests', () => {
+  const meta = { runId: '77', runUrl: 'https://github.com/o/r/actions/runs/77', workflow: 'regression', conclusion: 'failure', finishedAt: '2026-10-02T23:00:00Z' };
+  const triage = {
+    failures: [
+      { test: 'Sort > opens the right product', verdict: 'flaky' },
+      { test: 'Cart > badge', verdict: 'product-bug' },
+      { test: 7, verdict: 'flaky' },
+    ],
+    reported: [{ test: 'a' }, { test: 'b' }],
+  };
+
+  it('records a regression run from its triage, and a green one from nothing', () => {
+    const red = buildEntry(meta, { 'triage.json': triage });
+    assert.equal(red.workflow, 'regression');
+    assert.equal(red.failedTests, 2);
+    assert.deepEqual(red.flaky, ['Sort > opens the right product']);
+    assert.equal(red.title, 'Regression: 2 failed, 1 flaky');
+    const green = buildEntry({ ...meta, conclusion: 'success' }, {});
+    assert.equal(green.failedTests, 0);
+    assert.deepEqual(green.flaky, []);
+    assert.equal(cleanEntry(JSON.parse(JSON.stringify(red)))?.flaky[0], 'Sort > opens the right product');
+  });
+
+  it('takes the flaky names from the full-suite gate of a tests run', () => {
+    const e = buildEntry({ ...meta, workflow: 'tests' }, { 'request.json': { key: 'REQ-17' }, 'gates.json': { passed: true, results: [{ name: 'Full suite', passed: true, flaky: ['Sort > opens', 'Sort > opens', 42] }] } });
+    assert.deepEqual(e.flaky, ['Sort > opens']);
+    assert.equal(e.failedTests, null);
+  });
+
+  it('counts how often a test was flaky in the newest runs, and says so in the summary', () => {
+    const entries = [
+      buildEntry({ ...meta, runId: '1', finishedAt: '2026-10-01T00:00:00Z' }, { 'triage.json': triage }),
+      buildEntry({ ...meta, runId: '2', finishedAt: '2026-10-02T00:00:00Z', conclusion: 'success' }, {}),
+      buildEntry({ ...meta, runId: '3', workflow: 'tests', finishedAt: '2026-10-03T00:00:00Z' }, { 'gates.json': { results: [{ name: 'Full suite', passed: true, flaky: ['Sort > opens the right product'] }] } }),
+      buildEntry({ ...meta, runId: '4', workflow: 'analysis', finishedAt: '2026-10-04T00:00:00Z' }, {}),
+    ];
+    assert.deepEqual(flakeCounts(entries), [{ test: 'Sort > opens the right product', count: 2, runs: 3 }]);
+    const s = summary(entries);
+    assert.equal(s.regressionRuns, 2);
+    assert.equal(s.analysisRuns, 1);
+    assert.match(historyMd(entries), /4 runs: 1 analysis, 1 tests, 2 regression/);
+    assert.match(historyMd(entries), /Flaky lately: Sort &gt; opens the right product \(2 of 3\)/);
+    assert.match(historyHtml(entries), /Regression: 2 failed, 1 flaky/);
   });
 });

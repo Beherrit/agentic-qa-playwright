@@ -18,7 +18,16 @@ import { commands, lintCommand, prepareAuth, suiteEnv, testCommand } from './lib
  * An advisory gate is reported but does not stop the run.
  * `output` is shown when the gate fails; `table` is markdown that is shown either way.
  */
-export type Gate = { name: string; passed: boolean; summary: string; output?: string; table?: string; advisory?: boolean };
+export type Gate = {
+  name: string;
+  passed: boolean;
+  summary: string;
+  output?: string;
+  table?: string;
+  advisory?: boolean;
+  /** Existing tests that failed once and passed on their retry. Reported, and kept in the run history. */
+  flaky?: string[];
+};
 export type GateReport = { passed: boolean; results: Gate[]; changed: string[] };
 
 type Shell = { ok: boolean; output: string };
@@ -259,7 +268,7 @@ type JsonResult = { status: string; error?: { message?: string }; errors?: { mes
 type JsonTest = { expectedStatus: string; status: string; annotations?: { type: string; description?: string }[]; results: JsonResult[] };
 type JsonSuite = { title: string; specs?: { title: string; file?: string; tags?: string[]; tests: JsonTest[] }[]; suites?: JsonSuite[] };
 
-export type TestOutcome = { file: string; title: string; status: string; expectedToFail: boolean; reasons: string[]; errors: string[] };
+export type TestOutcome = { file: string; title: string; tags: string[]; status: string; expectedToFail: boolean; reasons: string[]; errors: string[] };
 
 const stripAnsi = (text: string): string => text.replace(/\u001b\[[0-9;]*m/g, '');
 
@@ -273,6 +282,7 @@ export function outcomes(report: { suites?: JsonSuite[] }): TestOutcome[] {
         return {
           file: spec.file ?? '',
           title: [...names, spec.title].join(' > '),
+          tags: (spec.tags ?? []).map((tag) => tag.replace(/^@/, '')),
           status: test.status,
           expectedToFail: test.expectedStatus === 'failed' || annotations.some((a) => a.type === 'fail'),
           reasons: annotations.filter((a) => a.type === 'fail').map((a) => a.description ?? ''),
@@ -316,10 +326,10 @@ export function wrongReasons(results: TestOutcome[]): string[] {
     });
 }
 
-/** Runs the tests matching a grep with a JSON report written to a temporary file, and returns both. */
-function runJson(grep: string, extra: string, env: Record<string, string> = {}): Shell & { report: TestOutcome[] } {
+/** Runs the suite with the given arguments and a JSON report written to a temporary file, and returns both. */
+function runJson(args: string, env: Record<string, string> = {}): Shell & { report: TestOutcome[] } {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-gate-')), 'report.json');
-  const result = sh(testCommand(`--grep "${grep}" --retries=0 --reporter=line,json ${extra}`), {
+  const result = sh(testCommand(`--retries=0 --reporter=line,json ${args}`.trim()), {
     ...env,
     PLAYWRIGHT_JSON_OUTPUT_NAME: file,
   });
@@ -369,6 +379,58 @@ function traceabilityGate(request: Request, strategy: Strategy): Gate {
   };
 }
 
+// ── The whole suite ──────────────────────────────────────────────────────────
+
+/** The failures in a run, split into this requirement's tests and everyone else's. */
+export function splitFailures(report: TestOutcome[], key: string): { mine: TestOutcome[]; existing: TestOutcome[] } {
+  const failed = report.filter((t) => t.status === 'unexpected');
+  return { mine: failed.filter((t) => t.tags.includes(key)), existing: failed.filter((t) => !t.tags.includes(key)) };
+}
+
+/** A --grep that runs exactly these tests again. Playwright matches it against the titles joined by spaces. */
+export function grepFor(titles: string[]): string {
+  const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return titles.map((title) => `${title.split(' > ').map(escape).join(' ')}$`).join('|');
+}
+
+const names = (tests: TestOutcome[]): string => tests.map((t) => `"${t.title}"`).join(', ');
+
+/**
+ * Every test in the suite has to pass. A new test gets no second chance. An existing test that fails is run once
+ * more, by itself: if it passes then, it was flaky and the gate says so by name without blocking, so a flake
+ * elsewhere in the suite does not sink a change that did not touch it. If it fails again, something this change
+ * did (a page object, a fixture) broke it, and the gate blocks. `gates.retryExistingOnce` turns the retry off.
+ */
+function fullSuiteGate(request: Request): Gate {
+  const first = runJson('');
+  if (first.ok) return { name: 'Full suite', passed: true, summary: 'every test in the suite passes' };
+  const { mine, existing } = splitFailures(first.report, request.key);
+  if (mine.length || existing.length === 0 || !config.gates.retryExistingOnce) {
+    return {
+      name: 'Full suite',
+      passed: false,
+      summary: mine.length ? `${mine.length} of the new tests fail: ${names(mine)}` : existing.length ? `${existing.length} existing test(s) fail: ${names(existing)}` : 'the suite does not pass',
+      output: failureDigest(first.output),
+    };
+  }
+  const retry = runJson(`--grep "${grepFor(existing.map((t) => t.title))}"`);
+  const still = retry.report.filter((t) => t.status === 'unexpected');
+  if (still.length || !retry.ok) {
+    return {
+      name: 'Full suite',
+      passed: false,
+      summary: `${still.length} existing test(s) fail on a retry too: ${names(still)}. This change did not write them, so a page object or fixture it touched may have broken them`,
+      output: failureDigest(retry.output),
+    };
+  }
+  return {
+    name: 'Full suite',
+    passed: true,
+    summary: `every test passes; ${existing.length} existing test(s) failed once and passed on a retry, so they are flaky, not this change's: ${names(existing)}`,
+    flaky: existing.map((t) => t.title),
+  };
+}
+
 /** For each test, which known-broken targets it caught. */
 export type KillMatrix = { targets: string[]; tests: { title: string; caught: string[] }[] };
 
@@ -399,7 +461,7 @@ function sensitivityGate(request: Request): Gate | null {
 
   const tests = new Map<string, string[]>();
   for (const target of targets) {
-    const run = runJson(tagGrep(request.key), '', targetEnv(target));
+    const run = runJson(`--grep "${tagGrep(request.key)}"`, targetEnv(target));
     for (const outcome of run.report.filter((t) => !t.expectedToFail)) {
       const name = `${outcome.file}: ${outcome.title}`;
       const caught = tests.get(name) ?? [];
@@ -594,9 +656,9 @@ export function runGates(request: Request, strategy: Strategy, generation: Gener
   // No point starting a browser for code that does not compile.
   if (results.every((gate) => gate.passed)) {
     results.push(traceabilityGate(request, strategy));
-    results.push(commandGate('Full suite', testCommand('--retries=0 --reporter=line'), 'every test in the suite passes'));
+    results.push(fullSuiteGate(request));
 
-    const stability = runJson(tagGrep(request.key), `--repeat-each=${config.stabilityRuns}`);
+    const stability = runJson(`--grep "${tagGrep(request.key)}" --repeat-each=${config.stabilityRuns}`);
     results.push({
       name: 'Stability',
       passed: stability.ok,
