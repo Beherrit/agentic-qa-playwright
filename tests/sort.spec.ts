@@ -162,7 +162,13 @@ test.describe('Product sorting', { tag: '@REQ-1' }, () => {
     await expectOrder(signedIn, 'lohi');
 
     for (const goBack of [() => productPage.backToProducts(), () => page.goBack()]) {
-      await signedIn.openProduct(BIKE_LIGHT);
+      // Right after the list is redrawn, a click on a product is sometimes swallowed and the page stays put
+      // (about one run in four). The click is repeated until the product page opens, so this test stays about
+      // what it is for: the order after coming back.
+      await expect(async () => {
+        await signedIn.openProduct(BIKE_LIGHT);
+        await expect(page).toHaveURL(/inventory-item/, { timeout: 2_000 });
+      }).toPass();
       await expect(productPage.name).toHaveText(BIKE_LIGHT);
       await goBack();
 

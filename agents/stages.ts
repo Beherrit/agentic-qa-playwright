@@ -183,17 +183,30 @@ export function planProblem(): string | null {
 // ── 3. Code generation, checked by the gates ─────────────────────────────────
 
 async function engineer(task: string): Promise<Generation> {
-  const { output } = await runAgent({
-    role: 'automation-engineer',
-    instructions: prompt('automation-engineer'),
-    task,
-    schema: Generation,
-    access: 'write',
-    browser: true,
-    maxTurns: 80,
-  });
-  return output;
+  const ask = (text: string) =>
+    runAgent({
+      role: 'automation-engineer',
+      instructions: prompt('automation-engineer'),
+      task: text,
+      schema: Generation,
+      access: 'write',
+      browser: true,
+      maxTurns: 80,
+    });
+
+  const first = await ask(task);
+  if (ranTheTests(first.commands)) return first.output;
+
+  // Writing tests and reporting on them without running them is the one shortcut that always costs a round.
+  console.log('\nThe engineer reported without running the tests. Sending it back once.');
+  const second = await ask(
+    `You handed in tests without running them. They are in the working tree. Run them now with \`npx playwright test <file> --reporter=line\`, read the output, fix what is wrong, and report on the complete change.\n\n${task}`,
+  );
+  return second.output;
 }
+
+/** Whether the engineer ran Playwright at least once. */
+export const ranTheTests = (commands: string[]): boolean => commands.some((command) => /\bplaywright\s+test\b/.test(command));
 
 function modeBrief(req: Request, strategy: Strategy): string {
   if (req.mode === 'built') {

@@ -61,8 +61,9 @@ The same ticket can be tested two ways, and the ticket says which: the `qa-test-
 | Stability | The new tests give the same result `stabilityRuns` times in a row (3 in the demo config) |
 | Fails for the right reason | Every expected failure failed on an assertion or a missing element, not on a `TypeError` or a network error. A crashing test also "fails as expected", and would otherwise sail through |
 | Sensitivity | The new tests are run against versions of the app known to be broken (`sensitivity.targets`); see below |
+| Accessibility | An axe scan of every page the new tests end on. Reported on the pull request; it stops a run only if `accessibility.required` is set |
 
-The last five only run if the first four pass.
+The last six only run if the first four pass.
 
 **Sensitivity** is the gate I would most want to be asked about. The reviewer's main question, would this test fail if the behaviour broke, is otherwise answered by a model reading code. Here it is answered by running it. Swag Labs ships accounts that break the shop on purpose, so the new tests run once as each of them, and the gate reports which tests each one caught, and which tests never failed against any of them. In your own app a target is any set of environment variables that points the suite at something known to be wrong: an old build, a feature flag, a stubbed backend. It is advisory by default, because a breakage elsewhere in the app proves nothing about your feature; set `sensitivity.required` to make it block.
 
@@ -87,6 +88,24 @@ Tests marked `test.fail()` that suddenly pass are not sent to the agent. They ar
 
 The quick way to see triage work: run Regression by hand with the persona `problem_user`. That is an account the demo shop breaks on purpose.
 
+### Self-healing
+
+When triage says a failure is the test's fault, a locator that no longer matches or an expected value that is out of date, a healer agent repairs the test and the repair is opened as a pull request against the branch that failed. It looks at the page as it is now, makes the smallest change, and says in one sentence what had changed in the app and what it changed in the test.
+
+New tests have to leave existing lines alone. A repair cannot, so its gates swap that rule for another: **nothing weakened**. No skips, no expected-failure markers, and no file left with fewer assertions than it had. Then the repaired files have to pass several times in a row, and so does the whole suite. A product bug is never healed: the test keeps failing and the bug is filed.
+
+To see it: the branch `demo/locator-drift` has one stale locator on the checkout page. Run Regression on that branch.
+
+### Accessibility
+
+The accessibility gate does not scan a list of URLs. With `QA_A11Y` set, the shared fixture attaches an axe scan to every passing test, taken on the page the test ended on. So the pages are scanned in the states the tests reach: signed in, cart filled, half way through checkout. The gate merges the findings by rule and puts them in the pull request, worst first, with the ones axe could not decide listed as needing a person.
+
+It never says a page passed. Automated checks find only part of what WCAG asks for, so a clean scan is reported as "no violations detected by axe", not as accessible. That rule comes from a separate compliance scanner of mine, which reports violations, items for human review and things not assessed, and has no pass state at all.
+
+### Run history
+
+After every QA analysis and QA tests run, a third workflow records what happened on the `qa-history` branch: the plan score, each gate's result, the review verdict, how many rounds it took, and the time and estimated cost of every agent. `README.md` on that branch is a table of all runs with totals: gate pass rate, how often the review approved first time, which gate fails most, average cost per run. `index.html` is the same as a dashboard, in one file with no external scripts, ready to be served by GitHub Pages once the repository is public.
+
 ## Guardrails
 
 The agents are useful only as long as the things around them are strict.
@@ -110,7 +129,9 @@ The agents are useful only as long as the things around them are strict.
 - In test-first mode the tests are only as good as the contract. If the developers build something the contract did not say, the tests fail for the wrong reason on the day the feature lands, and need a person to adjust them.
 - Jira comments are converted from markdown to Atlassian's document format. Headings, tables, lists, bold, code and links survive; if Jira refuses a document, the report is posted as plain text instead.
 - A run takes time and costs money, and both vary with the requirement. I am not quoting numbers here: the pull request description records turns, time and estimated cost for every agent run.
-- Swag Labs has no API and no source code I can reach, so every automated test in the demo is a browser test. The plan can still name lower-layer cases, so the gap is visible, but this repository cannot write them.
+- Swag Labs has no API and no source code I can reach, so every automated test against it is a browser test. The plan can still name lower-layer cases, so the gap is visible. The demo shop in `demo-app/` is there to close it; the suite has not been moved over to it yet.
+- The accessibility gate scans the page a test ends on, not every page it passes through.
+- The healer trusts triage's verdict. If triage calls a product bug a test defect, the healer is told to stop when it sees the app is wrong, and the gates stop a weakened test, but a person reading the pull request is the real check.
 
 ## Setup
 
@@ -214,6 +235,9 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `agents/triage.ts` | Failure triage for a regression run |
 | `agents/coverage.ts` | The traceability map (`npm run coverage`) |
 | `agents/doctor.ts` | The preflight check (`npm run doctor`) |
+| `agents/heal.ts` | Self-healing: repairs test defects found by triage (`npm run heal`) |
+| `agents/history.ts` | Records a run and renders the run history (`npm run history`) |
+| `demo-app/` | Pantry, a small shop with an API, bugs that can be switched on and a feature behind a flag (`npm run demo`) |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
 | `agents/prompts/` | One instruction file per role |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, keys and labels, markdown rendering, the run folder |
@@ -221,9 +245,22 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
 | `.github/workflows/qa-analysis.yml` | The analysis half: ticket in, analysis posted back |
 | `.github/workflows/qa-tests.yml` | The test half: analysis in, pull request out |
-| `.github/workflows/regression.yml` | Unit tests, the suite, the traceability map, and triage when it fails |
+| `.github/workflows/regression.yml` | Unit tests, the suite, the traceability map, and on failure: triage, bug filing and self-healing |
+| `.github/workflows/qa-history.yml` | Records every pipeline run on the `qa-history` branch |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
 | `.github/ISSUE_TEMPLATE/requirement.yml` | The "QA requirement" issue template |
+
+## The demo shop
+
+`demo-app/` holds Pantry, a small grocery shop written for this project: sign in, a product list with sorting, a cart, checkout with tax, and a JSON API behind all of it. It has no dependencies and starts with `npm run demo`.
+
+It exists because a practice site somebody else runs can only take a QA demo so far. Pantry adds three things:
+
+- **An API and source code.** The plan's lower-layer cases can be real tests. Pantry's own unit and API tests run in Regression (`npm run demo:test`).
+- **Bugs on a switch.** `BUGS=sort-price,tax-rounding npm run demo` starts the shop with those bugs in it. There are five, each one small and believable, each in one marked place. They are what the sensitivity gate needs: a version of the app that is known to be broken in a known way.
+- **A feature on a switch.** `FEATURES=search` turns on product search. Write the tests first against the shop without it, then switch it on and watch the expected failures report "expected to fail, but passed".
+
+The Playwright suite in this repository still runs against Swag Labs. Moving it to Pantry is the next step, and it is a config change plus a new set of page objects, which is the point of keeping everything app-specific in one place.
 
 ## Use it on your own app
 

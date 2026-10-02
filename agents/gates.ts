@@ -37,6 +37,20 @@ const git = (...args: string[]): string =>
 
 const tail = (text: string, lines = 40): string => text.split('\n').slice(-lines).join('\n');
 
+/**
+ * The part of a failed Playwright run worth reading: the first error in full, and the list of what failed.
+ * The plain tail of the output is mostly progress lines, which tell the engineer nothing.
+ */
+export function failureDigest(output: string): string {
+  const lines = stripAnsi(output).split('\n').filter((line) => !/^\s*\[\d+\/\d+\]/.test(line));
+  const firstError = lines.findIndex((line) => /^\s+1\) /.test(line));
+  const summary = lines.map((line) => /^\s+\d+ (failed|flaky|interrupted)\b/.test(line)).lastIndexOf(true);
+  if (firstError === -1 || summary === -1) return tail(lines.join('\n'));
+  const nextError = lines.findIndex((line, i) => i > firstError && /^\s+2\) /.test(line));
+  const error = lines.slice(firstError, Math.min(nextError === -1 ? summary : nextError, firstError + 30));
+  return [...error, '', ...lines.slice(summary, summary + 40)].join('\n').trim();
+}
+
 // ── What changed ─────────────────────────────────────────────────────────────
 
 export type Change = { status: string; file: string; from?: string };
@@ -148,7 +162,7 @@ function commandGate(name: string, command: string, okSummary: string): Gate {
     name,
     passed: result.ok,
     summary: result.ok ? okSummary : `\`${command}\` failed`,
-    output: result.ok ? undefined : tail(result.output),
+    output: result.ok ? undefined : command.includes('playwright test') ? failureDigest(result.output) : tail(result.output),
   };
 }
 
@@ -549,14 +563,14 @@ export function runHealGates(files: string[], env: Record<string, string> = {}):
       name: 'Healed tests',
       passed: healed.ok,
       summary: healed.ok ? `the repaired files pass ${config.stabilityRuns} times in a row` : 'the repaired files still fail',
-      output: healed.ok ? undefined : tail(healed.output),
+      output: healed.ok ? undefined : failureDigest(healed.output),
     });
     const suite = sh('npx playwright test --retries=0 --reporter=line', env);
     results.push({
       name: 'Full suite',
       passed: suite.ok,
       summary: suite.ok ? 'every test in the suite passes' : 'the suite does not pass',
-      output: suite.ok ? undefined : tail(suite.output),
+      output: suite.ok ? undefined : failureDigest(suite.output),
     });
   }
   return { passed: results.every((gate) => gate.passed), results, changed: changes.map((c) => c.file) };
@@ -583,7 +597,7 @@ export function runGates(request: Request, strategy: Strategy, generation: Gener
       name: 'Stability',
       passed: stability.ok,
       summary: stability.ok ? `new tests gave the same result ${config.stabilityRuns} times in a row` : 'new tests did not give the same result every time',
-      output: stability.ok ? undefined : tail(stability.output),
+      output: stability.ok ? undefined : failureDigest(stability.output),
     });
 
     const wrong = wrongReasons(stability.report);

@@ -28,7 +28,7 @@ export type AgentSpec<S extends z.ZodType> = {
   maxTurns?: number;
 };
 
-export type AgentResult<T> = { output: T; turns: number; seconds: number; costUsd: number };
+export type AgentResult<T> = { output: T; turns: number; seconds: number; costUsd: number; commands: string[] };
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 
@@ -120,6 +120,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
   // Which tool each call belongs to, so a failed result can be traced back to it.
   const calls = new Map<string, string>();
   const browser = { calls: 0, worked: 0 };
+  // The shell commands the agent asked for, so a stage can tell whether it ran what it was told to run.
+  const commands: string[] = [];
 
   for await (const message of query({ prompt: spec.task, options })) {
     if (message.type === 'assistant') {
@@ -127,6 +129,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
         if (block.type === 'text' && block.text.trim()) console.log(`  ${firstLine(block.text)}`);
         if (block.type === 'tool_use') {
           calls.set(block.id, block.name);
+          if (block.name === 'Bash') commands.push(String((block.input as { command?: unknown })?.command ?? ''));
           console.log(`  > ${block.name} ${brief(block.input)}`);
         }
       }
@@ -164,7 +167,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
       throw new Error(`${spec.role} answered in the wrong shape:\n${z.prettifyError(parsed.error)}`);
     }
     console.log(`=== ${spec.role} done: ${run.turns} turns, ${seconds}s ===`);
-    return { output: parsed.data, ...run };
+    return { output: parsed.data, ...run, commands };
   }
   throw new Error(`${spec.role} ended without a result`);
 }

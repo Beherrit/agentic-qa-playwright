@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { configChecks } from '../doctor.ts';
-import { a11yReport, a11ySummary, addedMarkers, assertionBalance, sensitivitySummary } from '../gates.ts';
+import { a11yReport, a11ySummary, addedMarkers, assertionBalance, failureDigest, sensitivitySummary } from '../gates.ts';
 import { defects, specFiles } from '../heal.ts';
 import { coverageMap, coverageMd } from '../lib/coverage.ts';
 import { canonicalTests, fingerprint } from '../lib/fingerprint.ts';
 import { gatesMd, strategyMd } from '../lib/render.ts';
 import type { Request, Strategy } from '../lib/schemas.ts';
 import { adfToMarkdown } from '../sources/adf.ts';
-import { checkedRisks } from '../stages.ts';
+import { checkedRisks, ranTheTests } from '../stages.ts';
 
 const added = (...lines: string[]): string => lines.map((line) => `+${line}`).join('\n');
 
@@ -240,5 +240,33 @@ describe('self-healing', () => {
     assert.deepEqual(picked.map((d) => d.test), ['Checkout > Postal Code is required']);
     assert.equal(picked[0].error, 'waiting for getByPlaceholder');
     assert.deepEqual(specFiles(picked), ['tests/checkout.spec.ts']);
+  });
+});
+
+describe('what goes back to the engineer', () => {
+  it('shows the first error and the list of failures, not the progress lines', () => {
+    const output = [
+      '[1/64] [chromium] › tests/cart.spec.ts:7:3 › Cart › the cart starts empty',
+      '  1) [chromium] › tests/search.spec.ts:12:3 › Product search › finds the backpack',
+      '    Test timeout of 30000ms exceeded.',
+      '    Error: locator.fill: Test timeout of 30000ms exceeded.',
+      '[2/64] [chromium] › tests/cart.spec.ts:11:3 › Cart › adding items updates the cart badge',
+      '  2) [chromium] › tests/search.spec.ts:20:3 › Product search › shows no results',
+      '    Test timeout of 30000ms exceeded.',
+      '  2 failed',
+      '    [chromium] › tests/search.spec.ts:12:3 › Product search › finds the backpack',
+      '    [chromium] › tests/search.spec.ts:20:3 › Product search › shows no results',
+      '  62 passed (2.9m)',
+    ].join('\n');
+    const digest = failureDigest(output);
+    assert.match(digest, /^1\) \[chromium\] › tests\/search\.spec\.ts:12:3/);
+    assert.match(digest, /locator\.fill: Test timeout/);
+    assert.match(digest, /2 failed\n\s+\[chromium\] › tests\/search\.spec\.ts:12:3/);
+    assert.doesNotMatch(digest, /\[1\/64\]|2\) \[chromium\]/);
+  });
+
+  it('knows whether the engineer ran the tests', () => {
+    assert.equal(ranTheTests(['cat pages/InventoryPage.ts', 'npx tsc --noEmit && npx playwright test tests/sort.spec.ts --reporter=line']), true);
+    assert.equal(ranTheTests(['ls tests', 'grep -n fail tests/search.spec.ts']), false);
   });
 });

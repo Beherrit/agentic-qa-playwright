@@ -89,7 +89,7 @@ Search the code with `grep -rn "BUG(" demo-app` to see them. Tests can read whic
 npm run demo:test
 ```
 
-The unit tests in `test/lib.test.mjs` cover the pure logic in `lib/` with no server. `test/api.test.mjs` starts servers on random ports and checks the API, including a second server for each seeded bug and for the search flag. `test/run-all.cjs` and `test/package.json` exist only so that Node accepts a directory argument; the same tests also run with `node --test "demo-app/test/**/*.test.mjs"`.
+The unit tests in `test/lib.test.mjs` cover the pure logic in `lib/` with no server. `test/api.test.mjs` starts servers on random ports and checks the API, including a second server for each seeded bug and for the search flag.
 
 ## Layout
 

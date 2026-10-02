@@ -20,6 +20,10 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || qa.app.baseUrl,
     testIdAttribute: 'data-test',
+    // A click or fill on something that is not there fails after this long, with an error that names the locator.
+    // Without it the action waits until the whole test times out, and Playwright does not count a timeout as the
+    // failure that test.fail() expects, so a test written ahead of its feature would be reported as broken.
+    actionTimeout: 7_000,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
