@@ -12,8 +12,11 @@ import type { Generation, Request, Strategy } from './lib/schemas.ts';
  * The parsing is kept in small pure functions so agents/test/ can check it without git or a browser.
  */
 
-/** An advisory gate is reported but does not stop the run. */
-export type Gate = { name: string; passed: boolean; summary: string; output?: string; advisory?: boolean };
+/**
+ * An advisory gate is reported but does not stop the run.
+ * `output` is shown when the gate fails; `table` is markdown that is shown either way.
+ */
+export type Gate = { name: string; passed: boolean; summary: string; output?: string; table?: string; advisory?: boolean };
 export type GateReport = { passed: boolean; results: Gate[]; changed: string[] };
 
 type Shell = { ok: boolean; output: string };
@@ -159,14 +162,24 @@ export type Marker = { line: string; reason: string | null };
  *   test.fail(true, 'not built yet: SHOP-12')              test-first: the feature does not exist yet
  */
 export function addedMarkers(patch: string): Marker[] {
-  return patch
+  // The added lines as one text, so a call wrapped over several lines is still read whole.
+  const added = patch
     .split('\n')
     .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
-    .filter((line) => /\btest(?:\.describe)?\.fail\s*\(/.test(line))
-    .map((line) => {
-      const reason = /\btest(?:\.describe)?\.fail\s*\(\s*(?:true\s*,\s*)?(['"`])(.*?)\1/.exec(line);
-      return { line: line.slice(1).trim(), reason: reason ? reason[2] : null };
-    });
+    .map((line) => line.slice(1))
+    .join('\n');
+
+  // test.fail( [true,] ['reason'] and then "," or ")". The reason may contain escaped quotes.
+  const call = /\btest(?:\.describe)?\.fail\s*\(\s*(true\s*,\s*)?(?:(['"`])((?:\\[\s\S]|(?!\2)[^\\])*)\2)?\s*([,)])?/g;
+  return [...added.matchAll(call)].map((match) => {
+    const [, condition, , text, next] = match;
+    // test.fail('title', async () => ...) declares a test: its first string is a title, not a reason.
+    const isTitle = text !== undefined && !condition && next === ',';
+    return {
+      line: added.slice(match.index).split('\n')[0].trim(),
+      reason: text === undefined || isTitle ? null : text.replace(/\\([\s\S])/g, '$1'),
+    };
+  });
 }
 
 /** Added lines that skip or focus tests. A skipped test counts as passing, so it would get past the full-suite gate. */
@@ -279,7 +292,9 @@ export function wrongReasons(results: TestOutcome[]): string[] {
       if (bad) return [`"${t.title}" fails, but because of an error in the test or the run: ${bad.split('\n')[0].slice(0, 200)}`];
       const pending = t.reasons.some((r) => r.startsWith('not built yet:'));
       if (pending && !t.errors.some((e) => ON_THE_PAGE.test(e))) {
-        return [`"${t.title}" is marked "not built yet" but its failure has nothing to do with the page, so it would never pass`];
+        return [
+          `"${t.title}" is marked "not built yet" but its failure has nothing to do with the page, so it would never pass. End it on a web-first assertion against a locator, so the error shows what is missing`,
+        ];
       }
       return [];
     });
@@ -341,7 +356,7 @@ function traceabilityGate(request: Request, strategy: Strategy): Gate {
 /** For each test, which known-broken targets it caught. */
 export type KillMatrix = { targets: string[]; tests: { title: string; caught: string[] }[] };
 
-export function sensitivitySummary(matrix: KillMatrix): { caughtAny: boolean; summary: string; table: string } {
+export function sensitivitySummary(matrix: KillMatrix): { caughtAny: boolean; summary: string; short: string; table: string } {
   const perTarget = matrix.targets.map((target) => {
     const n = matrix.tests.filter((t) => t.caught.includes(target)).length;
     return `${target}: ${n} of ${matrix.tests.length}`;
@@ -352,7 +367,9 @@ export function sensitivitySummary(matrix: KillMatrix): { caughtAny: boolean; su
     .map((t) => `| ${t.title} | ${matrix.targets.map((target) => (t.caught.includes(target) ? 'caught' : '-')).join(' | ')} |`)
     .join('\n')}`;
   const summary = `caught by ${perTarget.join(', ')}${blind.length ? `; never failed: ${blind.map((t) => `"${t.title}"`).join(', ')}` : ''}`;
-  return { caughtAny, summary, table };
+  // For a table cell: the counts, with the names left to the table underneath.
+  const short = `caught by ${perTarget.join(', ')}${blind.length ? `; ${blind.length} never failed (see the table)` : ''}`;
+  return { caughtAny, summary, short, table };
 }
 
 /**
@@ -375,15 +392,15 @@ function sensitivityGate(request: Request): Gate | null {
     }
   }
   const matrix: KillMatrix = { targets: targets.map((t) => t.name), tests: [...tests].map(([title, caught]) => ({ title, caught })) };
-  const { caughtAny, summary, table } = sensitivitySummary(matrix);
+  const { caughtAny, short, table } = sensitivitySummary(matrix);
   fs.mkdirSync(RUN_DIR, { recursive: true });
   fs.writeFileSync(path.join(RUN_DIR, 'sensitivity.json'), `${JSON.stringify(matrix, null, 2)}\n`);
   return {
     name: 'Sensitivity',
     passed: caughtAny,
     advisory: !config.sensitivity?.required,
-    summary: caughtAny ? summary : `the new tests passed against every known-broken target; ${summary}`,
-    output: table,
+    summary: caughtAny ? short : `the new tests passed against every known-broken target; ${short}`,
+    table,
   };
 }
 

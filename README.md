@@ -31,7 +31,7 @@ There are two halves, run by two workflows, so the cheap, fast part is not held 
 **QA analysis** (`qa-analysis.yml`) starts when a ticket gets the `qa-pipeline` label. No test code is written. What comes back on the ticket is everything a QA lead would want to say about a story before anyone builds or tests it.
 
 1. **Requirements.** An analyst agent turns the ticket into a user story and Given/When/Then acceptance criteria, each marked happy, negative or edge. It also lists assumptions, what is out of scope, a risk rating and open questions. If any question is blocking, the ticket gets the questions and the `qa-needs-info` label, and the run stops there.
-2. **Strategy.** A test architect opens the app in a real browser (through the Playwright MCP server), checks what the suite already covers, and designs test cases. Each case has a design technique, a level (e2e, lower-layer or manual), a priority and a persona. At the same time a critic, who never sees the plan, writes the checklist a good plan must satisfy. A reconciler merges the two and adds cases where the checklist found a gap. Then a plan health score is computed in code (see below).
+2. **Strategy.** A test architect opens the app in a real browser (through the Playwright MCP server), checks what the suite already covers, and designs test cases. Each case has a design technique, a level (e2e, lower-layer or manual), a priority and a persona. The architect also lists the existing behaviour the feature could break and names the test that guards each one, or says that nothing does, so the team can see where the suite is thin around the change. At the same time a critic, who never sees the plan, writes the checklist a good plan must satisfy. A reconciler merges the two and adds cases where the checklist found a gap. Then a plan health score is computed in code (see below).
 3. **Report.** The analysis is posted on the ticket, as markdown on GitHub and as a formatted comment on Jira. If the plan scores at least `minPlanScore` the ticket gets `qa-analyzed` and the comment says how to go on.
 
 **QA tests** (`qa-tests.yml`) starts when the ticket gets the `qa-generate` label. It picks up the latest analysis of that ticket and reads the ticket again, in case the feature has been built since.
@@ -79,7 +79,9 @@ The score is arithmetic over facts, so a plan cannot talk its way to a pass.
 
 ### Regression and failure triage
 
-A second workflow, **Regression**, runs the unit tests and the suite on push, on pull requests, nightly and on demand. When the suite fails, a triage agent reads the error context and screenshots Playwright saved, and gives each failure one verdict: product bug, test defect, flaky or environment, with its confidence, the evidence and a next step. Product bugs are grouped by root cause and filed as issues. Each bug carries a fingerprint per test it breaks, and matches an open issue that shares any of them, so the same bug is not filed twice even when it starts breaking one more test.
+A second workflow, **Regression**, runs the unit tests and the suite on push, on pull requests, nightly and on demand. When the suite fails, a triage agent reads the error context and screenshots Playwright saved, and gives each failure one verdict: product bug, test defect, flaky or environment, with its confidence, the evidence and a next step. Product bugs are grouped by root cause and filed as issues. Each bug carries a fingerprint per test it breaks, and matches an open issue that shares any of them, so the same bug is not filed twice even when it starts breaking one more test. The fingerprints are taken from the failures as Playwright reported them, not from the agent's wording, so they hold from run to run.
+
+Every run also puts a **traceability map** on its summary page, built from the tags with no model involved: each requirement the suite has tests for, the criteria those tests claim, and how many pass, fail, flake or are expected failures. It is the standing answer to "why does this test exist, and is the thing it guards working?". `npm run coverage` prints the same locally.
 
 Tests marked `test.fail()` that suddenly pass are not sent to the agent. They are listed on their own: the bug was fixed or the feature has landed, and the marker should come off.
 
@@ -94,7 +96,7 @@ The agents are useful only as long as the things around them are strict.
 - **Credentials are kept apart.** The Claude token lives on the `POC` environment and is given only to the steps that run an agent. The tracker credentials (the Jira token, and the GitHub token for issues) live on the `TRACKER` environment and are given only to the jobs that read or write the ticket, where no agent runs. The job that pushes the branch and opens the pull request has neither.
 - **Structured answers.** Every agent has to answer in a schema (`agents/lib/schemas.ts`), validated with zod before the next stage reads it. A malformed answer fails the job.
 - **Input is data.** The ticket text, diffs and anything read from the app under test are wrapped in tags and the agents are told to treat them as material to analyse, never as instructions. Ticket references are checked against a strict pattern before they reach a shell, an API path or a branch name.
-- **The analysis has a known origin.** The test workflow only picks up an analysis made by `qa-analysis.yml` in this repository, on the default branch, so a pull request from a fork cannot plant one. The plan files are read before generated tests run and written back afterwards, and the publish job refuses a patch that touches anything outside the writable folders before it applies it.
+- **The analysis has a known origin.** The test workflow only picks up an analysis made by `qa-analysis.yml` in this repository, on the default branch, so a pull request from a fork cannot plant one. The plan and the request are read once, before any generated test runs, and the gates work from that copy; the files are also written back afterwards for the jobs that follow. The publish job refuses a patch that touches anything outside the writable folders before it applies it.
 - **Only trusted people can start a run.** On GitHub only people with triage rights can add a label. From Jira, only the holder of a token with write access to the repository can send the event.
 - **Verdicts are recomputed.** The plan score is calculated in code. References to test cases or criteria that do not exist are dropped before scoring. An "approve" that lists a blocker or major finding, or leaves an automated criterion unverified, is turned into "request changes". The scope gate checks what was written, whatever the engineer says it wrote, and the expected-failure gate checks every `test.fail()` against what the engineer reported.
 - **A person merges.** The pipeline can open a pull request. It cannot approve or merge one.
@@ -118,7 +120,10 @@ Requirements: Node 22.18 or newer (it runs the TypeScript unit tests directly).
 npm ci
 npx playwright install chromium
 npm run test:unit
+npm run doctor
 ```
+
+`doctor` checks a checkout before any agent is started: the config and the documents it points to, the writable folders, the browser, that the app answers, and which credentials it can see. It is the first thing to run after pointing the shell at a new app.
 
 **Claude.** Pick one, and save it as a secret on an environment named `POC` (Settings > Environments):
 
@@ -131,6 +136,7 @@ The optional repository variable `QA_AGENT_MODEL` picks the model for every role
 
 - Settings > Actions > General > Workflow permissions: allow GitHub Actions to create pull requests.
 - Create an environment named `TRACKER`. For GitHub issues alone it needs nothing in it.
+- Create the labels `qa-pipeline`, `qa-generate` and `qa-test-first`. The pipeline creates `qa-analyzed` and `qa-needs-info` itself the first time it needs them.
 
 ### Jira
 
@@ -171,9 +177,12 @@ npm run test:unit
 
 # After a failed run: classify the failures in test-results/results.json
 npm run triage
+
+# Which requirement each test exists for, and how it did in the last run
+npm run coverage
 ```
 
-A local run leaves its documents in `qa-run/` (request, requirements, strategy, analysis, gate report, reviews, `pull-request.md`) and the generated tests in your working tree. A requirement given with `--text` or `--file` uses the key `REQ-0`.
+A local run leaves its documents in `qa-run/` (request, requirements, strategy, analysis, gate report, reviews, `pull-request.md`) and the generated tests in your working tree. Each new requirement starts from an empty `qa-run/`. A requirement given with `--text` or `--file` uses the key `REQ-0`. A local run posts its analysis to the ticket when the source is a tracker, but never an outcome for the tests: there is no pull request to point at.
 
 To run the suite as another persona, set `SAUCE_USER`, for example `SAUCE_USER=problem_user npm test`. `BASE_URL` overrides the address in `qa.config.json`.
 
@@ -203,6 +212,8 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `agents/stages.ts` | The pipeline, one function per stage, the verdict rules and the reports to the ticket |
 | `agents/gates.ts` | The quality gates |
 | `agents/triage.ts` | Failure triage for a regression run |
+| `agents/coverage.ts` | The traceability map (`npm run coverage`) |
+| `agents/doctor.ts` | The preflight check (`npm run doctor`) |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
 | `agents/prompts/` | One instruction file per role |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, keys and labels, markdown rendering, the run folder |
@@ -210,7 +221,7 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
 | `.github/workflows/qa-analysis.yml` | The analysis half: ticket in, analysis posted back |
 | `.github/workflows/qa-tests.yml` | The test half: analysis in, pull request out |
-| `.github/workflows/regression.yml` | Unit tests, the suite, and triage when it fails |
+| `.github/workflows/regression.yml` | Unit tests, the suite, the traceability map, and triage when it fails |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
 | `.github/ISSUE_TEMPLATE/requirement.yml` | The "QA requirement" issue template |
 
@@ -221,6 +232,7 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 3. Replace `pages/`, `fixtures/` and `tests/` with your own. Keep `fixtures/test.ts` as the place specs import `test` and `expect` from, or change the conventions to match.
 4. Adjust the persona input in `regression.yml`. The persona is passed as the `SAUCE_USER` environment variable, which `fixtures/personas.ts` and `agents/triage.ts` read. Rename it if the name bothers you.
 5. Connect your tracker: GitHub issues work as they are; for Jira, follow the Jira setup above.
+6. Run `npm run doctor` and fix what it reports.
 
 The prompts in `agents/prompts/` and the code in `agents/` should not need changes. Another tracker is one more file in `agents/sources/` with three functions: read a ticket, comment on it, change its labels.
 

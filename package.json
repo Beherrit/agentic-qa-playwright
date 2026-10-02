@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "report": "playwright show-report",
     "pipeline": "tsx agents/cli.ts",
-    "triage": "tsx agents/triage.ts"
+    "triage": "tsx agents/triage.ts",
+    "coverage": "tsx agents/coverage.ts",
+    "doctor": "tsx agents/cli.ts doctor"
   },
   "author": "Lawrence Moran",
   "license": "MIT",

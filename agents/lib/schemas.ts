@@ -95,6 +95,15 @@ export const Plan = z.object({
       }),
     )
     .describe('Test-first only: what the developers have to build for the tests to find. Empty when the feature exists.'),
+  regressionRisks: z
+    .array(
+      z.object({
+        area: z.string().describe('Existing behaviour this feature could break, e.g. "the cart badge count"'),
+        why: z.string().describe('What the two share: a control, a page, a piece of state'),
+        guardedBy: z.string().nullable().describe('The existing test that would catch it, as "file: title". Null when nothing does.'),
+      }),
+    )
+    .describe('Nearby behaviour the feature could break, and whether the suite would notice'),
   cases: z.array(TestCase).min(1),
 });
 export type Plan = z.infer<typeof Plan>;

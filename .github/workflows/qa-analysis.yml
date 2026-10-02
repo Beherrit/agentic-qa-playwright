@@ -295,7 +295,7 @@ jobs:
   report:
     name: 3 Report on the ticket
     needs: [intake, requirements, plan, critic, reconcile]
-    if: ${{ always() && needs.intake.result == 'success' }}
+    if: ${{ !cancelled() && needs.intake.result == 'success' }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10

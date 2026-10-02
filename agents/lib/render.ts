@@ -101,7 +101,7 @@ ${strategy.checklist
 ### Already covered by the suite
 
 ${list(strategy.existingCoverage.map((e) => `\`${e.file}\` "${e.test}": ${e.covers}`))}
-${
+${regressionMd(strategy)}${
   compact
     ? ''
     : `
@@ -112,6 +112,22 @@ ${strategy.siteNotes}
 </details>
 `
 }`;
+}
+
+/** What the feature sits next to, and whether the suite would notice if it broke. */
+function regressionMd(strategy: Strategy): string {
+  const risks = strategy.regressionRisks ?? [];
+  if (risks.length === 0) return '';
+  const unguarded = risks.filter((r) => !r.guardedBy).length;
+  return `
+### Nearby behaviour at risk
+
+${unguarded ? `${unguarded} of ${risks.length} have no existing test that would catch a break.` : 'Each of these is already guarded by an existing test.'}
+
+| Could break | Because | Guarded by |
+|---|---|---|
+${risks.map((r) => `| ${cell(r.area)} | ${cell(r.why)} | ${r.guardedBy ? cell(r.guardedBy) : '**nothing**'} |`).join('\n')}
+`;
 }
 
 /** Test-first: what the developers build so the tests can find it. */
@@ -154,6 +170,10 @@ ${report.results.map((g) => `| ${g.name}${g.advisory ? ' (advisory)' : ''} | ${m
 ${report.results
   .filter((g) => !g.passed && g.output)
   .map((g) => `\n<details><summary>${g.name} output</summary>\n\n\`\`\`\n${g.output}\n\`\`\`\n\n</details>`)
+  .join('\n')}
+${report.results
+  .filter((g) => g.table)
+  .map((g) => `\n<details><summary>${g.name}: test by test</summary>\n\n${g.table}\n\n</details>`)
   .join('\n')}
 `;
 }

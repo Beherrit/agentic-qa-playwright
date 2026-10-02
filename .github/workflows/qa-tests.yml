@@ -353,7 +353,7 @@ jobs:
     name: 4 Report on the ticket
     needs: [prepare, generate, review, rework, publish]
     # Also when prepare failed: the ticket should hear that there was no analysis to work from.
-    if: ${{ always() && needs.prepare.result != 'skipped' && needs.prepare.result != 'cancelled' }}
+    if: ${{ !cancelled() && needs.prepare.result != 'skipped' }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10

@@ -10,6 +10,11 @@ export function save(name: string, data: unknown): void {
   fs.writeFileSync(file(name), text);
 }
 
+/** Empties the run folder. */
+export function reset(): void {
+  fs.rmSync(RUN_DIR, { recursive: true, force: true });
+}
+
 export function load<T>(name: string): T {
   if (!fs.existsSync(file(name))) {
     throw new Error(`${name} is missing from ${RUN_DIR}. Did the earlier stage run?`);

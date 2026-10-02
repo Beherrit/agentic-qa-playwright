@@ -53,6 +53,11 @@ jobs:
           SAUCE_USER: ${{ inputs.persona }}
         run: npx playwright test
 
+      # On the run's summary page: each requirement, the criteria its tests claim, and how they did.
+      - name: Traceability map
+        if: ${{ !cancelled() && hashFiles('test-results/results.json') != '' }}
+        run: npm run -s coverage
+
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

@@ -19,8 +19,13 @@ export function adfToMarkdown(node: unknown): string {
   switch (n.type) {
     case 'doc':
       return children.filter(Boolean).join('\n\n').trim();
-    case 'text':
-      return n.text ?? '';
+    case 'text': {
+      // Keep what carries meaning for a tester: where a link goes, and what was written as code.
+      const value = n.text ?? '';
+      const link = n.marks?.find((mark) => mark.type === 'link')?.attrs?.href;
+      if (typeof link === 'string' && link !== value) return `[${value}](${link})`;
+      return n.marks?.some((mark) => mark.type === 'code') ? `\`${value}\`` : value;
+    }
     case 'hardBreak':
       return '\n';
     case 'heading':

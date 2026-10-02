@@ -133,6 +133,7 @@ export async function reconcile(): Promise<boolean> {
     existingCoverage: draft.existingCoverage,
     siteNotes: draft.siteNotes,
     contract: draft.contract,
+    regressionRisks: draft.regressionRisks,
     ...output,
     added: output.added.filter((id) => caseIds.has(id)),
     cases,
@@ -166,8 +167,6 @@ export function planProblem(): string | null {
   return null;
 }
 
-export const checkPlan = (): boolean => planProblem() === null;
-
 // ── 3. Code generation, checked by the gates ─────────────────────────────────
 
 async function engineer(task: string): Promise<Generation> {
@@ -196,16 +195,28 @@ first line of every test whose behaviour is not built yet with:
 Such a test passes today because it fails, and Playwright reports "expected to fail, but passed" on the day the
 feature lands, which tells the team to remove the marker. Run your tests and make sure each one fails because the
 feature is missing (an element not found, an assertion that does not hold), never because of a mistake in your own
-code. A gate reads the error behind every expected failure.
+code. A gate reads the error behind every expected failure, and it only accepts one it can see came from the page:
+end each of these tests on a web-first assertion against a locator (\`await expect(locator)...\`), not on a value you
+read off the page first and compared afterwards.
 
 <contract>
 ${JSON.stringify(strategy.contract, null, 2)}
 </contract>`;
 }
 
-function engineerBrief(): string {
+/**
+ * What the engineer and the gates work from. It is read once, before any generated test code has run, and then
+ * passed along in memory. Test code can touch any file on the runner, so nothing downstream reads these again.
+ */
+type Brief = { request: Request; strategy: Strategy; text: string };
+
+function readBrief(): Brief {
   const req = request();
   const strategy = load<Strategy>('strategy.json');
+  return { request: req, strategy, text: engineerBrief(req, strategy) };
+}
+
+function engineerBrief(req: Request, strategy: Strategy): string {
   const cases = strategy.cases.filter((c) => c.layer === 'e2e');
   const others = strategy.cases.filter((c) => c.layer !== 'e2e').map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
   return `The app is ${config.app.name} at ${config.app.baseUrl}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
@@ -232,9 +243,9 @@ ${conventions()}`;
 }
 
 /**
- * The generated tests run inside these jobs, and test code can touch any file. The plan and the requirements are
- * read before the engineer starts and written back afterwards, so nothing a test does to them reaches the gates,
- * the reviewer or the pull request.
+ * The generated tests run inside these jobs, and test code can touch any file. The gates work from the brief read
+ * before the engineer started. These files are also written back afterwards, so nothing a test does to them
+ * reaches the reviewer or the pull request in a later job.
  */
 const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'strategy.json', 'strategy.md'];
 
@@ -248,15 +259,14 @@ async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Runs the gates, and gives the engineer one chance to fix what they find. */
-async function gated(generation: Generation): Promise<{ generation: Generation; gates: GateReport }> {
-  const strategy = load<Strategy>('strategy.json');
-  let gates = runGates(request(), strategy, generation);
+async function gated(generation: Generation, brief: Brief): Promise<{ generation: Generation; gates: GateReport }> {
+  let gates = runGates(brief.request, brief.strategy, generation);
   if (!gates.passed) {
     console.log('\nGates failed. Sending the report back to the engineer once.');
     generation = await engineer(
-      `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${engineerBrief()}`,
+      `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${brief.text}`,
     );
-    gates = runGates(request(), strategy, generation);
+    gates = runGates(brief.request, brief.strategy, generation);
   }
   savePatch();
   save('generation.json', generation);
@@ -268,9 +278,10 @@ async function gated(generation: Generation): Promise<{ generation: Generation; 
 }
 
 export async function generate(): Promise<boolean> {
+  const brief = readBrief();
   return protectingRunFiles(async () => {
-    const first = await engineer(`Write the Playwright tests for the cases below.\n\n${engineerBrief()}`);
-    return (await gated(first)).gates.passed;
+    const first = await engineer(`Write the Playwright tests for the cases below.\n\n${brief.text}`);
+    return (await gated(first, brief)).gates.passed;
   });
 }
 
@@ -349,11 +360,12 @@ export async function review(): Promise<Review> {
 
 export async function rework(): Promise<Review> {
   const findings = load<Review>('review.json').findings.filter((f) => f.severity !== 'nit');
+  const brief = readBrief();
   const { gates } = await protectingRunFiles(async () => {
     const fixed = await engineer(
-      `A reviewer has read your tests, which are in the working tree, and asked for changes. Address each finding, or say in your summary why it does not apply. Then report on the complete change.\n\n<review-findings>\n${JSON.stringify(findings, null, 2)}\n</review-findings>\n\n${engineerBrief()}`,
+      `A reviewer has read your tests, which are in the working tree, and asked for changes. Address each finding, or say in your summary why it does not apply. Then report on the complete change.\n\n<review-findings>\n${JSON.stringify(findings, null, 2)}\n</review-findings>\n\n${brief.text}`,
     );
-    return gated(fixed);
+    return gated(fixed, brief);
   });
   if (!gates.passed) throw new Error('The reworked tests did not pass the quality gates.');
   return reviewer(2);

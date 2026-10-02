@@ -1,15 +1,17 @@
 import fs from 'node:fs';
 import { parseArgs } from 'node:util';
+import { doctor } from './doctor.ts';
 import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
 import { config } from './lib/paths.ts';
 import { Request } from './lib/schemas.ts';
-import { exists, save, setOutput } from './lib/store.ts';
+import { exists, reset, save, setOutput } from './lib/store.ts';
 import { intakeTicket } from './sources/index.ts';
 import * as stages from './stages.ts';
 
 /**
  * Runs the pipeline, one stage at a time or a whole half at once.
  *
+ *   Check a checkout is ready:           npm run pipeline -- doctor
  *   In CI each stage is its own job:     npm run pipeline -- requirements
  *   On your machine, from a ticket:      npm run pipeline -- analyze --source jira --ref SHOP-12
  *   On your machine, from plain words:   npm run pipeline -- all --title "Sort products" --text "As a shopper ..."
@@ -49,6 +51,8 @@ async function intake(): Promise<void> {
       mode: values['test-first'] ? 'test-first' : 'built',
     });
   }
+  // A new requirement starts from an empty run folder, so nothing left by the last one is mistaken for its own.
+  reset();
   save('request.json', request);
   setOutput('key', request.key);
   setOutput('artifact', artifactFor(request.key));
@@ -86,11 +90,12 @@ async function tests(): Promise<void> {
   }
   if ((await stages.review()).verdict !== 'approve') await stages.rework();
   stages.report();
-  await stages.notifyTests(runUrl(), null);
+  // Nothing goes to the ticket from here: on your own machine there is no pull request to point it at.
   console.log('\nDone. The pull request description is in qa-run/pull-request.md and the change is in your working tree.');
 }
 
 const commands: Record<string, () => unknown> = {
+  doctor: async () => (await doctor()) || process.exit(1),
   intake,
   requirements: stages.requirements,
   plan: stages.plan,

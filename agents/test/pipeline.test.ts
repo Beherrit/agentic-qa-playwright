@@ -36,6 +36,7 @@ const strategy = (cases: ReturnType<typeof testCase>[]): Strategy => ({
   existingCoverage: [],
   siteNotes: '',
   contract: [],
+  regressionRisks: [],
   cases,
   added: [],
   checklist: [

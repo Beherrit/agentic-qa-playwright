@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { runAgent } from './lib/agent.ts';
-import { fingerprint, LANDED } from './lib/fingerprint.ts';
+import { canonicalTests, fingerprint, LANDED } from './lib/fingerprint.ts';
 import { config, ROOT } from './lib/paths.ts';
 import { bugMd, triageMd } from './lib/render.ts';
 import { Triage } from './lib/schemas.ts';
@@ -91,10 +91,11 @@ The paths under "evidence" are files you can read. Start there.`,
 });
 
 // One fingerprint per test the bug breaks. The workflow matches a bug to an open issue that shares any of them,
-// so a bug that starts breaking one more test is still recognised as the same bug.
+// so a bug that starts breaking one more test is still recognised as the same bug. The fingerprints come from
+// the failures as Playwright reported them, not from how the agent happened to word the test names this time.
 const bugs = output.bugs.map((bug) => ({
   ...bug,
-  fingerprints: bug.tests.length ? [...new Set(bug.tests)].map(fingerprint) : [fingerprint(bug.title)],
+  fingerprints: bug.tests.length ? canonicalTests(bug.tests, failed).map(fingerprint) : [fingerprint(bug.title)],
   body: bugMd(bug),
 }));
 
