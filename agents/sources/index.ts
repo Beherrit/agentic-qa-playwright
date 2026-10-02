@@ -14,6 +14,13 @@ const local: Source = {
     console.log(`\n${markdown}`);
   },
   async label() {},
+  async list() {
+    return [];
+  },
+  async create(ticket) {
+    console.log(`\n${ticket.title}\n\n${ticket.body}`);
+    return { ref: 'local', url: null };
+  },
 };
 
 const sources: Record<SourceName, Source> = { github, jira, local };

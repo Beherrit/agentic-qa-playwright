@@ -209,6 +209,17 @@ A local run leaves its documents in `qa-run/` (request, requirements, strategy, 
 
 To run the suite as another persona, set `SAUCE_USER`, for example `SAUCE_USER=problem_user npm test`. `BASE_URL` overrides the address in `qa.config.json`.
 
+### Writing the ticket
+
+If you know what you want but do not write tickets, give the ticket writer a sentence. It reads the product brief and the existing tests, opens the app to see what is there today, and writes the story, Given / When / Then criteria, assumptions and what is out of scope. It asks the questions it cannot settle (and only blocks on one when a wrong guess would make the ticket worthless), checks the open tickets for duplicates, and shows you a preview. It files the ticket only when you say yes, and it never adds the `qa-pipeline` label: you do that when you are happy with it.
+
+```bash
+npm run pipeline -- draft --text "I want shoppers to save a wishlist" --source github
+npm run pipeline -- draft --file wish.md --answers answers.md --yes
+```
+
+Without a terminal it stops after the preview; `--yes` files it. Jira tickets cannot be created yet, so use `--source github` (the default prints the ticket instead). The preview is saved as `qa-run/draft.md`.
+
 ## Try the demo
 
 Sorting the product list is deliberately not covered by the baseline suite, which makes it a good first requirement:
@@ -237,6 +248,7 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `agents/triage.ts` | Failure triage for a regression run |
 | `agents/coverage.ts` | The traceability map (`npm run coverage`) |
 | `agents/doctor.ts` | The preflight check (`npm run doctor`) |
+| `agents/draft.ts` | The ticket writer: a wish in, a complete requirement ticket out (`npm run draft`). Its instructions are `agents/prompts/ticket-writer.md` |
 | `agents/heal.ts` | Self-healing: repairs test defects found by triage (`npm run heal`) |
 | `agents/history.ts` | Records a run and renders the run history (`npm run history`) |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |

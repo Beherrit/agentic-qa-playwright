@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { doctor } from './doctor.ts';
+import { draft as writeTicket } from './draft.ts';
 import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
 import { config } from './lib/paths.ts';
 import { Request } from './lib/schemas.ts';
@@ -14,6 +15,7 @@ import * as stages from './stages.ts';
  *   Check a checkout is ready:           npm run pipeline -- doctor
  *   In CI each stage is its own job:     npm run pipeline -- requirements
  *   On your machine, from a ticket:      npm run pipeline -- analyze --source jira --ref SHOP-12
+ *   Write a ticket from a wish:          npm run pipeline -- draft --text "I want shoppers to save a wishlist" [--source github] [--yes]
  *   On your machine, from plain words:   npm run pipeline -- all --title "Sort products" --text "As a shopper ..."
  *
  * Add --test-first to a local run when the feature is not built yet. A ticket says so itself, with the
@@ -28,6 +30,8 @@ const { positionals, values } = parseArgs({
     title: { type: 'string' },
     text: { type: 'string' },
     file: { type: 'string' },
+    answers: { type: 'string' }, // draft: a file with answers to the writer's questions
+    yes: { type: 'boolean', default: false }, // draft: file the ticket without asking
     'test-first': { type: 'boolean', default: false },
   },
 });
@@ -97,6 +101,7 @@ async function tests(): Promise<void> {
 const commands: Record<string, () => unknown> = {
   doctor: async () => (await doctor()) || process.exit(1),
   intake,
+  draft: () => writeTicket({ text: values.text, file: values.file, source: values.source, answers: values.answers, yes: values.yes }),
   requirements: stages.requirements,
   plan: stages.plan,
   critic: stages.critic,

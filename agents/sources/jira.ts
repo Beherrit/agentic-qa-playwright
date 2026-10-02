@@ -81,4 +81,13 @@ export const jira: Source = {
     const labels = [...(change.add ?? []).map((add) => ({ add })), ...(change.remove ?? []).map((remove) => ({ remove }))];
     if (labels.length) await call('PUT', `/rest/api/3/issue/${encodeURIComponent(ref)}`, { update: { labels } });
   },
+
+  // A JQL search needs a project key, and the config does not have one yet.
+  async list() {
+    return [];
+  },
+
+  async create() {
+    throw new Error('Creating Jira tickets is not built yet. File the ticket by hand, or use --source github.');
+  },
 };

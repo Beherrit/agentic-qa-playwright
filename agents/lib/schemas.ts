@@ -58,6 +58,32 @@ export const Requirements = z.object({
 });
 export type Requirements = z.infer<typeof Requirements>;
 
+// ── Before stage 1: the ticket writer ────────────────────────────────────────
+
+export const TicketDraft = z.object({
+  title: z.string().describe('Short, with no "Requirement:" prefix'),
+  story: z.object({
+    asA: z.string().describe('With its article, e.g. "a shopper"'),
+    iWant: z.string().describe('Starts with "to", e.g. "to sort the list by price"'),
+    soThat: z.string().describe('Starts with the subject, e.g. "I can find the cheapest item"'),
+  }),
+  why: z.string().describe('What goes wrong for the user or the business if it breaks'),
+  built: z.boolean().describe('True if the feature is already in the app today'),
+  alreadyThere: z.string().describe('What exists today that relates to the wish, seen in the app or in the existing tests'),
+  criteria: z.array(Criterion).min(3).max(12),
+  assumptions: z.array(z.string()),
+  outOfScope: z.array(z.string()),
+  duplicates: z.array(z.object({ ref: z.string(), reason: z.string() })).describe('Open tickets that ask for the same thing'),
+  questions: z.array(
+    z.object({
+      question: z.string(),
+      blocking: z.boolean().describe('True only if a wrong guess would make the ticket worthless'),
+      why: z.string(),
+    }),
+  ),
+});
+export type TicketDraft = z.infer<typeof TicketDraft>;
+
 // ── Stage 2: strategy ────────────────────────────────────────────────────────
 
 export const Technique = z.enum([

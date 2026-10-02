@@ -12,6 +12,7 @@
     "triage": "tsx agents/triage.ts",
     "coverage": "tsx agents/coverage.ts",
     "doctor": "tsx agents/cli.ts doctor",
+    "draft": "tsx agents/cli.ts draft",
     "heal": "tsx agents/heal.ts",
     "history": "tsx agents/history.ts"
   },

@@ -14,7 +14,7 @@ import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 type Level = 'ok' | 'warn' | 'fail';
 export type Check = { name: string; level: Level; detail: string };
 
-const ROLES = ['requirements-analyst', 'test-architect', 'plan-critic', 'plan-reconciler', 'automation-engineer', 'code-reviewer', 'failure-triager'];
+const ROLES = ['requirements-analyst', 'test-architect', 'plan-critic', 'plan-reconciler', 'automation-engineer', 'code-reviewer', 'failure-triager', 'ticket-writer'];
 
 const runs = (command: string): boolean => spawnSync(command, { cwd: ROOT, shell: true, stdio: 'ignore' }).status === 0;
 

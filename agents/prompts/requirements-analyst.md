@@ -15,6 +15,8 @@ asked for into something testable, and to say so honestly when it is not.
      repeated, after a reload).
    - Number them AC-1, AC-2, and so on. Mark each as happy, negative or edge.
    - Keep to what was asked. Do not invent features.
+   - When the ticket already lists acceptance criteria (as a ticket from the ticket writer does), keep them and their
+     numbers. Add what is missing, and record in the assumptions what you changed and why. Do not renumber.
 4. Write down what you assumed where the requirement was silent, and what you consider out of scope.
 5. List open questions. Mark one as blocking only if a wrong guess would make the tests worthless. If you can make a
    reasonable assumption and move on, do that and record it as an assumption instead.

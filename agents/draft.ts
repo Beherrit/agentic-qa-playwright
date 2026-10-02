@@ -1,0 +1,104 @@
+import fs from 'node:fs';
+import readline from 'node:readline/promises';
+import { runAgent } from './lib/agent.ts';
+import { checkedDuplicates, readiness, ticketBody, ticketLabels, withAnswers } from './lib/draft.ts';
+import { config, LABELS, projectDoc } from './lib/paths.ts';
+import { TicketDraft } from './lib/schemas.ts';
+import { prompt, save } from './lib/store.ts';
+import { sourceFor } from './sources/index.ts';
+
+/**
+ * The ticket writer: a sentence or two in, a complete requirement ticket out, filed after a person says yes.
+ * It never adds the label that starts the analysis. A person does that.
+ */
+
+export type DraftOptions = { text?: string; file?: string; source?: string; answers?: string; yes?: boolean };
+
+const interactive = (): boolean => Boolean(process.stdin.isTTY);
+
+type OpenTickets = { ref: string; title: string; url: string | null }[];
+
+async function write(wish: string, open: OpenTickets): Promise<TicketDraft> {
+  const { output } = await runAgent({
+    role: 'ticket-writer',
+    instructions: prompt('ticket-writer'),
+    task: `Write the requirement ticket for ${config.app.name} at ${config.app.baseUrl}.
+
+<wish>
+${wish}
+</wish>
+
+<product-brief>
+${projectDoc(config.app.brief)}
+</product-brief>
+
+<open-tickets>
+${JSON.stringify(open, null, 2)}
+</open-tickets>`,
+    schema: TicketDraft,
+    access: 'read',
+    browser: true,
+    maxTurns: 40,
+  });
+  return output;
+}
+
+async function ask(question: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await rl.question(question)).trim();
+  } finally {
+    rl.close();
+  }
+}
+
+/** The answers to the blocking questions, from a file or from the person at the keyboard. Null when nobody can answer. */
+async function answersTo(blocking: string[], file?: string): Promise<string | null> {
+  if (file) return fs.readFileSync(file, 'utf8');
+  if (!interactive()) return null;
+  const lines: string[] = [];
+  for (const question of blocking) lines.push(`${question}\n${await ask(`\n${question}\n> `)}`);
+  return lines.join('\n\n');
+}
+
+export async function draft(options: DraftOptions): Promise<void> {
+  const wish = options.file ? fs.readFileSync(options.file, 'utf8') : options.text;
+  if (!wish?.trim()) throw new Error('Give the wish with --text "<words>" or --file <path>.');
+
+  const source = sourceFor(options.source ?? 'local');
+  const open = await source.list();
+
+  let result = await write(wish, open);
+  const blocking = result.questions.filter((q) => q.blocking).map((q) => q.question);
+  if (blocking.length > 0) {
+    const answers = await answersTo(blocking, options.answers);
+    // One extra pass at most. Anything still open after it goes on the ticket as a question.
+    if (answers?.trim()) result = await write(withAnswers(wish, result.questions.map((q) => q.question), answers), open);
+  }
+
+  result = { ...result, duplicates: checkedDuplicates(result, open) };
+  const problems = readiness(result);
+  const body = ticketBody(result);
+  const labels = ticketLabels(result, problems);
+  const title = `Requirement: ${result.title}`;
+
+  const notReady = problems.length > 0 ? `\nNot ready:\n${problems.map((p) => `- ${p}`).join('\n')}\n` : '';
+  const preview = `# ${title}\n\nLabels: ${labels.join(', ') || 'none'}\n\n${body}${notReady}`;
+  console.log(`\n${preview}`);
+  save('draft.md', preview);
+  save('draft.json', result);
+
+  const go = options.yes || (interactive() && /^y/i.test(await ask('\nFile this ticket? (y/n) ')));
+  if (!go) {
+    console.log(interactive() ? '\nNot filed.' : '\nNot filed. Run it again with --yes to file the ticket.');
+    return;
+  }
+
+  const created = await source.create({ title, body, labels });
+  console.log(`\nFiled ${created.url ?? created.ref}.`);
+  console.log(
+    problems.length > 0
+      ? `It is not ready yet. Answer the questions on the ticket, then add the \`${LABELS.analyze}\` label to have it analysed.`
+      : `Add the \`${LABELS.analyze}\` label to have it analysed.`,
+  );
+}
