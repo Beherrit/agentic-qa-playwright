@@ -6,6 +6,9 @@ export class InventoryPage extends BasePage {
   readonly itemNames: Locator;
   readonly itemPrices: Locator;
   readonly sortSelect: Locator;
+  readonly searchBox: Locator;
+  readonly noResults: Locator;
+  readonly addButtons: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -13,6 +16,9 @@ export class InventoryPage extends BasePage {
     this.itemNames = page.getByTestId('inventory-item-name');
     this.itemPrices = page.getByTestId('inventory-item-price');
     this.sortSelect = page.getByRole('combobox', { name: 'Sort products' });
+    this.searchBox = page.getByTestId('product-search');
+    this.noResults = page.getByTestId('no-results');
+    this.addButtons = page.getByRole('button', { name: 'Add to cart' });
   }
 
   /** The card for one product, found by its visible name. */
@@ -34,6 +40,10 @@ export class InventoryPage extends BasePage {
 
   async removeFromCart(name: string): Promise<void> {
     await this.removeButton(name).click();
+  }
+
+  async search(text: string): Promise<void> {
+    await this.searchBox.fill(text);
   }
 
   async sortBy(label: string): Promise<void> {
