@@ -75,7 +75,7 @@ ${strategy.cases
 
 </details>
 
-### Independent critic's checklist
+${handOver(strategy)}### Independent critic's checklist
 
 | | Must cover | Weight | Covered by |
 |---|---|---|---|
@@ -97,6 +97,22 @@ ${strategy.siteNotes}
 
 </details>
 `;
+}
+
+/** Cases this pipeline will not automate, as a checklist for whoever owns that level. */
+function handOver(strategy: Strategy): string {
+  const section = (layer: string, heading: string): string => {
+    const cases = strategy.cases.filter((c) => c.layer === layer);
+    if (cases.length === 0) return '';
+    const items = cases.map((c) => `- [ ] ${c.id} ${c.title} (${c.criteria.join(', ')}). ${c.layerReason}`);
+    return `**${heading}**\n${items.join('\n')}\n\n`;
+  };
+  const body =
+    section('lower-layer', 'For the developers: cheaper to prove below the browser') +
+    section('manual', 'For a person: needs human judgement');
+  return body
+    ? `### Handed over\n\nThe pipeline automates the e2e cases. These are for people to pick up.\n\n${body}`
+    : '';
 }
 
 export function gatesMd(report: GateReport): string {

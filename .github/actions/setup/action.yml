@@ -1,0 +1,31 @@
+name: Setup
+description: Installs Node and the project's dependencies, and Chromium for Playwright unless told not to.
+
+inputs:
+  browser:
+    description: Set to 'false' in jobs that never open a browser. It saves about a minute.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+
+    - run: npm ci
+      shell: bash
+
+    - if: inputs.browser == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+    # Runs on a cache hit too. The browser download is skipped then, but the system
+    # libraries Chromium needs are not part of the cache and still have to be installed.
+    - if: inputs.browser == 'true'
+      run: npx playwright install --with-deps chromium
+      shell: bash

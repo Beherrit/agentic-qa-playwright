@@ -58,7 +58,7 @@ function scopeGate(changes: Change[]): Gate {
   return {
     name: 'Scope',
     passed: problems.length === 0,
-    summary: problems.length ? problems.join('; ') : `${changes.length} files, all inside ${config.writable.join(', ')}`,
+    summary: problems.length ? problems.join('; ') : `files changed: ${changes.length}, all inside ${config.writable.join(', ')}`,
   };
 }
 
@@ -103,7 +103,7 @@ function traceabilityGate(request: Request, strategy: Strategy): Gate {
     passed: missing.length === 0,
     summary: missing.length
       ? `no @${request.key} test is tagged for ${missing.join(', ')}`
-      : `${mine.length} tests tagged @${request.key} cover ${wanted.join(', ')}`,
+      : `tests tagged @${request.key}: ${mine.length}, covering ${wanted.join(', ')}`,
   };
 }
 

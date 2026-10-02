@@ -1,0 +1,495 @@
+name: QA pipeline
+
+# Turns a requirement (an issue) into a pull request with reviewed Playwright tests.
+#
+# Start it by adding the `qa-pipeline` label to the issue. GitHub only lets people with
+# triage rights or higher add labels, so someone who can merely open an issue cannot
+# start a run, and their text is never fed to an agent without a maintainer's say-so.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Number of the issue that holds the requirement
+        required: true
+        type: number
+
+# One run per issue: labelling it again replaces the run in progress.
+# Any other label on the issue also starts this workflow (and is then skipped). Those runs
+# get a group of their own, otherwise they would cancel the real run.
+concurrency:
+  group: >-
+    ${{ (github.event_name == 'workflow_dispatch' || github.event.label.name == 'qa-pipeline')
+    && format('qa-pipeline-{0}', github.event.issue.number || inputs.issue)
+    || format('qa-pipeline-ignored-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+# Nothing by default. Each job asks for what it needs.
+permissions: {}
+
+env:
+  ISSUE: ${{ github.event.issue.number || inputs.issue }}
+
+# How the jobs are laid out:
+# - The run folder qa-run/ travels from job to job as the artifact `qa-run`.
+# - The Claude credentials are set on the single step that runs an agent, nowhere else.
+# - Jobs that run an agent check out with persist-credentials: false, so the GitHub token
+#   is not left in .git/config where an agent could read it. The token is only handed to
+#   the `gh` steps, through GH_TOKEN.
+# - Values that come from issues or agents reach shell scripts as environment variables,
+#   never by ${{ }} inside the script.
+
+jobs:
+  requirements:
+    name: 1 Requirements
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'qa-pipeline'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      ready: ${{ steps.stage.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check that Claude credentials are configured
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error title=No Claude credentials::Add the repository secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - name: Read the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue view "$ISSUE" --json number,title,body > "$RUNNER_TEMP/issue.json"
+          npm run pipeline -- intake --issue "$RUNNER_TEMP/issue.json"
+
+      - name: Analyse the requirement
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- requirements
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - name: Post the analysis on the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue comment "$ISSUE" --body-file qa-run/requirements.md
+
+      # Open questions that block testing end the run here. Every later job checks `ready`.
+      # The trigger label comes off so that adding it again, once the questions are
+      # answered in the issue, starts a new run.
+      - name: Ask for more information
+        if: steps.stage.outputs.ready != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "qa:needs-info" --color D93F0B \
+            --description "The QA pipeline has questions that block testing" 2>/dev/null || true
+          gh issue edit "$ISSUE" --add-label "qa:needs-info"
+          gh issue edit "$ISSUE" --remove-label "qa-pipeline" || true
+          echo "::warning title=Requirement not ready::There are open questions that block testing. They are in the comment on issue #$ISSUE."
+
+  # 2a and 2b run side by side and do not see each other's work. Each uploads only the
+  # file it produced, so neither can overwrite the shared qa-run artifact under the other.
+  plan:
+    name: '2a Strategy: architect'
+    needs: requirements
+    if: needs.requirements.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the test plan
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- plan
+
+      # Both parallel jobs append to qa-run/ledger.json. Each sends its copy under its own
+      # name and the reconcile job puts them back together.
+      - name: Keep this job's cost ledger
+        run: cp qa-run/ledger.json qa-run/ledger-plan.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-plan
+          path: |
+            qa-run/plan.json
+            qa-run/ledger-plan.json
+          if-no-files-found: error
+          overwrite: true
+
+  critic:
+    name: '2b Strategy: critic'
+    needs: requirements
+    if: needs.requirements.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the checklist
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- critic
+
+      - name: Keep this job's cost ledger
+        run: cp qa-run/ledger.json qa-run/ledger-critic.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-critic
+          path: |
+            qa-run/checklist.json
+            qa-run/ledger-critic.json
+          if-no-files-found: error
+          overwrite: true
+
+  reconcile:
+    name: '2c Strategy: reconcile'
+    needs: [plan, critic]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-plan
+          path: qa-run
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-critic
+          path: qa-run
+
+      # ledger.json from the qa-run artifact is what both parallel jobs started with.
+      # Whatever each of them holds beyond that length is what it added.
+      - name: Merge the cost ledgers
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const read = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []);
+          const base = read('qa-run/ledger.json');
+          const merged = [...base];
+          for (const file of ['qa-run/ledger-plan.json', 'qa-run/ledger-critic.json']) {
+            merged.push(...read(file).slice(base.length));
+            fs.rmSync(file, { force: true });
+          }
+          fs.writeFileSync('qa-run/ledger.json', `${JSON.stringify(merged, null, 2)}\n`);
+          EOF
+
+      - name: Reconcile the plan with the checklist
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- reconcile
+
+      # The stage exits 1 when the plan scores too low. The strategy is still worth
+      # keeping and posting then, because it says why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - name: Post the strategy on the issue
+        if: always() && steps.stage.outcome != 'skipped' && hashFiles('qa-run/strategy.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue comment "$ISSUE" --body-file qa-run/strategy.md
+
+  generate:
+    name: 3 Code generation + gates
+    needs: reconcile
+    runs-on: ubuntu-latest
+    # The engineer can take a second pass when the gates fail, and the gates run the
+    # whole suite each time.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the tests and run the gates
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- generate
+
+      # Uploaded on failure too: the patch and the gate report are what you need to see why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: generate-playwright-output
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Report the failed gates on the issue
+        if: failure() && steps.stage.outcome == 'failure' && hashFiles('qa-run/gates.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "The generated tests did not pass the quality gates, so no pull request was opened. [Run]($RUN_URL)"
+            echo
+            cat qa-run/gates.md
+          } > "$RUNNER_TEMP/gates-comment.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/gates-comment.md"
+
+  review:
+    name: 4 Code review
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      verdict: ${{ steps.stage.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Review the change
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- review
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # One round only: the engineer answers the findings, the gates run again, and the
+  # reviewer has a second look. Whatever the second verdict is, a person decides next.
+  rework:
+    name: 4b Rework + re-review
+    needs: review
+    if: needs.review.outputs.verdict == 'request-changes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Rework and review again
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- rework
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # The only job that can write to the repository. No agent runs here and no Claude
+  # credentials are present: it applies the patch, pushes a branch and opens the pull request.
+  publish:
+    name: 5 Pull request
+    needs: [review, rework]
+    # Without a status function here, the skipped rework job would skip this job as well.
+    if: ${{ !cancelled() && needs.review.result == 'success' && (needs.rework.result == 'success' || needs.rework.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The report stage runs through tsx, so the dependencies are needed. The browser is not.
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Write the pull request description
+        id: report
+        run: npm run pipeline -- report
+
+      - name: Push the branch
+        env:
+          BRANCH: ${{ steps.report.outputs.branch }}
+          TITLE: ${{ steps.report.outputs.title }}
+        run: |
+          # The branch is force-pushed, so make sure it is one of ours before going on.
+          if ! printf '%s' "$BRANCH" | grep -Eq '^qa/req-[0-9]+$'; then
+            echo "::error::Unexpected branch name from the report stage: $BRANCH"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -- tests pages fixtures
+          if git diff --cached --quiet; then
+            echo "::error::The generated change is empty. Nothing to open a pull request for."
+            exit 1
+          fi
+          git commit -m "$TITLE"
+          # A second run for the same issue replaces the first one's branch.
+          git push --force origin "$BRANCH"
+
+      - name: Open or update the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.report.outputs.branch }}
+          TITLE: ${{ steps.report.outputs.title }}
+          DRAFT: ${{ steps.report.outputs.draft }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$TITLE" --body-file qa-run/pull-request.md
+          else
+            args=(--body-file qa-run/pull-request.md --base "$BASE" --head "$BRANCH")
+            if [ "$DRAFT" != "true" ]; then
+              gh pr create --title "$TITLE" "${args[@]}"
+            else
+              # A draft when the reviewer still wanted changes after the rework round.
+              # Private repositories on the free plan have no drafts, so fall back to
+              # saying it in the title.
+              gh pr create --draft --title "$TITLE" "${args[@]}" ||
+                gh pr create --title "[open review findings] $TITLE" "${args[@]}"
+            fi
+          fi
+          echo "url=$(gh pr view "$BRANCH" --json url --jq .url)" >> "$GITHUB_OUTPUT"
+
+      - name: Tell the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          gh issue comment "$ISSUE" --body "The tests for this requirement are ready for review: $PR_URL"
+          gh issue edit "$ISSUE" --remove-label "qa-pipeline" || true

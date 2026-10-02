@@ -1,0 +1,28 @@
+name: QA requirement
+description: Describe something a user should be able to do, so the QA pipeline can write tests for it.
+title: 'Requirement: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Write this the way you would explain it to a tester. Plain words are fine.
+
+        When it is ready for the pipeline, add the `qa-pipeline` label. The pipeline replies here with its questions, its test strategy and, at the end, a pull request with the tests.
+  - type: textarea
+    id: what
+    attributes:
+      label: What should the user be able to do?
+      description: The behaviour, from the user's side. One requirement per issue.
+      placeholder: As a shopper, I can sort the product list by price, so I can find the cheapest item quickly.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it matter?
+      description: What goes wrong for the user or the business if this breaks. It helps decide how deep the tests go.
+  - type: textarea
+    id: known
+    attributes:
+      label: Anything already known
+      description: Optional. Rules, limits, edge cases.

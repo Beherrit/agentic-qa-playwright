@@ -1,0 +1,183 @@
+name: Regression
+
+# Runs the whole suite. When tests fail, an agent works out what the failures mean and,
+# outside pull requests, the bugs it finds are filed as issues.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      persona:
+        description: Sign in as this demo account. The non-standard ones are broken on purpose, which is a quick way to see triage work.
+        type: choice
+        default: standard_user
+        options:
+          - standard_user
+          - problem_user
+          - error_user
+          - performance_glitch_user
+          - visual_user
+
+permissions: {}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      # Triage is for failed tests, not for a type or lint error.
+      tests: ${{ steps.tests.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - run: npx tsc --noEmit
+
+      - run: npx eslint .
+
+      - name: Run the tests
+        id: tests
+        env:
+          # Empty except on a manual run. The suite then signs in as standard_user.
+          SAUCE_USER: ${{ inputs.persona }}
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # The triage job reads results.json and the failure evidence from here.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  triage:
+    name: Triage failures
+    needs: test
+    # Pull requests from forks get no secrets, so there is nothing to run the agent with.
+    if: >-
+      ${{ failure() && needs.test.result == 'failure' && needs.test.outputs.tests == 'failure'
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      bugs: ${{ steps.triage.outputs.bugs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      # results.json refers to its evidence files by absolute path. They resolve here
+      # because both jobs check the repository out in the same place on the runner.
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+
+      - name: Check that Claude credentials are configured
+        id: auth
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice title=Triage skipped::No Claude credentials are configured. Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to have failures triaged."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Triage
+        id: triage
+        if: steps.auth.outputs.available == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+          SAUCE_USER: ${{ inputs.persona }}
+        run: npm run triage
+
+      - uses: actions/upload-artifact@v4
+        if: steps.auth.outputs.available == 'true'
+        with:
+          name: triage
+          path: qa-run/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  file-bugs:
+    name: File bugs
+    needs: triage
+    # The failed test job is an ancestor of this one, so the default "everything before
+    # me succeeded" check would always skip it. Hence the explicit conditions.
+    if: >-
+      ${{ !cancelled() && needs.triage.result == 'success' && github.event_name != 'pull_request'
+      && needs.triage.outputs.bugs != '' && needs.triage.outputs.bugs != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: triage
+          path: qa-run
+
+      # Each bug carries a fingerprint built from the tests it breaks. An open issue with
+      # the same fingerprint gets a comment instead of a duplicate.
+      # gh is called without a shell in between, so a title is only ever an argument.
+      - name: File new bugs, update known ones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node <<'EOF'
+          const { execFileSync } = require('node:child_process');
+          const fs = require('node:fs');
+          const path = require('node:path');
+
+          const gh = (...args) => execFileSync('gh', args, { encoding: 'utf8' });
+          const runUrl = process.env.RUN_URL;
+          const { bugs } = JSON.parse(fs.readFileSync('qa-run/triage.json', 'utf8'));
+
+          for (const bug of bugs) {
+            const open = JSON.parse(
+              gh('issue', 'list', '--state', 'open', '--search', `${bug.fingerprint} in:body`, '--json', 'number'),
+            );
+            if (open.length > 0) {
+              gh('issue', 'comment', String(open[0].number), '--body', `Still failing in run ${runUrl}`);
+              console.log(`Known bug, commented on #${open[0].number}: ${bug.title}`);
+              continue;
+            }
+            const file = path.join(process.env.RUNNER_TEMP, `bug-${bug.fingerprint}.md`);
+            fs.writeFileSync(
+              file,
+              `${bug.body}\n\nFound by regression run ${runUrl}\n\nFingerprint: ${bug.fingerprint}\n`,
+            );
+            const url = gh('issue', 'create', '--title', `[bug] ${bug.title}`, '--label', 'bug', '--body-file', file);
+            console.log(`Filed ${url.trim()}: ${bug.title}`);
+          }
+          EOF
