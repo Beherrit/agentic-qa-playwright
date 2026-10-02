@@ -364,30 +364,80 @@ async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Runs the gates, and gives the engineer one chance to fix what they find. */
+const WRITE_TASK = (brief: Brief): string => `Write the Playwright tests for the cases below.\n\n${brief.text}`;
+
+const FIX_TASK = (gates: GateReport, brief: Brief): string =>
+  `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${brief.text}`;
+
+function saveGates(gates: GateReport): void {
+  save('gates.json', gates);
+  save('gates.md', gatesMd(gates));
+  jobSummary(gatesMd(gates));
+  setOutput('gates', gates.passed ? 'passed' : 'failed');
+}
+
+/** Runs the gates, and gives the engineer one chance to fix what they find. One process: a run on your machine. */
 async function gated(generation: Generation, brief: Brief): Promise<{ generation: Generation; gates: GateReport }> {
   let gates = runGates(brief.request, brief.strategy, generation);
   if (!gates.passed) {
     console.log('\nGates failed. Sending the report back to the engineer once.');
-    generation = await engineer(
-      `Your tests are in the working tree but did not pass the quality gates. Fix the problems below, then report on the complete change (everything you have written for this requirement, not only this fix).\n\n<gate-report>\n${gatesMd(gates)}\n</gate-report>\n\n${brief.text}`,
-    );
+    generation = await engineer(FIX_TASK(gates, brief));
     gates = runGates(brief.request, brief.strategy, generation);
   }
   savePatch();
   save('generation.json', generation);
-  save('gates.json', gates);
-  save('gates.md', gatesMd(gates));
-  jobSummary(`## Code generation\n\n${generation.summary}\n\n${gatesMd(gates)}`);
-  setOutput('gates', gates.passed ? 'passed' : 'failed');
+  jobSummary(`## Code generation\n\n${generation.summary}\n\n`);
+  saveGates(gates);
   return { generation, gates };
 }
 
 export async function generate(): Promise<boolean> {
   const brief = readBrief();
   return protectingRunFiles(async () => {
-    const first = await engineer(`Write the Playwright tests for the cases below.\n\n${brief.text}`);
+    const first = await engineer(WRITE_TASK(brief));
     return (await gated(first, brief)).gates.passed;
+  });
+}
+
+/*
+ * In CI the same work is three jobs, so the model credentials and the generated test code are never in one job
+ * for longer than they must be. `write` and `fix` hold the credentials and run the engineer, who runs the tests
+ * it writes as it goes. `gates` holds no credentials at all: it applies the patch and runs the whole suite, the
+ * stability runs, the sensitivity targets and the accessibility scan.
+ */
+
+/** 3a. The engineer writes. Nothing is gated here. */
+export async function write(): Promise<void> {
+  const brief = readBrief();
+  await protectingRunFiles(async () => {
+    const generation = await engineer(WRITE_TASK(brief));
+    savePatch();
+    save('generation.json', generation);
+    jobSummary(`## Code generation\n\n${generation.summary}`);
+  });
+}
+
+/** 3b. The gates over the change already applied to the working tree. Never throws on a failed gate: the workflow decides. */
+export async function gates(): Promise<boolean> {
+  const brief = readBrief();
+  const generation = load<Generation>('generation.json');
+  return protectingRunFiles(async () => {
+    const report = runGates(brief.request, brief.strategy, generation);
+    saveGates(report);
+    console.log(report.passed ? '\nAll gates passed.' : '\nGates failed. See qa-run/gates.md.');
+    return report.passed;
+  });
+}
+
+/** 3c. The one fix round, back in a job with credentials, from the gate report. */
+export async function fix(): Promise<void> {
+  const brief = readBrief();
+  const report = load<GateReport>('gates.json');
+  await protectingRunFiles(async () => {
+    const generation = await engineer(FIX_TASK(report, brief));
+    savePatch();
+    save('generation.json', generation);
+    jobSummary(`## Code generation, fix round\n\n${generation.summary}`);
   });
 }
 

@@ -153,14 +153,16 @@ jobs:
           path: qa-run/
           overwrite: true
 
-  generate:
-    name: 1 Code generation + gates
+  # The engineer writes, with the credentials. The gates run in the next job, which has none: the whole
+  # suite, the stability runs, the known-broken targets and the accessibility scan all execute generated
+  # test code, and that code never sees a model token. The engineer still runs the tests it writes as it
+  # goes, so the token is exposed to generated code for that long; see SECURITY.md.
+  write:
+    name: 1 Code generation
     needs: prepare
     runs-on: ubuntu-latest
     environment: POC
-    # The engineer can take a second pass when the gates fail, and the gates run the whole suite
-    # each time, plus the new tests against each known-broken target.
-    timeout-minutes: 60
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -175,16 +177,52 @@ jobs:
           name: qa-run
           path: qa-run
 
-      - name: Write the tests and run the gates
+      - name: Write the tests
         id: stage
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
-        run: npx agentic-qa generate
+        run: npx agentic-qa write
 
-      # Uploaded on failure too: the patch and the gate report are what you need to see why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  gates:
+    name: 1b Quality gates
+    needs: write
+    runs-on: ubuntu-latest
+    # The gates run the whole suite each time, plus the new tests against each known-broken target.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      gates: ${{ steps.stage.outputs.gates }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      # Exits 0 whether the gates pass or fail; the `gates` output says which, and the fix job reads it.
+      - name: Run the gates
+        id: stage
+        run: npx agentic-qa gates
+
       - uses: actions/upload-artifact@v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
@@ -193,18 +231,113 @@ jobs:
           overwrite: true
 
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: steps.stage.outputs.gates != 'passed'
         with:
-          name: generate-playwright-output
+          name: gates-playwright-output
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 14
 
+  # One fix round: the gate report goes back to the engineer once, and the gates run again.
+  fix:
+    name: 1c Fix round
+    needs: gates
+    if: needs.gates.outputs.gates == 'failed'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      - name: Fix what the gates found
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa fix
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  gates-again:
+    name: 1d Quality gates again
+    needs: fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      gates: ${{ steps.stage.outputs.gates }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      - name: Run the gates
+        id: stage
+        run: npx agentic-qa gates
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - uses: actions/upload-artifact@v4
+        if: steps.stage.outputs.gates != 'passed'
+        with:
+          name: gates-playwright-output
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+          overwrite: true
+
+      # The tests failed the gates twice. The job turns red here, so the run says so.
+      - if: steps.stage.outputs.gates != 'passed'
+        run: |
+          echo "::error title=Gates failed::The generated tests did not pass the quality gates after the fix round. See qa-run/gates.md in the artifact."
+          exit 1
+
   review:
     name: 2 Code review
-    needs: generate
+    needs: [gates, gates-again]
+    # The gates passed first time (the fix round was skipped), or after the fix round.
+    if: ${{ !cancelled() && (needs.gates.outputs.gates == 'passed' || needs.gates-again.outputs.gates == 'passed') }}
     runs-on: ubuntu-latest
     environment: POC
     timeout-minutes: 20
@@ -382,7 +515,7 @@ jobs:
   # Tells the ticket how it went: the pull request, the failed gates, or that the run broke.
   report:
     name: 4 Report on the ticket
-    needs: [prepare, generate, review, rework, publish]
+    needs: [prepare, write, gates, fix, gates-again, review, rework, publish]
     # Also when prepare failed: the ticket should hear that there was no analysis to work from.
     if: ${{ !cancelled() && needs.prepare.result != 'skipped' }}
     runs-on: ubuntu-latest

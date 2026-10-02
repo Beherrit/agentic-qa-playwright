@@ -30,7 +30,7 @@ describe('command line', () => {
       assert.equal(run.status, 0);
       assert.match(run.stdout, /^Usage: npx agentic-qa <command> \[options\]/);
     }
-    for (const command of ['init', 'survey', 'doctor', 'draft', 'analyze', 'tests', 'all', 'suite', 'check', 'coverage', 'triage', 'heal', 'mcp', 'intake', 'requirements', 'technical', 'plan', 'critic', 'reconcile', 'check-plan', 'generate', 'apply', 'review', 'rework', 'report', 'notify', 'history']) {
+    for (const command of ['init', 'survey', 'doctor', 'draft', 'analyze', 'tests', 'all', 'suite', 'check', 'coverage', 'triage', 'heal', 'mcp', 'intake', 'requirements', 'technical', 'plan', 'critic', 'reconcile', 'check-plan', 'generate', 'write', 'gates', 'fix', 'apply', 'review', 'rework', 'report', 'notify', 'history']) {
       assert.match(help.stdout, new RegExp(`\\b${command}\\b`), command);
     }
     assert.match(help.stdout, /Exit codes: 0 done, 1 a stage or a check failed, 2 the command line was wrong\./);

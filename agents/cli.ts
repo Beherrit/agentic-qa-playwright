@@ -31,12 +31,13 @@ On your machine
 
 One stage at a time, as the CI jobs run them
   intake, requirements, technical, plan, critic, reconcile, check-plan,
-  generate, apply [heal.patch], review, rework, report, notify <analysis|tests>,
+  generate (or write, gates, fix as three jobs), apply [heal.patch], review, rework, report, notify <analysis|tests>,
   history record <qa-run dir> <out file> | render <history dir> [entry file]
 
 Options
-  --source github|jira|pr   Where the requirement lives, with --ref
-  --ref <ref>            The issue or pull request number (github, pr) or the ticket key (jira)
+  --source <name>        Where the requirement lives, with --ref: github, jira, pr, azure or linear
+  --ref <ref>            The issue, pull request or work item number, or the Jira or Linear key
+  --export <format>      coverage: also write junit, xray or testrail to qa-run/
   --text <words>         The requirement or the wish as text
   --file <path>          The requirement or the wish from a file
   --title <title>        A title for a requirement given as text
@@ -90,6 +91,7 @@ function parse() {
         answers: { type: 'string' }, // draft: a file with answers to the writer's questions
         yes: { type: 'boolean', default: false }, // draft: file the ticket without asking; survey: overwrite
         force: { type: 'boolean', default: false }, // init: overwrite
+        export: { type: 'string' }, // coverage: junit, xray or testrail
         'test-first': { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -176,6 +178,9 @@ const commands: Record<string, () => Promise<unknown>> = {
   generate: async () => {
     if (!(await (await stages()).generate())) stop('The generated tests did not pass the quality gates.');
   },
+  write: async () => (await stages()).write(),
+  gates: async () => (await stages()).gates(),
+  fix: async () => (await stages()).fix(),
   // `apply` takes the generated tests; `apply heal.patch` takes a repair from the healer.
   apply: async () => (await stages()).applyPatch(positionals[1] === 'heal.patch' ? 'heal.patch' : 'changes.patch'),
   review: async () => (await stages()).review(),
@@ -201,11 +206,12 @@ const commands: Record<string, () => Promise<unknown>> = {
     process.exit(runChecks());
   },
   coverage: async () => {
-    const { coverageReport } = await import('./coverage.ts');
+    const { coverageReport, exportResults } = await import('./coverage.ts');
     const { jobSummary } = await import('./lib/store.ts');
     const markdown = coverageReport();
     jobSummary(markdown);
     console.log(markdown);
+    if (values.export) console.log(`\nWrote ${exportResults(values.export)}`);
   },
   triage: async () => (await import('./triage.ts')).triage(),
   heal: async () => (await import('./heal.ts')).heal(),
