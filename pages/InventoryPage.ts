@@ -6,9 +6,13 @@ export class InventoryPage extends BasePage {
   readonly itemNames: Locator;
   readonly itemPrices: Locator;
   readonly sortSelect: Locator;
+  readonly addButtons: Locator;
+  readonly removeButtons: Locator;
 
   constructor(page: Page) {
     super(page);
+    this.addButtons = page.getByRole('button', { name: 'Add to cart' });
+    this.removeButtons = page.getByRole('button', { name: 'Remove' });
     this.items = page.getByTestId('inventory-item');
     this.itemNames = page.getByTestId('inventory-item-name');
     this.itemPrices = page.getByTestId('inventory-item-price');
