@@ -1,0 +1,11 @@
+{
+  "app": {
+    "name": "Swag Labs",
+    "baseUrl": "https://www.saucedemo.com",
+    "brief": "docs/product-brief.md"
+  },
+  "conventions": "docs/test-conventions.md",
+  "writable": ["tests/", "pages/", "fixtures/"],
+  "minPlanScore": 70,
+  "stabilityRuns": 3
+}

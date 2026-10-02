@@ -1,0 +1,32 @@
+{
+  "name": "agentic-qa-playwright",
+  "version": "1.0.0",
+  "description": "An agentic QA pipeline on GitHub Actions: requirement to reviewed Playwright tests, with a human approving the pull request.",
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "report": "playwright show-report",
+    "pipeline": "tsx agents/cli.ts",
+    "triage": "tsx agents/triage.ts"
+  },
+  "author": "Lawrence Moran",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.287",
+    "@playwright/mcp": "^0.0.83",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.4",
+    "eslint": "^10.11.0",
+    "eslint-plugin-playwright": "^2.12.0",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.71.0",
+    "zod": "^4.6.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  }
+}
