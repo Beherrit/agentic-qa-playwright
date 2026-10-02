@@ -56,7 +56,18 @@ export class InventoryPage extends BasePage {
     return cards;
   }
 
+  /** The picture of one product on the list; its alt text is the product name. */
+  picture(name: string): Locator {
+    return this.item(name).getByRole('img', { name, exact: true });
+  }
+
+  async openProductByPicture(name: string): Promise<void> {
+    await this.picture(name).click();
+    await this.page.getByRole('button', { name: 'Back to products' }).waitFor();
+  }
+
   async openProduct(name: string): Promise<void> {
     await this.itemNames.getByText(name, { exact: true }).click();
+    await this.page.getByRole('button', { name: 'Back to products' }).waitFor();
   }
 }
