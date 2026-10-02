@@ -391,6 +391,9 @@ claude mcp add agentic-qa -- node /path/to/agentic-qa-playwright/agents/mcp.ts
 }
 ```
 
+Inside this checkout, Claude Code needs no `claude mcp add`: `.mcp.json` at the root registers the server as a
+project server, and Claude Code asks once whether to use it.
+
 Node 22.18 or newer runs the TypeScript directly. The server finds the repository from its own path, so it does not
 matter where the client starts it. For GitHub issues it uses `gh` as you are signed in; for Jira, put the three
 `JIRA_*` variables in the server's `env`.
@@ -455,6 +458,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/stages.ts` | The pipeline, one function per stage, the verdict rules and the reports to the ticket |
 | `agents/gates.ts` | The quality gates |
 | `agents/mcp.ts` | The MCP server (`npm run mcp`) |
+| `.mcp.json` | Registers that server with Claude Code for this checkout |
 | `agents/draft.ts` | The ticket writer (`npm run draft`) |
 | `agents/triage.ts`, `agents/heal.ts` | Failure triage and self-healing for a regression run |
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |

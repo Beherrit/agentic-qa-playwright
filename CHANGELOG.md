@@ -3,7 +3,7 @@
 What changed, newest first, reconstructed from the git history. There are no version numbers yet: the pipeline is
 deployed from `main`, so each entry is dated by its commits.
 
-## Unreleased (branch `cloud/improvements`)
+## 2026-10-02, second pass (pull request #16)
 
 ### Added
 
@@ -19,6 +19,7 @@ deployed from `main`, so each entry is dated by its commits.
 - `docs/ARCHITECTURE.md`, `docs/OPERATIONS.md`, `SECURITY.md`, `CONTRIBUTING.md`, this changelog and a pull request
   template.
 - `npm run check` (types, lint, unit tests) and `npm run pipeline -- --help`.
+- `.mcp.json`, so Claude Code in this checkout finds the MCP server without `claude mcp add`.
 
 ### Changed
 
