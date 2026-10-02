@@ -37,16 +37,24 @@ jobs:
       # Triage is for failed tests, not for a type or lint error.
       tests: ${{ steps.tests.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
       # The project's own typecheck and lint commands, from qa.config.json.
       - run: npx agentic-qa check
 
+      # Runtime dependencies with a known high or critical vulnerability stop the run. Dev dependencies are
+      # reported by Dependabot instead, since they never reach a host project.
+      - run: npm audit --omit=dev --audit-level=high
+
       # The engine's own rules: gates, plan score, tracker adapters, reports. Only where the engine's code is.
       - if: hashFiles('agents/test/*.test.ts') != ''
         run: npm run test:unit
+
+      # The engine as a host project sees it: packed, installed into an empty project, set up, and used.
+      - if: hashFiles('agents/test/install.sh') != ''
+        run: bash agents/test/install.sh
 
       # The configured test command, signed in first when the project needs it. QA_PERSONA reaches the
       # suite under the variable it reads (personas.envVar); empty means the suite's default account.
@@ -61,7 +69,7 @@ jobs:
         if: ${{ !cancelled() && hashFiles('test-results/results.json') != '' }}
         run: npx agentic-qa coverage
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
@@ -70,7 +78,7 @@ jobs:
           retention-days: 14
 
       # The triage job reads results.json and the failure evidence from here.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() }}
         with:
           name: test-results
@@ -94,17 +102,17 @@ jobs:
       bugs: ${{ steps.triage.outputs.bugs }}
       defects: ${{ steps.triage.outputs.defects }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
       # results.json refers to its evidence files by absolute path. They resolve here
       # because both jobs check the repository out in the same place on the runner.
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: test-results
           path: test-results
@@ -134,7 +142,7 @@ jobs:
           QA_PERSONA: ${{ inputs.persona }}
         run: npx agentic-qa triage
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: steps.auth.outputs.available == 'true'
         with:
           name: triage
@@ -161,18 +169,18 @@ jobs:
       title: ${{ steps.heal.outputs.title }}
       writable: ${{ steps.heal.outputs.writable }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: test-results
           path: test-results
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: triage
           path: qa-run
@@ -188,7 +196,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: npx agentic-qa heal
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() }}
         with:
           name: heal
@@ -208,15 +216,15 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: heal
           path: qa-run
@@ -258,7 +266,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: triage
           path: qa-run
