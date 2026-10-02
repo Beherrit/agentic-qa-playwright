@@ -1,33 +1,34 @@
 ## QA run history
 
-**13 runs: 5 analysis, 7 tests, 1 regression.** Gates passed in 71% of tests runs; the review approved 29% at first review.
+**14 runs: 6 analysis, 7 tests, 1 regression.** Gates passed in 71% of tests runs; the review approved 29% at first review.
 
-Average plan score 98, estimated cost $0.75 per run, $9.80 in all.
+Average plan score 98, estimated cost $0.74 per run, $10.39 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 13 (5 analysis, 7 tests, 1 regression)
+- Runs: 14 (6 analysis, 7 tests, 1 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
 - Approved at first review: 29%
 - Approved after rework: 14%
 - Not approved: 57%
 - Average plan score: 98
-- Total cost: $9.80
-- Average cost per run: $0.75
-- Average agent time: 5m 44s
+- Total cost: $10.39
+- Average cost per run: $0.74
+- Average agent time: 5m 29s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-13 runs, newest first.
+14 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-02 23:59 | REQ-22 | Requirement: Product details page | analysis | 98 | - | - | 2m 12s | $0.59 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079684113) |
 | 2026-10-02 23:58 | REQ-17 | Requirement: Reset App State from the side menu empties the cart | tests | 98 | 9/10 passed, failed: Accessibility (advisory) | changes requested, round 2, 4 findings | 29m 46s | $2.03 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37077181275) |
 | 2026-10-02 23:55 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079648600) |
 | 2026-10-02 23:54 | REQ-21 | Requirement: Make the cart better | analysis | - | - | - | 10s | $0.04 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079682159) |
