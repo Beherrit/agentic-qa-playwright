@@ -1,30 +1,34 @@
 ## QA run history
 
-**10 runs: 4 analysis, 6 tests.** Gates passed in 67% of tests runs; the review approved 33% at first review.
+**11 runs: 5 analysis, 6 tests, 0 regression.** Gates passed in 67% of tests runs; the review approved 33% at first review.
 
-Average plan score 98, estimated cost $0.77 per run, $7.73 in all.
+Average plan score 98, estimated cost $0.71 per run, $7.77 in all.
 
-Written by the "QA run history" workflow after every analysis and tests run.
+Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 10 (4 analysis, 6 tests)
+- Runs: 11 (5 analysis, 6 tests, 0 regression)
+- Flaky lately: none recorded
 - Gates passed (tests runs): 67%
 - Approved at first review: 33%
 - Approved after rework: 17%
 - Not approved: 50%
 - Average plan score: 98
-- Total cost: $7.73
-- Average cost per run: $0.77
-- Average agent time: 4m 28s
+- Total cost: $7.77
+- Average cost per run: $0.71
+- Average agent time: 4m 5s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-10 runs, newest first.
+11 runs, newest first.
+
+<details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-02 23:54 | REQ-21 | Requirement: Make the cart better | analysis | - | - | - | 10s | $0.04 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079682159) |
 | 2026-10-02 22:50 | REQ-17 | Requirement: Reset App State from the side menu empties the cart | analysis | 98 | - | - | 2m 56s | $0.63 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37074082456) |
 | 2026-10-02 18:23 | REQ-14 | Requirement: Reset App State from the side menu empties the cart | tests | 97 | 9/10 passed, failed: Accessibility (advisory) | approved, round 1, 5 findings | 4m 13s | $0.78 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37046176338) |
 | 2026-10-02 18:14 | REQ-14 | Requirement: Reset App State from the side menu empties the cart | analysis | 97 | - | - | 1m 19s | $0.35 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37045686308) |
@@ -35,3 +39,5 @@ Written by the "QA run history" workflow after every analysis and tests run.
 | 2026-10-02 16:04 | REQ-4 | Requirement: Search products | tests | 97 | 8/8 passed | approved, round 2, 3 findings | 6m 37s | $1.13 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37029822129) |
 | 2026-10-02 15:47 | REQ-4 | Requirement: Search products | tests (failure) | 97 | 6/8 passed, failed: Full suite, Stability | - | 3m 34s | $0.80 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37027934365) |
 | 2026-10-02 15:35 | REQ-3 | Requirement: Make checkout better | analysis | - | - | - | 13s | $0.03 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37027931871) |
+
+</details>
