@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QA run history</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--tile:#f6f8fa;--accent:#0969da;--bar:#0969da;--ok:#1a7f37;--bad:#cf222e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--tile:#151b23;--accent:#4493f8;--bar:#4493f8;--ok:#3fb950;--bad:#ff7b72}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.15rem;margin:32px 0 12px}
+a{color:var(--accent)}
+.muted{color:var(--muted);font-size:.875rem;margin:4px 0 0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding:0;margin:16px 0;list-style:none}
+.tiles li{background:var(--tile);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tiles .v{display:block;font-size:1.4rem;font-weight:600;overflow-wrap:anywhere}
+.tiles .k{color:var(--muted);font-size:.8rem}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+figure{margin:0;background:var(--tile);border:1px solid var(--line);border-radius:8px;padding:12px}
+figcaption{font-weight:600;margin-bottom:6px}
+svg{width:100%;height:150px;display:block}
+svg rect{fill:var(--bar)}svg .axis{stroke:var(--line);stroke-width:1}svg .tick{fill:var(--muted);font-size:10px}
+label{display:block;font-weight:600;margin-bottom:4px}
+input{width:100%;max-width:420px;padding:8px 10px;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--muted);border-radius:6px}
+.wrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:900px;font-size:.9rem}
+caption{text-align:left;padding:8px 10px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--tile);white-space:nowrap}
+td.n{text-align:right;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>QA run history</h1>
+<p class="muted">Every analysis and tests run of the pipeline, newest first. Costs are estimates from the agent ledger.</p>
+<h2>Summary</h2>
+<ul class="tiles"><li><span class="v">1 (1 analysis, 0 tests)</span><span class="k">Runs</span></li><li><span class="v">-</span><span class="k">Gates passed (tests runs)</span></li><li><span class="v">-</span><span class="k">Approved at first review</span></li><li><span class="v">-</span><span class="k">Approved after rework</span></li><li><span class="v">-</span><span class="k">Not approved</span></li><li><span class="v">-</span><span class="k">Average plan score</span></li><li><span class="v">$0.03</span><span class="k">Total cost</span></li><li><span class="v">$0.03</span><span class="k">Average cost per run</span></li><li><span class="v">13s</span><span class="k">Average agent time</span></li><li><span class="v">-</span><span class="k">Gate failing most often</span></li></ul>
+<h2>Trends</h2>
+<div class="charts">
+<figure><figcaption>Estimated cost per run (USD)</figcaption><svg viewBox="0 0 600 150" role="img" aria-label="Estimated cost per run (USD), last 1 runs, highest $0.03" preserveAspectRatio="none"><line x1="0" y1="130" x2="600" y2="130" class="axis"/><rect x="3.0" y="8.0" width="14.0" height="122.0" rx="2"><title>REQ-3 (analysis, 2026-10-02 15:35): $0.03</title></rect><text x="0" y="146" class="tick">oldest</text><text x="600" y="146" text-anchor="end" class="tick">newest</text></svg><p class="muted">Scale up to $0.03</p></figure>
+<figure><figcaption>Plan score per run</figcaption><p class="muted">No data yet.</p></figure>
+</div>
+<h2>Runs</h2>
+<label for="filter">Filter runs</label>
+<input id="filter" type="search" placeholder="Ticket, title, verdict..." autocomplete="off">
+<p class="muted" id="count" role="status"></p>
+<div class="wrap">
+<table id="runs">
+<caption class="muted">One row per finished run</caption>
+<thead><tr><th scope="col">Date (UTC)</th><th scope="col">Ticket</th><th scope="col">Title</th><th scope="col">Half</th><th scope="col">Plan score</th><th scope="col">Gates</th><th scope="col">Review</th><th scope="col">Agent time</th><th scope="col">Est. cost</th><th scope="col">Run</th></tr></thead>
+<tbody><tr data-i="0"><td>2026-10-02 15:35</td><td>REQ-3</td><td>Requirement: Make checkout better</td><td>analysis</td><td class="n">-</td><td class="">-</td><td>-</td><td class="n">13s</td><td class="n">$0.03</td><td><a href="https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37027931871" rel="noopener noreferrer">run</a></td></tr></tbody>
+</table>
+</div>
+</main>
+<script type="application/json" id="run-data">[{"runId":"37027931871","runUrl":"https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37027931871","workflow":"analysis","conclusion":"success","finishedAt":"2026-10-02T15:35:50.000Z","key":"REQ-3","title":"Requirement: Make checkout better","source":"github","mode":"built","criteria":3,"cases":null,"planScore":null,"gates":[],"gatesPassed":null,"verdict":null,"reviewRounds":null,"findings":null,"suspectedBugs":null,"testsWritten":null,"agents":[{"role":"requirements-analyst","turns":2,"seconds":13,"costUsd":0.0319}],"costUsd":0.0319,"agentSeconds":13}]</script>
+<script>
+(function(){
+  var data=[];
+  try{data=JSON.parse(document.getElementById('run-data').textContent)||[];}catch(e){}
+  var rows=document.querySelectorAll('#runs tbody tr[data-i]');
+  var count=document.getElementById('count');
+  var haystack=data.map(function(e){return [e.key,e.title,e.workflow,e.conclusion,e.verdict,e.mode,e.source].join(' ').toLowerCase();});
+  function apply(q){
+    q=q.trim().toLowerCase();var shown=0;
+    rows.forEach(function(row){
+      var i=Number(row.getAttribute('data-i'));
+      var hit=!q||(haystack[i]||'').indexOf(q)!==-1;
+      row.hidden=!hit;if(hit)shown++;
+    });
+    count.textContent=shown+' of '+rows.length+' runs shown';
+  }
+  document.getElementById('filter').addEventListener('input',function(ev){apply(ev.target.value);});
+  apply('');
+})();
+</script>
+</body>
+</html>
