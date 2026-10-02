@@ -23,6 +23,7 @@ open a public issue for it.
 |---|---|---|
 | Ticket title and body | Whoever wrote the ticket | Every analysis agent and the ticket writer |
 | A pull request's description and diff | Whoever opened it (from this repository only; a fork's is never checked out) | The analysis agents, as text |
+| Comments on a ticket | Anyone who can comment | Only `/qa-answer` comments from members (GitHub: owner, member or collaborator; Jira: anyone in the project) reach the analyst, inside `<answers>`. The workflow checks the author before a run starts and the intake checks again before reading |
 | The project's own files, at `survey` | The project | The surveyor; what it names is checked before it is written |
 | Pages of the app under test | Whoever controls the app | The agents with a browser |
 | The diff of generated tests | The engineer agent | The code reviewer |

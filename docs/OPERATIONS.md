@@ -10,12 +10,28 @@ The same names work on GitHub issues and Jira tickets. On GitHub only people wit
 | Label | Who adds it | What it does |
 |---|---|---|
 | `qa-pipeline` | A person, or the ticket writer when `autoRun.analysisWhenWriterFiles` is on and the ticket is ready | Starts the analysis. The analysis removes it when it finishes, so adding it again starts a fresh one |
-| `qa-needs-info` | The pipeline | The analysis stopped on a blocking question, or the ticket writer's draft was not ready. Answer on the ticket, then add `qa-pipeline` again |
+| `qa-needs-info` | The pipeline | The analysis stopped on a blocking question, or the ticket writer's draft was not ready. Answer on the ticket in a comment that starts with `/qa-answer` (see below), or add `qa-pipeline` again |
 | `qa-analyzed` | The pipeline | The plan passed the pass mark. The ticket is ready for tests |
 | `qa-generate` | A person, or the analysis when `autoRun.testsWhenPlanIsReady` is on | Starts the test half from the latest analysis of the ticket. Removed when the half finishes |
 | `qa-test-first` | A person, or the ticket writer when the feature is not built | Tests are written before the feature, against a contract. The issue form answer "No, write the tests first" does the same |
 
 The pipeline creates `qa-needs-info` and `qa-analyzed` the first time it needs them; create the other three once.
+
+### Answering the pipeline's questions
+
+When the analysis stops on a blocking question, its comment ends with how to answer. A comment on the ticket that
+starts with `/qa-answer` on its own line, numbered like the questions, starts the analysis again by itself. The
+analyst gets the questions as they were asked and the answers with their authors, and is told not to ask again what
+has been answered.
+
+Only a member of the project can answer. On GitHub that is an author GitHub reports as owner, member or
+collaborator; the workflow checks it before starting, and the intake checks it again before reading a single
+comment, so a visitor's `/qa-answer` is never read even when a member starts a run later. On Jira, anyone who can
+comment on the ticket is in the project; an automation rule sends the same `qa-analyze` event the label rule sends
+(the README has it). Azure DevOps and Linear tickets are re-run by the label.
+
+Every comment on every issue starts the workflow on GitHub and is skipped at once unless all four conditions hold;
+that is the cost of the trigger, and it is why skipped runs appear in the Actions tab.
 
 ## Switches
 
@@ -45,6 +61,7 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `auth.setup`, `auth.storageState` | unset | tests sign in through the app | A command that saves a Playwright storage state, and the file it writes. Run once before the tests and before any agent gets a browser; the browser starts from that state |
 | `sensitivity.targets[].initScript`, `.routes` | one fault target | | A fault instead of broken accounts: a script on every page, requests answered or dropped. See below |
 | `budget.maxUsdPerRun` | 0 | no cap | The most a run may spend on agents. A run stops at the cap; each agent is given what is left |
+| `gates.retryExistingOnce` | true | true | The full-suite gate gives an existing test that fails one retry by itself. Passing then is reported as flaky, not blocked. New tests never get a retry. Off, any failure blocks |
 
 Repository variables and environment: `QA_AGENT_MODEL` picks the model for every role. `QA_PROVIDER_ENV` (a secret)
 holds a model provider's settings as `KEY=value` lines, for Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`,
@@ -137,6 +154,14 @@ Then check that the suite really fails against it: `BASE_URL=... npx agentic-qa 
 tells you nothing about the new tests. `npx agentic-qa doctor` lists the targets.
 
 The gate runs the new tests once per target, in built mode only, and reports which tests each target caught.
+
+## Flaky tests
+
+The full-suite gate names existing tests that failed once and passed on their retry; triage names the tests it
+judged flaky in a regression run. Both go into the run history (`flaky` on each entry), and `npx agentic-qa
+coverage` reads it back: the traceability map ends with "Flaky lately", the tests that were flaky in the newest
+runs and how often. A test there needs a look before it blocks someone. The history page shows the same five
+flakiest tests in its totals.
 
 ## Exporting results
 

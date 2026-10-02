@@ -98,7 +98,7 @@ Nothing here asks a model. Blocking means the run stops (or, for the gates, goes
 | Lint | `suite.commands.lint` on the writable folders | yes |
 | Expected failures | Every added `test.fail()` has a valid reason; bug markers name a criterion and match the reported bugs; "not built yet" only in test-first mode | yes |
 | Traceability | Every criterion the plan sends to e2e has a test tagged with it and the ticket key | yes |
-| Full suite | Every test passes, no retries | yes |
+| Full suite | New tests pass with no retries; an existing failing test gets one retry by itself and is reported as flaky if it passes | yes |
 | Stability | The new tests give the same result `stabilityRuns` times in a row | yes |
 | Fails for the right reason | Each expected failure failed on an assertion or a missing element, not a crash | yes, when there are expected failures |
 | Sensitivity | The new tests are run against `sensitivity.targets` (broken accounts, old builds, or a fault injected into every page); at least one must catch something | only with `sensitivity.required` |
