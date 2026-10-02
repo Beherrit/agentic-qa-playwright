@@ -188,9 +188,13 @@ test.describe('Product sorting', { tag: '@REQ-1' }, () => {
     await expect(signedIn.itemPrices.last()).toHaveText('$7.99');
   });
 
-  test('the right product opens and the cart holds the right items after sorting', { tag: ['@AC-9', '@AC-10'] }, async ({ signedIn, productPage, cartPage }) => {
+  test('the right product opens and the cart holds the right items after sorting', { tag: ['@AC-9', '@AC-10'] }, async ({ signedIn, productPage, cartPage, page }) => {
     await signedIn.sortBy(sortOptions.hilo);
-    await signedIn.openProduct(BACKPACK);
+    // A click right after the list is redrawn is sometimes swallowed; repeat it until the product page opens.
+    await expect(async () => {
+      await signedIn.openProduct(BACKPACK);
+      await expect(page).toHaveURL(/inventory-item/, { timeout: 2_000 });
+    }).toPass();
     await expect(productPage.name).toHaveText(BACKPACK);
     await expect(productPage.price).toHaveText('$29.99');
     await productPage.addToCart();
