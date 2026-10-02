@@ -436,7 +436,12 @@ export async function notifyAnalysis(runUrl: string | null): Promise<void> {
   const blocked = requirementsDoc?.openQuestions.some((q) => q.blocking) ?? false;
   const ready = strategy !== null && strategy.health.score >= config.minPlanScore;
 
-  const markdown = analysisMd({ request: req, requirements: requirementsDoc, strategy, runUrl, compact: req.source === 'jira' });
+  // Say on the ticket when the requirements were taken from it as filed, so nobody looks for an analyst run.
+  const fromWriter = requirementsFromTicket(req.title, req.body) !== null;
+  const markdown = analysisMd({ request: req, requirements: requirementsDoc, strategy, runUrl, compact: req.source === 'jira' }).replace(
+    '\n## Requirements:',
+    `${fromWriter ? '\n_Requirements taken from the ticket as the ticket writer filed them. No analyst run._\n' : ''}\n## Requirements:`,
+  );
   save('analysis.md', markdown);
   jobSummary(markdown);
 
