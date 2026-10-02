@@ -190,3 +190,12 @@ describe('ticketBody technical notes', () => {
     assert.ok(ticketBody({ ...ready(), technical: t }).includes('a\\|b'));
   });
 });
+
+
+describe('auto-run', () => {
+  it('adds the analysis label only when the ticket is ready and the switch is on', () => {
+    assert.deepEqual(ticketLabels({ ...ready(), built: true }, [], true), ['qa-pipeline']);
+    assert.deepEqual(ticketLabels({ ...ready(), built: true }, ['open question'], true), ['qa-needs-info']);
+    assert.deepEqual(ticketLabels({ ...ready(), built: true }, [], false), []);
+  });
+});

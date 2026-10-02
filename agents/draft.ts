@@ -84,7 +84,8 @@ export async function draft(options: DraftOptions): Promise<void> {
   };
   const problems = readiness(result);
   const body = ticketBody(result);
-  const labels = ticketLabels(result, problems);
+  const autoRun = config.autoRun?.analysisWhenWriterFiles ?? false;
+  const labels = ticketLabels(result, problems, autoRun);
   const title = `Requirement: ${result.title}`;
 
   const notReady = problems.length > 0 ? `\nNot ready:\n${problems.map((p) => `- ${p}`).join('\n')}\n` : '';
@@ -104,6 +105,8 @@ export async function draft(options: DraftOptions): Promise<void> {
   console.log(
     problems.length > 0
       ? `It is not ready yet. Answer the questions on the ticket, then add the \`${LABELS.analyze}\` label to have it analysed.`
-      : `Add the \`${LABELS.analyze}\` label to have it analysed.`,
+      : autoRun
+        ? 'The analysis starts by itself; its report will appear on the ticket.'
+        : `Add the \`${LABELS.analyze}\` label to have it analysed.`,
   );
 }

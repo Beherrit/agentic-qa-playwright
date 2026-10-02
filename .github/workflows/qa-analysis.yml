@@ -302,6 +302,8 @@ jobs:
     permissions:
       contents: read
       issues: write
+      # To start the test half when the plan is good (autoRun.testsWhenPlanIsReady in qa.config.json).
+      actions: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -317,6 +319,7 @@ jobs:
           path: qa-run
 
       - name: Post the analysis
+        id: notify
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -325,8 +328,17 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: npm run pipeline -- notify analysis
 
+      # Uploaded before the test half is started, because that is what it picks up.
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.intake.outputs.artifact }}
           path: qa-run/
           overwrite: true
+
+      # A label added with the workflow's own token would not start a workflow, but a dispatch does.
+      - name: Start the test half
+        if: steps.notify.outputs.autorun == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: gh workflow run qa-tests.yml --ref "$DEFAULT_BRANCH" -f "source=$SOURCE" -f "ref=$REF"

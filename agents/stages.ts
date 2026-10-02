@@ -446,6 +446,9 @@ export async function notifyAnalysis(runUrl: string | null): Promise<void> {
     add: blocked ? [LABELS.needsInfo] : ready ? [LABELS.analyzed] : [],
     remove: [LABELS.analyze, ...(blocked ? [] : [LABELS.needsInfo])],
   });
+
+  // The workflow starts the test half on this when the configuration says a good plan may go straight on.
+  setOutput('autorun', ready && !blocked && (config.autoRun?.testsWhenPlanIsReady ?? false));
 }
 
 /** Posts the outcome of the test half: the pull request, or why there is none. */

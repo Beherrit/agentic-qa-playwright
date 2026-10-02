@@ -117,9 +117,15 @@ ${technicalSection(draft.technical)}
 `;
 }
 
-/** Labels for the new ticket. Starting the analysis is left to a person, so that label is never added here. */
-export function ticketLabels(draft: TicketDraft, problems: string[]): string[] {
-  return [...(problems.length > 0 ? [LABELS.needsInfo] : []), ...(draft.built ? [] : [LABELS.testFirst])];
+/**
+ * Labels for the new ticket. The label that starts the analysis goes on only when the ticket is ready and the
+ * configuration says the writer may start it; otherwise a person adds it.
+ */
+export function ticketLabels(draft: TicketDraft, problems: string[], autoRun = false): string[] {
+  return [
+    ...(problems.length > 0 ? [LABELS.needsInfo] : autoRun ? [LABELS.analyze] : []),
+    ...(draft.built ? [] : [LABELS.testFirst]),
+  ];
 }
 
 /** What the writer gets on a second pass: the wish, the questions it asked, and the answers. */

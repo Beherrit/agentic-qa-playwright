@@ -29,6 +29,10 @@
     "enabled": true,
     "required": false
   },
+  "autoRun": {
+    "analysisWhenWriterFiles": true,
+    "testsWhenPlanIsReady": true
+  },
   "models": {},
   "jira": {
     "fields": {}

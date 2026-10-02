@@ -28,6 +28,11 @@ type Config = {
    * run when required is true.
    */
   accessibility?: { enabled: boolean; required: boolean };
+  /**
+   * The two hand-offs that are otherwise a person adding a label. With both on, the only human gate left is the
+   * pull request. A ticket with open questions or a weak plan still stops either way.
+   */
+  autoRun?: { analysisWhenWriterFiles: boolean; testsWhenPlanIsReady: boolean };
   /** A model per agent role, e.g. { "plan-critic": "haiku" }. Falls back to QA_AGENT_MODEL, then sonnet. */
   models?: Record<string, string>;
   /** Jira only: custom fields to read along with the description, by display name, e.g. acceptance criteria. */
