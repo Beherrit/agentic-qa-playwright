@@ -1,14 +1,14 @@
 ## QA run history
 
-**11 runs: 5 analysis, 6 tests, 0 regression.** Gates passed in 67% of tests runs; the review approved 33% at first review.
+**12 runs: 5 analysis, 6 tests, 1 regression.** Gates passed in 67% of tests runs; the review approved 33% at first review.
 
-Average plan score 98, estimated cost $0.71 per run, $7.77 in all.
+Average plan score 98, estimated cost $0.65 per run, $7.77 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 11 (5 analysis, 6 tests, 0 regression)
+- Runs: 12 (5 analysis, 6 tests, 1 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 67%
 - Approved at first review: 33%
@@ -16,18 +16,19 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 - Not approved: 50%
 - Average plan score: 98
 - Total cost: $7.77
-- Average cost per run: $0.71
-- Average agent time: 4m 5s
+- Average cost per run: $0.65
+- Average agent time: 3m 44s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-11 runs, newest first.
+12 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-02 23:55 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079648600) |
 | 2026-10-02 23:54 | REQ-21 | Requirement: Make the cart better | analysis | - | - | - | 10s | $0.04 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079682159) |
 | 2026-10-02 22:50 | REQ-17 | Requirement: Reset App State from the side menu empties the cart | analysis | 98 | - | - | 2m 56s | $0.63 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37074082456) |
 | 2026-10-02 18:23 | REQ-14 | Requirement: Reset App State from the side menu empties the cart | tests | 97 | 9/10 passed, failed: Accessibility (advisory) | approved, round 1, 5 findings | 4m 13s | $0.78 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37046176338) |
