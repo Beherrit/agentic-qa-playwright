@@ -260,6 +260,8 @@ ${generation.notAutomated.length ? `\n### Not automated\n\n${list(generation.not
 | Quality gates | ${gates.results.map((g) => `${g.name}: ${g.passed ? 'pass' : 'FAIL'}`).join(', ')} |
 | Code review | ${approved ? 'approved' : 'changes requested'}${round > 1 ? ` after ${round} rounds` : ''}, ${review.findings.length} findings |
 
+${gatesMd(gates).replace(/^## /, '### ').trim()}
+
 <details><summary>Requirements</summary>
 
 ${requirementsMd(request, req)}
