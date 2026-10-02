@@ -115,6 +115,14 @@ A product bug is never "healed". That is the line between the two.
 are plain commands; the sensitivity run against a broken app; a reviewer agent with fresh context that cannot
 write; and a person who merges. The README's Limits section says where each one falls short.
 
+**And how do you know the agents themselves behave?** `agents/evals/` has ten canned cases (a vague wish, a
+duplicate, contradictory criteria, a feature already built, and so on) with checks in code against each agent's
+structured answer. `npm run evals` runs them live and prints a pass rate; `npm run evals -- --dry` checks the cases
+against recorded answers without calling an agent. The answer to "is it any good" is a rate, not an anecdote.
+
+**Can I use it without GitHub Actions?** `npm run mcp` serves it to Claude Desktop or Claude Code: draft a ticket,
+run an analysis, see the coverage map, the run history or what is in flight, in a conversation.
+
 **What stops it doing damage?** Each agent gets the least it needs. Readers cannot write. The engineer can write in
 three folders and run three commands. Agents never hold a GitHub token, and the job that pushes never holds the
 Claude token. A patch is checked again before it is applied. The job logs show the refusals.

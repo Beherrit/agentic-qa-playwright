@@ -305,7 +305,8 @@ summary page.
 **By hand.** Actions > QA analysis (or QA tests) > Run workflow, with the source and the issue number or ticket key.
 
 **Locally.** With the Claude Code CLI signed in (`claude` then `/login`), or one of the two tokens in your
-environment. `npm run pipeline -- --help` lists every command.
+environment. `npm run pipeline -- --help` lists every command. It exits 0 when done, 1 when a stage or a check
+failed (the last line says why), and 2 when the command line was wrong.
 
 ```bash
 # The analysis only: requirements, technical review, plan, score. Prints the report; posts it too when the source is a tracker.

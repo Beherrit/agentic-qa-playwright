@@ -6,31 +6,71 @@ import { config } from './lib/paths.ts';
 import * as stages from './stages.ts';
 
 /**
- * Runs the pipeline, one stage at a time or a whole half at once.
+ * Runs the pipeline, one stage at a time or a whole half at once. `npm run pipeline -- --help` lists it all.
  *
- *   Check a checkout is ready:           npm run pipeline -- doctor
- *   In CI each stage is its own job:     npm run pipeline -- requirements
- *   On your machine, from a ticket:      npm run pipeline -- analyze --source jira --ref SHOP-12
- *   Write a ticket from a wish:          npm run pipeline -- draft --text "I want shoppers to save a wishlist" [--source github] [--yes]
- *   On your machine, from plain words:   npm run pipeline -- all --title "Sort products" --text "As a shopper ..."
- *
- * Add --test-first to a local run when the feature is not built yet. A ticket says so itself, with the
- * qa-test-first label or the issue form.
+ * Exit codes: 0 done, 1 a stage or a check failed (the last line says why), 2 the command line was wrong.
  */
 
-const { positionals, values } = parseArgs({
-  allowPositionals: true,
-  options: {
-    source: { type: 'string' }, // github or jira
-    ref: { type: 'string' }, // issue number or ticket key
-    title: { type: 'string' },
-    text: { type: 'string' },
-    file: { type: 'string' },
-    answers: { type: 'string' }, // draft: a file with answers to the writer's questions
-    yes: { type: 'boolean', default: false }, // draft: file the ticket without asking
-    'test-first': { type: 'boolean', default: false },
-  },
-});
+const HELP = `Usage: npm run pipeline -- <command> [options]
+
+On your machine
+  doctor                 Check this checkout is ready: config, documents, browser, the app, credentials
+  draft                  Write a requirement ticket from a wish (--text or --file); --source github --yes files it
+  analyze                The analysis half: requirements, technical review, plan and score
+  tests                  The test half, from the analysis in qa-run/: code, gates, review, pull request text
+  all                    Both halves, start to finish. Start from a clean working tree
+
+One stage at a time, as the CI jobs run them
+  intake, requirements, technical, plan, critic, reconcile, check-plan,
+  generate, apply [heal.patch], review, rework, report, notify <analysis|tests>
+
+Options
+  --source github|jira   Where the ticket lives, with --ref
+  --ref <ref>            The issue number (github) or the ticket key (jira)
+  --text <words>         The requirement or the wish as text
+  --file <path>          The requirement or the wish from a file
+  --title <title>        A title for a requirement given as text
+  --test-first           The feature is not built yet (a ticket says so itself)
+  --answers <path>       draft: answers to the writer's blocking questions
+  --yes                  draft: file the ticket without asking
+  -h, --help             This text
+
+Examples
+  npm run pipeline -- analyze --source jira --ref SHOP-12
+  npm run pipeline -- all --title "Sort products" --text "As a shopper I want to ..."
+  npm run pipeline -- draft --text "I want shoppers to save a wishlist" --source github
+
+Exit codes: 0 done, 1 a stage or a check failed, 2 the command line was wrong.
+Stages that run an agent need a signed-in Claude Code CLI, CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.`;
+
+/** A wrong command line. Says what was wrong and how to ask for help. */
+function usage(message: string): never {
+  console.error(`${message}\nRun \`npm run pipeline -- --help\` for the commands and options.`);
+  process.exit(2);
+}
+
+function parse() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        source: { type: 'string' }, // github or jira
+        ref: { type: 'string' }, // issue number or ticket key
+        title: { type: 'string' },
+        text: { type: 'string' },
+        file: { type: 'string' },
+        answers: { type: 'string' }, // draft: a file with answers to the writer's questions
+        yes: { type: 'boolean', default: false }, // draft: file the ticket without asking
+        'test-first': { type: 'boolean', default: false },
+        help: { type: 'boolean', short: 'h', default: false },
+      },
+    });
+  } catch (error) {
+    return usage(error instanceof Error ? error.message : String(error));
+  }
+}
+
+const { positionals, values } = parse();
 
 const input = (): RequirementInput => ({
   source: values.source,
@@ -89,7 +129,7 @@ const commands: Record<string, () => unknown> = {
     const what = positionals[1];
     if (what === 'analysis') return stages.notifyAnalysis(runUrl());
     if (what === 'tests') return stages.notifyTests(runUrl(), process.env.PR_URL || null);
-    stop('Usage: npm run pipeline -- notify <analysis|tests>');
+    usage('Usage: npm run pipeline -- notify <analysis|tests>');
   },
   analyze: async () => (await analyze()) || stop('The analysis did not reach a usable plan. See qa-run/analysis.md.'),
   tests,
@@ -99,8 +139,13 @@ const commands: Record<string, () => unknown> = {
   },
 };
 
-const command = commands[positionals[0]];
-if (!command) stop(`Usage: npm run pipeline -- <${Object.keys(commands).join('|')}>`);
+if (values.help || positionals[0] === 'help') {
+  console.log(HELP);
+  process.exit(0);
+}
+if (!positionals[0]) usage('Name a command.');
+const command = Object.hasOwn(commands, positionals[0]) ? commands[positionals[0]] : undefined;
+if (!command) usage(`Unknown command "${positionals[0]}".`);
 
 try {
   await command();
