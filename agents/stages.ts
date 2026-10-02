@@ -1,7 +1,9 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { applyPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
 import { branchFor } from './lib/keys.ts';
-import { config, LABELS, projectDoc } from './lib/paths.ts';
+import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
 import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, testsReadyMd } from './lib/render.ts';
 import {
   Checklist,
@@ -133,7 +135,7 @@ export async function reconcile(): Promise<boolean> {
     existingCoverage: draft.existingCoverage,
     siteNotes: draft.siteNotes,
     contract: draft.contract,
-    regressionRisks: draft.regressionRisks,
+    regressionRisks: checkedRisks(draft.regressionRisks ?? [], (file) => fs.existsSync(path.join(ROOT, file))),
     ...output,
     added: output.added.filter((id) => caseIds.has(id)),
     cases,
@@ -152,6 +154,17 @@ export async function reconcile(): Promise<boolean> {
   setOutput('score', strategy.health.score);
   setOutput('proceed', proceed);
   return proceed;
+}
+
+/**
+ * A risk only counts as guarded if the guard names a spec file that exists. Anything else, a file that is not
+ * there or a sentence instead of a test, is reported as unguarded rather than taken on trust.
+ */
+export function checkedRisks(risks: Plan['regressionRisks'], fileExists: (file: string) => boolean): Plan['regressionRisks'] {
+  return risks.map((risk) => {
+    const file = /^([\w./-]+\.spec\.ts): \S/.exec(risk.guardedBy ?? '')?.[1];
+    return file && fileExists(file) ? risk : { ...risk, guardedBy: null };
+  });
 }
 
 /** Why the test half cannot start from what is in the run folder, or null when it can. */

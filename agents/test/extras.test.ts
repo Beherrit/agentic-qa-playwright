@@ -7,6 +7,7 @@ import { canonicalTests, fingerprint } from '../lib/fingerprint.ts';
 import { gatesMd, strategyMd } from '../lib/render.ts';
 import type { Request, Strategy } from '../lib/schemas.ts';
 import { adfToMarkdown } from '../sources/adf.ts';
+import { checkedRisks } from '../stages.ts';
 
 const added = (...lines: string[]): string => lines.map((line) => `+${line}`).join('\n');
 
@@ -139,6 +140,20 @@ describe('reports', () => {
     assert.match(markdown, /1 of 2 have no existing test/);
     assert.match(markdown, /\| the product detail link \| same card \| \*\*nothing\*\* \|/);
     assert.doesNotMatch(strategyMd(request, { ...strategy, regressionRisks: [] }), /Nearby behaviour/);
+  });
+
+  it('counts a risk as guarded only when the guard is a spec file that exists', () => {
+    const risk = (guardedBy: string | null) => ({ area: 'a', why: 'w', guardedBy });
+    const checked = checkedRisks(
+      [
+        risk('tests/cart.spec.ts: adding items updates the cart badge'),
+        risk('tests/gone.spec.ts: something'),
+        risk('tests/cart.spec.ts (not read in detail)'),
+        risk(null),
+      ],
+      (file) => file === 'tests/cart.spec.ts',
+    );
+    assert.deepEqual(checked.map((r) => r.guardedBy), ['tests/cart.spec.ts: adding items updates the cart badge', null, null, null]);
   });
 
   it('shows the sensitivity table even when the gate passes', () => {

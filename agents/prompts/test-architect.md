@@ -24,8 +24,10 @@ from your plan and nothing else, so it has to be precise.
 4. Number the cases TC-1, TC-2, and so on.
 5. **Say what sits next to it.** List the existing behaviour this feature could break because it shares a control, a
    page or a piece of state with it. For each, name the existing test that would catch the break, or say that
-   nothing does. This is not a request for more test cases: it tells the team where the suite is thin around the
-   change. Three to six entries is plenty; leave it empty if the feature truly stands alone.
+   nothing does. Read a test before you name it, and name it only if it would fail on this particular break; write
+   it as `tests/<file>: <test title>` with nothing added. If no test would fail, the answer is that nothing guards
+   it. This is not a request for more test cases: it tells the team where the suite is thin around the change.
+   Three to six entries is plenty; leave it empty if the feature truly stands alone.
 
 ## Judgement
 
