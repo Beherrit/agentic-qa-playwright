@@ -24,8 +24,10 @@ const tail = (text: string, lines = 40): string => text.split('\n').slice(-lines
 type Change = { status: string; file: string };
 
 export function changedFiles(): Change[] {
-  return sh('git status --porcelain --untracked-files=all')
-    .output.split('\n')
+  // Not through sh(): it trims, and the first column of a porcelain line is often a space that matters.
+  const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: ROOT, encoding: 'utf8' });
+  return status.stdout
+    .split('\n')
     .filter(Boolean)
     .map((line) => ({ status: line.slice(0, 2).trim(), file: line.slice(3).trim().replace(/^"|"$/g, '') }));
 }

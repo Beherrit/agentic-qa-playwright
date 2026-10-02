@@ -75,7 +75,15 @@ function browserServer():NonNullable<Options['mcpServers']> {
     playwright: {
       command: process.execPath,
       // Reuse the Chromium that the test runner already installed, so CI needs no second browser.
-      args: [cli, '--headless', '--isolated', '--executable-path', chromium.executablePath()],
+      args: [
+        cli,
+        '--headless',
+        '--isolated',
+        '--executable-path',
+        chromium.executablePath(),
+        // Chromium's own sandbox cannot start on GitHub's Linux runners. The runner is thrown away after the job.
+        ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+      ],
       alwaysLoad: true,
     },
   };
@@ -108,11 +116,27 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
   const started = Date.now();
   console.log(`\n=== ${spec.role} ===`);
 
+  // Which tool each call belongs to, so a failed result can be traced back to it.
+  const calls = new Map<string, string>();
+  const browser = { calls: 0, worked: 0 };
+
   for await (const message of query({ prompt: spec.task, options })) {
     if (message.type === 'assistant') {
       for (const block of message.message.content) {
         if (block.type === 'text' && block.text.trim()) console.log(`  ${firstLine(block.text)}`);
-        if (block.type === 'tool_use') console.log(`  > ${block.name} ${brief(block.input)}`);
+        if (block.type === 'tool_use') {
+          calls.set(block.id, block.name);
+          console.log(`  > ${block.name} ${brief(block.input)}`);
+        }
+      }
+      continue;
+    }
+    if (message.type === 'user') {
+      for (const result of toolResults(message.message.content)) {
+        const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__');
+        if (isBrowser) browser.calls += 1;
+        if (isBrowser && !result.failed) browser.worked += 1;
+        if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
       }
       continue;
     }
@@ -121,6 +145,11 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
     const seconds = Math.round((Date.now() - started) / 1000);
     const run = { role: spec.role, turns: message.num_turns, seconds, costUsd: message.total_cost_usd };
     recordRun(run);
+
+    if (spec.browser && browser.calls > 0 && browser.worked === 0) {
+      // An agent that could not see the app will still hand in confident work. Stop it here instead.
+      throw new Error(`${spec.role} could not use the browser: every browser call failed. See the log above.`);
+    }
 
     if (message.subtype !== 'success') {
       throw new Error(`${spec.role} did not finish (${message.subtype}): ${message.errors.join('; ')}`);
@@ -146,7 +175,21 @@ function jsonSchema(schema: z.ZodType): Record<string, unknown> {
   return result;
 }
 
-const firstLine =(text: string): string => {
+type ToolResult = { id: string; failed: boolean; text: string };
+
+/** Pulls the tool results out of a message the CLI sends back to the model. */
+function toolResults(content: unknown): ToolResult[] {
+  if (!Array.isArray(content)) return [];
+  return content
+    .filter((block) => block?.type === 'tool_result')
+    .map((block) => ({
+      id: String(block.tool_use_id),
+      failed: block.is_error === true,
+      text: typeof block.content === 'string' ? block.content : JSON.stringify(block.content ?? ''),
+    }));
+}
+
+const firstLine = (text: string): string => {
   const line = text.trim().split('\n')[0];
   return line.length > 160 ? `${line.slice(0, 157)}...` : line;
 };

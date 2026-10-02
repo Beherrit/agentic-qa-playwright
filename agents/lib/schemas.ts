@@ -25,7 +25,11 @@ export const Criterion = z.object({
 
 export const Requirements = z.object({
   title: z.string(),
-  story: z.object({ asA: z.string(), iWant: z.string(), soThat: z.string() }),
+  story: z.object({
+    asA: z.string().describe('With its article, e.g. "a shopper"'),
+    iWant: z.string().describe('Starts with "to", e.g. "to sort the list by price"'),
+    soThat: z.string().describe('Starts with the subject, e.g. "I can find the cheapest item"'),
+  }),
   criteria: z.array(Criterion).min(3).max(12),
   assumptions: z.array(z.string()),
   outOfScope: z.array(z.string()),
