@@ -1,20 +1,31 @@
-# QA run history
+## QA run history
 
-Written by the "QA run history" workflow after every analysis and tests run. Newest first.
+**10 runs: 4 analysis, 6 tests.** Gates passed in 67% of tests runs; the review approved 33% at first review.
 
-- Runs: 9 (3 analysis, 6 tests)
+Average plan score 98, estimated cost $0.77 per run, $7.73 in all.
+
+Written by the "QA run history" workflow after every analysis and tests run.
+
+### Totals
+
+- Runs: 10 (4 analysis, 6 tests)
 - Gates passed (tests runs): 67%
 - Approved at first review: 33%
 - Approved after rework: 17%
 - Not approved: 50%
 - Average plan score: 98
-- Total cost: $7.09
-- Average cost per run: $0.79
-- Average agent time: 4m 38s
+- Total cost: $7.73
+- Average cost per run: $0.77
+- Average agent time: 4m 28s
 - Gate failing most often: Full suite (2)
+
+### Runs
+
+10 runs, newest first.
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-02 22:50 | REQ-17 | Requirement: Reset App State from the side menu empties the cart | analysis | 98 | - | - | 2m 56s | $0.63 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37074082456) |
 | 2026-10-02 18:23 | REQ-14 | Requirement: Reset App State from the side menu empties the cart | tests | 97 | 9/10 passed, failed: Accessibility (advisory) | approved, round 1, 5 findings | 4m 13s | $0.78 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37046176338) |
 | 2026-10-02 18:14 | REQ-14 | Requirement: Reset App State from the side menu empties the cart | analysis | 97 | - | - | 1m 19s | $0.35 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37045686308) |
 | 2026-10-02 17:21 | REQ-11 | Requirement: Product details page | tests | 98 | 9/10 passed, failed: Accessibility (advisory) | approved, round 1, 3 findings | 9m 28s | $1.16 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37037910332) |
