@@ -75,7 +75,18 @@ export function coverageMap(report: { suites?: ReportSuite[] }): CoverageMap {
   return { ran, requirements, untagged };
 }
 
-export function coverageMd(map: CoverageMap): string {
+/** What the run history says about flakiness: tests and how often, over the newest runs that could say. */
+export type FlakeTrend = { test: string; count: number; runs: number }[];
+
+export function flakeTrendMd(trend: FlakeTrend): string {
+  if (!trend.length) return '';
+  const runs = trend[0].runs;
+  return `\n### Flaky lately\n\n${trend.length} test(s) failed and then passed in the last ${runs} recorded run(s). A test here needs a look before it blocks someone.\n\n${trend
+    .map((f) => `- ${f.test} (${f.count} of ${runs})`)
+    .join('\n')}\n`;
+}
+
+export function coverageMd(map: CoverageMap, trend: FlakeTrend = []): string {
   const results = (t: Tally): string => (map.ran ? ` ${t.passing} | ${t.expectedFailures} | ${t.failing} | ${t.flaky} |` : '');
   const header = map.ran
     ? '| Requirement | Criteria with a test | Tests | Passing | Expected failures | Failing | Flaky |\n|---|---|---|---|---|---|---|'
@@ -116,7 +127,7 @@ ${map.requirements.length} ticket(s) with tests: ${tagged} tests claim ${map.req
 
 ${header.replace('| Requirement |', '| Ticket |')}
 ${rows.join('\n')}
-${expected ? `\n${expected} expected failure(s): tests marked with \`test.fail()\` for a known bug or a feature not built yet. They are debts, not passes.\n` : ''}
+${expected ? `\n${expected} expected failure(s): tests marked with \`test.fail()\` for a known bug or a feature not built yet. They are debts, not passes.\n` : ''}${flakeTrendMd(trend)}
 ${detail}
 `;
 }

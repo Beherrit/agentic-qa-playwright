@@ -6,7 +6,7 @@ import { github } from './github.ts';
 import { jira } from './jira.ts';
 import { linear } from './linear.ts';
 import { pull } from './pull.ts';
-import type { Source, Ticket } from './types.ts';
+import type { Source, Ticket, TicketComment } from './types.ts';
 
 /** Prints instead of posting. Used for runs on your own machine from --text or --file. */
 const local: Source = {
@@ -48,6 +48,55 @@ export function modeOf(ticket: Pick<Ticket, 'labels' | 'body'>): Mode {
   return /^no\b/i.test(formAnswer(ticket.body, BUILT_QUESTION) ?? '') ? 'test-first' : 'built';
 }
 
+/** The first line of a comment that answers the pipeline's questions. */
+export const ANSWER_COMMAND = '/qa-answer';
+
+const QUESTIONS_HEADING = /questions that block testing/i;
+
+/**
+ * The questions the pipeline asked in its latest needs-info comment: the list under its "Questions that block
+ * testing" heading, with the markdown taken off. Empty when it never asked.
+ */
+export function askedQuestions(comments: TicketComment[] = []): string[] {
+  const asked = [...comments].reverse().find((c) => QUESTIONS_HEADING.test(c.body));
+  if (!asked) return [];
+  const lines = asked.body.split(/\r?\n/);
+  const start = lines.findIndex((line) => QUESTIONS_HEADING.test(line));
+  const questions: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^#{1,6}\s/.test(line) && questions.length) break;
+    const item = /^\s*(?:[-*]|\d+\.)\s+(.*)$/.exec(line);
+    if (item) questions.push(item[1].replace(/\*\*/g, '').trim());
+    else if (questions.length && line.trim() && !line.startsWith(' ')) break;
+  }
+  return questions;
+}
+
+/**
+ * The answers: every comment from a trusted author that starts with the command on its own line, in order. A
+ * visitor's comment is never read, whatever it starts with, and neither is the pipeline's own.
+ */
+export function answersFrom(comments: TicketComment[] = []): { author: string; text: string }[] {
+  return comments
+    .filter((c) => c.trusted)
+    .map((c) => ({ author: c.author, body: c.body.replace(/\r\n/g, '\n').trim() }))
+    .filter((c) => c.body === ANSWER_COMMAND || c.body.startsWith(`${ANSWER_COMMAND}\n`) || c.body.startsWith(`${ANSWER_COMMAND} `))
+    .map((c) => ({ author: c.author, text: c.body.slice(ANSWER_COMMAND.length).trim() }))
+    .filter((c) => c.text);
+}
+
+/**
+ * What the agents get next to the requirement when someone has answered: the questions as they were asked, then
+ * the answers with their authors. Undefined when there is nothing to pass on.
+ */
+export function answersText(ticket: Pick<Ticket, 'comments'>): string | undefined {
+  const answers = answersFrom(ticket.comments);
+  if (!answers.length) return undefined;
+  const questions = askedQuestions(ticket.comments);
+  const asked = questions.length ? `The pipeline asked:\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\n` : '';
+  return `${asked}Answers from the team, in order:\n\n${answers.map((a) => `${a.author}:\n${a.text}`).join('\n\n')}`;
+}
+
 export async function intakeTicket(name: SourceName, ref: string): Promise<Request> {
   validateRef(name, ref);
   const ticket = await sourceFor(name).read(ref);
@@ -61,5 +110,6 @@ export async function intakeTicket(name: SourceName, ref: string): Promise<Reque
     mode: modeOf(ticket),
     ...(ticket.baseUrl ? { baseUrl: ticket.baseUrl } : {}),
     ...(ticket.base ? { base: ticket.base } : {}),
+    ...(answersText(ticket) ? { answers: answersText(ticket) } : {}),
   });
 }

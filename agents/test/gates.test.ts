@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 import {
   addedMarkers,
   addedSkips,
+  grepFor,
   patchPaths,
+  splitFailures,
   markerProblems,
   missingCriteria,
   outcomes,
@@ -204,6 +206,7 @@ describe('the outcome of a Playwright JSON report', () => {
     const outcome = {
       file: 'x.spec.ts',
       title: 'search finds the backpack',
+      tags: [],
       status: 'expected',
       expectedToFail: true,
       reasons: ['not built yet: SHOP-12'],
@@ -263,5 +266,24 @@ describe('sensitivity', () => {
 
   it('says so when nothing was caught', () => {
     assert.equal(sensitivitySummary({ targets: ['problem_user'], tests: [{ title: 't', caught: [] }] }).caughtAny, false);
+  });
+});
+
+describe('the full-suite gate', () => {
+  const outcome = (title: string, tags: string[], status = 'unexpected') => ({ file: 'f.spec.ts', title, tags, status, expectedToFail: false, reasons: [], errors: [] });
+
+  it('tells this requirement\'s failures from everyone else\'s by the tag', () => {
+    const report = [outcome('Cart > new', ['REQ-17', 'AC-1']), outcome('Sort > old', ['REQ-1']), outcome('Login > fine', ['REQ-1'], 'expected')];
+    const { mine, existing } = splitFailures(report, 'REQ-17');
+    assert.deepEqual(mine.map((t) => t.title), ['Cart > new']);
+    assert.deepEqual(existing.map((t) => t.title), ['Sort > old']);
+    assert.deepEqual(splitFailures(report, 'REQ-170').mine, [], 'REQ-17 is not REQ-170');
+  });
+
+  it('builds a grep that runs exactly the failed tests again', () => {
+    const grep = grepFor(['Sort > the right product opens (cheap)', 'Cart > badge']);
+    assert.equal(grep, 'Sort the right product opens \\(cheap\\)$|Cart badge$');
+    assert.match('chromium sort.spec.ts Sort the right product opens (cheap)', new RegExp(grep));
+    assert.doesNotMatch('chromium sort.spec.ts Sort the right product opens (cheap) twice', new RegExp(grep));
   });
 });

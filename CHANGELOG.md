@@ -7,6 +7,17 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
+- **Answer and requeue.** A `/qa-answer` comment from a member of the project re-runs the analysis on a blocked
+  ticket, with the questions and the answers in front of the analyst. The trigger and the intake both check the
+  author. Jira gets an automation rule for it.
+- **An install test** (`agents/test/install.sh`, part of Regression in this repository): the package is packed,
+  installed into an empty project next to Playwright, set up and used. It found that Node refuses to run
+  TypeScript from `node_modules`, so the bin now runs through `tsx`, a runtime dependency.
+- **Flaky tests in the history.** Regression runs on the default branch are recorded on `qa-history` with the
+  tests triage judged flaky; tests runs record the existing tests the full-suite gate retried. The traceability map
+  ends with "Flaky lately".
+- `.github/dependabot.yml`, an `npm audit` step for runtime dependencies, and a release procedure in CONTRIBUTING.
+
 - **The engine is a tool a project installs.** `npx agentic-qa` is the command line; the package installs from git
   into any Playwright project; `npx agentic-qa init` writes the config, the documents, the four caller workflows,
   the issue form, `.mcp.json` and the fault fixture; the engine's workflows take `workflow_call`. Two roots: the
@@ -26,6 +37,12 @@ deployed from `main`, so each entry is dated by its commits.
 - Commands `suite`, `check`, `coverage`, `triage`, `heal`, `history` and `mcp` on the one command line.
 
 ### Changed
+
+- **The full-suite gate** gives an existing test that fails one retry by itself. Passing then is reported as flaky
+  by name and does not block; failing again does, with a note that a shared page object may be the cause. New tests
+  never get a retry. `gates.retryExistingOnce: false` restores the old behaviour.
+- Third-party actions are pinned to commit SHAs. The setup action and the host callers use `@v1`, a pointer to the
+  newest 1.x release, instead of `@main`.
 
 - The config is read through a zod schema with defaults, so a host config can be five lines and `doctor` names
   every wrong field. `suite.commands`, `suite.specGlob`, `suite.testImport` and `personas.envVar` replace what used

@@ -2,8 +2,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coverageMap, coverageMd } from './lib/coverage.ts';
+import { coverageMap, coverageMd, type FlakeTrend } from './lib/coverage.ts';
 import { exportAs, exportedTests } from './lib/export.ts';
+import { flakeCounts, parseRunLog } from './lib/history.ts';
 import { ROOT, RUN_DIR } from './lib/paths.ts';
 import { jobSummary } from './lib/store.ts';
 import { testCommand } from './lib/suite.ts';
@@ -25,12 +26,23 @@ function listing(): string {
   return file;
 }
 
+/**
+ * Which tests the run history has seen flaky lately. The history lives on the qa-history branch; it is fetched
+ * quietly if it can be, and read from the local clone. No history, or no way to fetch it, means no trend.
+ */
+export function flakeTrend(): FlakeTrend {
+  const git = (...args: string[]) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000, maxBuffer: 64 * 1024 * 1024 });
+  git('fetch', '--quiet', '--depth=1', 'origin', '+refs/heads/qa-history:refs/remotes/origin/qa-history');
+  const shown = git('show', 'origin/qa-history:runs.jsonl');
+  return shown.status === 0 ? flakeCounts(parseRunLog(shown.stdout)) : [];
+}
+
 /** The traceability map as markdown, from the last run's results or, without one, from a listing of the tests. */
 export function coverageReport(): string {
   const results = path.join(ROOT, 'test-results', 'results.json');
   const source = fs.existsSync(results) ? results : listing();
   if (!fs.existsSync(source)) throw new Error('Could not list the tests.');
-  return coverageMd(coverageMap(JSON.parse(fs.readFileSync(source, 'utf8'))));
+  return coverageMd(coverageMap(JSON.parse(fs.readFileSync(source, 'utf8'))), flakeTrend());
 }
 
 /** Writes the last run's results in a test management tool's shape to the run folder, and returns the file. */

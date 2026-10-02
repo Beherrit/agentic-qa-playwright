@@ -12,7 +12,7 @@ export type AgentEntry = { role: string; turns: number; seconds: number; costUsd
 export type RunEntry = {
   runId: string;
   runUrl: string;
-  workflow: 'analysis' | 'tests';
+  workflow: 'analysis' | 'tests' | 'regression';
   conclusion: string;
   finishedAt: string;
   key: string | null;
@@ -32,6 +32,10 @@ export type RunEntry = {
   agents: AgentEntry[];
   costUsd: number;
   agentSeconds: number;
+  /** Tests that failed and then passed: on the full-suite gate's retry, or by triage's verdict in a regression run. */
+  flaky: string[];
+  /** Regression runs: how many tests failed. Null for the pipeline's own runs. */
+  failedTests: number | null;
 };
 
 export type RunMeta = { runId: unknown; runUrl: unknown; workflow: unknown; conclusion: unknown; finishedAt: unknown };
@@ -39,6 +43,8 @@ export type RunFiles = Record<string, unknown>;
 
 const MAX_GATES = 50;
 const MAX_AGENTS = 100;
+const MAX_FLAKY = 50;
+const WORKFLOWS = ['analysis', 'tests', 'regression'] as const;
 
 // ── Reading untrusted values ─────────────────────────────────────────────────
 
@@ -108,6 +114,18 @@ function agentList(value: unknown): AgentEntry[] {
   return agents;
 }
 
+/** Test names, each a capped line of text, with no duplicates. */
+function nameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const names: string[] = [];
+  for (const item of value) {
+    const name = text(item, 200);
+    if (name && !names.includes(name)) names.push(name);
+    if (names.length === MAX_FLAKY) break;
+  }
+  return names;
+}
+
 const sumOf = (numbers: number[]): number => numbers.reduce((a, b) => a + b, 0);
 const score100 = (value: unknown): number | null => {
   const n = num(value);
@@ -128,17 +146,28 @@ export function buildEntry(meta: RunMeta, files: RunFiles): RunEntry {
   const round = isRecord(files['round.json']) ? files['round.json'] : {};
   const health = isRecord(strategy.health) ? strategy.health : {};
 
+  const triage = isRecord(files['triage.json']) ? files['triage.json'] : {};
+
   const hasReview = isRecord(files['review.json']);
   const agents = agentList(files['ledger.json']);
+  const workflow = oneOf(meta.workflow, WORKFLOWS) ?? 'analysis';
+
+  // Flaky tests: the full-suite gate names the existing tests that passed on a retry; triage names the ones it judged flaky.
+  const gateFlaky = Array.isArray(gates.results) ? gates.results.flatMap((g) => (isRecord(g) && Array.isArray(g.flaky) ? g.flaky : [])) : [];
+  const triageFlaky = Array.isArray(triage.failures)
+    ? triage.failures.flatMap((f) => (isRecord(f) && f.verdict === 'flaky' && typeof f.test === 'string' ? [f.test] : []))
+    : [];
+  const failedTests = workflow === 'regression' ? (Array.isArray(triage.reported) ? Math.min(triage.reported.length, 10_000) : meta.conclusion === 'success' ? 0 : null) : null;
+  const regressionTitle = workflow === 'regression' ? (failedTests === null ? 'Regression' : `Regression: ${failedTests} failed, ${triageFlaky.length} flaky`) : null;
 
   return {
     runId: idText(meta.runId),
     runUrl: safeUrl(meta.runUrl),
-    workflow: meta.workflow === 'tests' ? 'tests' : 'analysis',
+    workflow,
     conclusion: text(meta.conclusion, 40) ?? 'unknown',
     finishedAt: isoDate(meta.finishedAt),
     key: text(request.key, 60),
-    title: text(request.title, 200),
+    title: regressionTitle ?? text(request.title, 200),
     source: oneOf(request.source, ['github', 'jira', 'local']),
     mode: oneOf(request.mode, ['built', 'test-first']),
     criteria: length(requirements.criteria),
@@ -154,6 +183,8 @@ export function buildEntry(meta: RunMeta, files: RunFiles): RunEntry {
     agents,
     costUsd: Math.round(sumOf(agents.map((a) => a.costUsd)) * 10_000) / 10_000,
     agentSeconds: sumOf(agents.map((a) => a.seconds)),
+    flaky: nameList([...gateFlaky, ...triageFlaky]),
+    failedTests,
   };
 }
 
@@ -167,7 +198,7 @@ export function cleanEntry(raw: unknown): RunEntry | null {
   return {
     runId,
     runUrl: safeUrl(raw.runUrl),
-    workflow: raw.workflow === 'tests' ? 'tests' : 'analysis',
+    workflow: oneOf(raw.workflow, WORKFLOWS) ?? 'analysis',
     conclusion: text(raw.conclusion, 40) ?? 'unknown',
     finishedAt: isoDate(raw.finishedAt),
     key: text(raw.key, 60),
@@ -187,7 +218,21 @@ export function cleanEntry(raw: unknown): RunEntry | null {
     agents,
     costUsd: Math.round(sumOf(agents.map((a) => a.costUsd)) * 10_000) / 10_000,
     agentSeconds: sumOf(agents.map((a) => a.seconds)),
+    flaky: nameList(raw.flaky),
+    failedTests: count(raw.failedTests),
   };
+}
+
+/** How often each test was flaky in the newest `window` runs that could say (tests runs and regression runs). */
+export function flakeCounts(entries: RunEntry[], window = 20): { test: string; count: number; runs: number }[] {
+  const recent = newestFirst(entries)
+    .filter((e) => e.workflow === 'regression' || e.workflow === 'tests')
+    .slice(0, window);
+  const counts = new Map<string, number>();
+  for (const e of recent) for (const test of e.flaky) counts.set(test, (counts.get(test) ?? 0) + 1);
+  return [...counts]
+    .map(([test, count]) => ({ test, count, runs: recent.length }))
+    .sort((a, b) => b.count - a.count || a.test.localeCompare(b.test));
 }
 
 /** The entries in runs.jsonl. A damaged line is skipped, not fatal. */
@@ -221,6 +266,9 @@ export type Summary = {
   runs: number;
   analysisRuns: number;
   testsRuns: number;
+  regressionRuns: number;
+  /** The tests flaky most often in the newest runs. */
+  flakiest: { test: string; count: number; runs: number }[];
   /** Tests runs whose gates all passed, out of the tests runs that reached the gates. Null when none did. */
   gatePassRate: number | null;
   approvedFirst: number;
@@ -240,6 +288,7 @@ export type Summary = {
 
 export function summary(entries: RunEntry[]): Summary {
   const tests = entries.filter((e) => e.workflow === 'tests');
+  const regression = entries.filter((e) => e.workflow === 'regression');
   const gated = tests.filter((e) => e.gatesPassed !== null);
   const scores = entries.flatMap((e) => (e.planScore === null ? [] : [e.planScore]));
 
@@ -260,8 +309,10 @@ export function summary(entries: RunEntry[]): Summary {
 
   return {
     runs: entries.length,
-    analysisRuns: entries.length - tests.length,
+    analysisRuns: entries.length - tests.length - regression.length,
     testsRuns: tests.length,
+    regressionRuns: regression.length,
+    flakiest: flakeCounts(entries).slice(0, 5),
     gatePassRate: gated.length ? gated.filter((e) => e.gatesPassed).length / gated.length : null,
     approvedFirst: first,
     approvedAfterRework: rework,
@@ -311,7 +362,8 @@ const halfText = (e: RunEntry): string => (e.conclusion === 'success' ? e.workfl
 
 function summaryLines(s: Summary): [string, string][] {
   return [
-    ['Runs', `${s.runs} (${s.analysisRuns} analysis, ${s.testsRuns} tests)`],
+    ['Runs', `${s.runs} (${s.analysisRuns} analysis, ${s.testsRuns} tests, ${s.regressionRuns} regression)`],
+    ['Flaky lately', s.flakiest.length ? s.flakiest.map((f) => `${f.test} (${f.count} of ${f.runs})`).join('; ') : 'none recorded'],
     ['Gates passed (tests runs)', percent(s.gatePassRate)],
     ['Approved at first review', percent(s.approvedFirstRate)],
     ['Approved after rework', percent(s.approvedAfterReworkRate)],
@@ -346,11 +398,11 @@ export function historyMd(entries: RunEntry[], limit?: number): string {
   const lines = [
     '## QA run history',
     '',
-    `**${s.runs} runs: ${s.analysisRuns} analysis, ${s.testsRuns} tests.** Gates passed in ${percent(s.gatePassRate)} of tests runs; the review approved ${percent(s.approvedFirstRate)} at first review.`,
+    `**${s.runs} runs: ${s.analysisRuns} analysis, ${s.testsRuns} tests, ${s.regressionRuns} regression.** Gates passed in ${percent(s.gatePassRate)} of tests runs; the review approved ${percent(s.approvedFirstRate)} at first review.`,
     '',
     `Average plan score ${s.avgPlanScore === null ? '-' : s.avgPlanScore.toFixed(0)}, estimated cost ${dollars(s.avgCostUsd)} per run, ${dollars(s.totalCostUsd)} in all.`,
     '',
-    'Written by the "QA run history" workflow after every analysis and tests run.',
+    'Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.',
     '',
     '### Totals',
     '',

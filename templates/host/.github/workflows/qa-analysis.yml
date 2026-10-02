@@ -1,13 +1,15 @@
 name: QA analysis
 
 # A requirement in, a QA analysis out, posted back on the ticket. The work is done by the engine's own workflow;
-# this file only says when to start it and what it may touch. Pin the ref to a tag once you depend on one.
+# this file only says when to start it and what it may touch. `v1` follows the latest 1.x release; pin an exact tag to freeze it.
 
 on:
   issues:
     types: [labeled]
   pull_request:
     types: [labeled]
+  issue_comment:
+    types: [created]
   repository_dispatch:
     types: [qa-analyze]
   workflow_dispatch:
@@ -26,7 +28,7 @@ permissions: {}
 
 jobs:
   analysis:
-    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-analysis.yml@main
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-analysis.yml@v1
     permissions:
       contents: read
       issues: write

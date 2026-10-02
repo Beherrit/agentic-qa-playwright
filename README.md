@@ -117,7 +117,7 @@ The ticket says which: the `qa-test-first` label, or "No, write the tests first"
 | Lint | `npx eslint` on the three folders, with the Playwright rules set to error |
 | Expected failures | Every `test.fail()` the change adds has one of the two reasons. Bug markers name a criterion and are no more than the reported bugs; "not built yet" markers appear only in test-first mode and name the ticket |
 | Traceability | Every criterion the plan assigns to an e2e test case has a test tagged with it and with the ticket key |
-| Full suite | Every test in the repository passes, with no retries |
+| Full suite | Every new test passes with no retries. An existing test that fails is run once more by itself: passing then is reported as flaky, by name, and does not block; failing again does |
 | Stability | The new tests give the same result `stabilityRuns` times in a row (3 here) |
 | Fails for the right reason | Every expected failure failed on an assertion or a missing element, not on a `TypeError` or a network error. A crashing test also "fails as expected", and would otherwise sail through |
 | Sensitivity | The new tests are run against versions of the app known to be broken (`sensitivity.targets`) |
@@ -299,7 +299,9 @@ picks one per role (for example `{ "plan-critic": "haiku" }`). The default is `s
      - Headers: `Accept: application/vnd.github+json` and `Authorization: Bearer <the token>` (mark it hidden)
      - Body (custom data): `{"event_type": "qa-analyze", "client_payload": {"source": "jira", "ref": "{{issue.key}}"}}`
 
-   The second rule is the same for the label `qa-generate`, with `"event_type": "qa-generate"`.
+   The second rule is the same for the label `qa-generate`, with `"event_type": "qa-generate"`. A third, so
+   answers re-run the analysis: trigger **Issue commented**, condition **Comment body starts with** `/qa-answer`,
+   and the same request as the first rule.
 4. **Acceptance criteria in a custom field?** Name it in `qa.config.json` under `jira.fields`, for example
    `{ "Acceptance criteria": "customfield_10035" }`. It is read along with the description.
 
@@ -308,8 +310,9 @@ To run the test-first way, add the `qa-test-first` label to the ticket as well.
 ## Running it
 
 **From a ticket.** Add `qa-pipeline` to a GitHub issue (the "QA requirement" template helps) or a Jira ticket. Read
-the analysis that comes back. If you agree with it, add `qa-generate`. Each job also writes its result to the run's
-summary page.
+the analysis that comes back. If it stopped on a question, answer in a comment that starts with `/qa-answer` and
+it runs again by itself. If you agree with the plan, add `qa-generate`. Each job also writes its result to the
+run's summary page.
 
 **By hand.** Actions > QA analysis (or QA tests) > Run workflow, with the source and the issue number or ticket key.
 

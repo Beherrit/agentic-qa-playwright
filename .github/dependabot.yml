@@ -1,0 +1,20 @@
+# Keeps the pinned actions and the dependencies current. Actions are pinned to commit SHAs in the workflows, so
+# a bump here is the only way they move; Dependabot keeps the "# vN" comment next to the SHA up to date.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      production:
+        dependency-type: production
+      development:
+        dependency-type: development

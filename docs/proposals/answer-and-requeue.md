@@ -1,6 +1,8 @@
 # Proposal: answer the questions on the ticket, and the analysis runs again
 
-Status: design only. Nothing here is built.
+Status: built. The design below is as it was written; what shipped differs in one way: on GitHub the answers are read
+with the issue (`gh issue view --json comments`), so a run started by the label also sees them. See "Answering the
+pipeline's questions" in [OPERATIONS.md](../OPERATIONS.md).
 
 ## The gap
 

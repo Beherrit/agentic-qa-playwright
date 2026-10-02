@@ -4,8 +4,9 @@ name: QA analysis
 # criteria, risk, open questions, a technical review and a scored test plan. No test code is written here; that is
 # qa-tests.yml, started by a second label once a person has read this.
 #
-# Four ways in:
+# Five ways in:
 # - a GitHub issue gets the `qa-pipeline` label
+# - a member answers the pipeline's questions on a blocked issue, in a comment starting with `/qa-answer`
 # - a pull request from this repository gets the `qa-pipeline` label: the change itself is the requirement
 # - a Jira ticket gets the `qa-pipeline` label, and a Jira Automation rule sends a repository_dispatch
 #   event `qa-analyze` with {"source": "jira", "ref": "<KEY>"} (the README has the rule)
@@ -15,7 +16,7 @@ name: QA analysis
 # with write access can send repository_dispatch, so a stranger's text never reaches an agent on its own.
 #
 # Another repository runs this same workflow with `uses: Beherrit/agentic-qa-playwright/.github/workflows/
-# qa-analysis.yml@<ref>` (`npx agentic-qa init` writes the caller). The engine is then a dependency of that
+# qa-analysis.yml@v1` (`npx agentic-qa init` writes the caller). `v1` follows the latest 1.x release. The engine is then a dependency of that
 # repository, and `npx agentic-qa` finds it there; in this repository it finds the engine's own bin.
 
 on:
@@ -23,6 +24,11 @@ on:
     types: [labeled]
   pull_request:
     types: [labeled]
+  # Every new comment on every issue and pull request starts this and is skipped at once unless all four hold: it
+  # is an issue, the comment starts with /qa-answer, the author belongs to the repository, and the issue is
+  # waiting for answers (qa-needs-info). The intake checks the author again before reading any answer.
+  issue_comment:
+    types: [created]
   repository_dispatch:
     types: [qa-analyze]
   workflow_dispatch:
@@ -55,7 +61,12 @@ on:
 # issue or pull request also start this workflow (and are then skipped); they get a group of their own.
 concurrency:
   group: >-
-    ${{ ((github.event_name != 'issues' && github.event_name != 'pull_request') || github.event.label.name == 'qa-pipeline')
+    ${{ ((github.event_name != 'issues' && github.event_name != 'pull_request' && github.event_name != 'issue_comment')
+    || github.event.label.name == 'qa-pipeline'
+    || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
+    && startsWith(github.event.comment.body, '/qa-answer')
+    && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    && contains(github.event.issue.labels.*.name, 'qa-needs-info')))
     && format('qa-analysis-{0}', github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref)
     || format('qa-ignored-{0}', github.run_id) }}
   cancel-in-progress: true
@@ -65,7 +76,7 @@ permissions: {}
 # Values from issues and payloads reach scripts as environment variables, never by ${{ }} inside a
 # script, and the intake stage checks the reference before using it.
 env:
-  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event_name == 'pull_request' && 'pr' || github.event.client_payload.source || inputs.source }}
+  SOURCE: ${{ (github.event_name == 'issues' || github.event_name == 'issue_comment') && 'github' || github.event_name == 'pull_request' && 'pr' || github.event.client_payload.source || inputs.source }}
   REF: ${{ github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -81,9 +92,13 @@ jobs:
     # A pull request from a fork is read only when a person with triage rights labels it, like an issue, but
     # its head is still someone else's code: the analysis reads it as text and never checks it out.
     if: >-
-      ${{ (github.event_name != 'issues' && github.event_name != 'pull_request')
+      ${{ (github.event_name != 'issues' && github.event_name != 'pull_request' && github.event_name != 'issue_comment')
       || (github.event.label.name == 'qa-pipeline'
-      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository))
+      || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
+      && startsWith(github.event.comment.body, '/qa-answer')
+      && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      && contains(github.event.issue.labels.*.name, 'qa-needs-info')) }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10
@@ -94,11 +109,11 @@ jobs:
     outputs:
       artifact: ${{ steps.intake.outputs.artifact }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
@@ -112,7 +127,7 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: npx agentic-qa intake --source "$SOURCE" --ref "$REF"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -129,7 +144,7 @@ jobs:
     outputs:
       ready: ${{ steps.stage.outputs.ready }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
@@ -144,11 +159,11 @@ jobs:
             exit 1
           fi
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -162,7 +177,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa requirements
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -181,13 +196,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -200,7 +215,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa technical
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -218,13 +233,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -242,7 +257,7 @@ jobs:
       - name: Keep this job's cost ledger
         run: cp qa-run/ledger.json qa-run/ledger-plan.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-plan
           path: |
@@ -261,15 +276,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -285,7 +300,7 @@ jobs:
       - name: Keep this job's cost ledger
         run: cp qa-run/ledger.json qa-run/ledger-critic.json
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-critic
           path: |
@@ -303,25 +318,25 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-plan
           path: qa-run
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-critic
           path: qa-run
@@ -353,7 +368,7 @@ jobs:
 
       # The stage exits 1 when the plan scores too low. The strategy is still worth keeping and
       # reporting then, because it says why.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -376,15 +391,15 @@ jobs:
       # To start the test half when the plan is good (autoRun.testsWhenPlanIsReady in qa.config.json).
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -400,7 +415,7 @@ jobs:
         run: npx agentic-qa notify analysis
 
       # Uploaded before the test half is started, because that is what it picks up.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ needs.intake.outputs.artifact }}
           path: qa-run/

@@ -162,7 +162,7 @@ describe('report shape', () => {
     const META = { runUrl: '', workflow: 'analysis', conclusion: 'success', finishedAt: '2026-09-01T10:00:00Z' };
     const entries = Array.from({ length: 12 }, (_, i) => buildEntry({ ...META, runId: String(i + 1) }, { 'request.json': { key: `REQ-${i}`, title: 't' } }));
     const md = historyMd(entries);
-    assert.match(md, /\*\*12 runs: 12 analysis, 0 tests\.\*\*/);
+    assert.match(md, /\*\*12 runs: 12 analysis, 0 tests, 0 regression\.\*\*/);
     assert.match(md, /### Totals[\s\S]*<details><summary>Show the runs<\/summary>/);
     assert.doesNotMatch(historyMd(entries.slice(0, 3)), /<details>/);
   });

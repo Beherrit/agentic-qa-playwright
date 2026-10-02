@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { OpenIssue, OpenPull } from '../lib/status.ts';
-import type { Source, Ticket } from './types.ts';
+import type { Source, Ticket, TicketComment } from './types.ts';
 
 /**
  * GitHub issues, through the gh CLI. In Actions, gh reads GH_TOKEN and GH_REPO from the environment.
@@ -11,6 +11,20 @@ import type { Source, Ticket } from './types.ts';
  */
 
 const gh = (...args: string[]): string => execFileSync('gh', args, { encoding: 'utf8' });
+
+/** The author associations GitHub reports for people who belong to the repository. Anyone else is a visitor. */
+export const TRUSTED = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+type GhComment = { author?: { login?: string }; authorAssociation?: string; body?: string };
+
+/** Comments as gh lists them, with the author's standing worked out from the association GitHub reports. */
+export function commentsFrom(comments: GhComment[] | undefined): TicketComment[] {
+  return (comments ?? []).map((c) => ({
+    author: c.author?.login ?? 'unknown',
+    trusted: TRUSTED.includes(c.authorAssociation ?? ''),
+    body: c.body ?? '',
+  }));
+}
 
 /** Makes the label if it is missing. */
 function ensureLabel(name: string): void {
@@ -44,13 +58,14 @@ export function openWork(): { issues: OpenIssue[]; pulls: OpenPull[] } {
 
 export const github: Source = {
   async read(ref) {
-    const issue = JSON.parse(gh('issue', 'view', ref, '--json', 'number,title,body,labels,url'));
+    const issue = JSON.parse(gh('issue', 'view', ref, '--json', 'number,title,body,labels,url,comments'));
     return {
       ref: String(issue.number),
       url: issue.url,
       title: issue.title,
       body: issue.body ?? '',
       labels: (issue.labels ?? []).map((label: { name: string }) => label.name),
+      comments: commentsFrom(issue.comments),
     } satisfies Ticket;
   },
 

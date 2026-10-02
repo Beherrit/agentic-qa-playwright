@@ -52,6 +52,19 @@ the way a careful senior QA engineer would.
   one-line summary that stays visible.
 - Say what was not checked as clearly as what was.
 
+## Releases
+
+Projects install the engine from git and their workflows call the engine's at `@v1`. `v1` is a moving pointer to
+the newest 1.x release, and an exact tag (`v1.2.0`) freezes it. To release:
+
+1. `npm run check`, `npm run evals -- --dry` and `bash agents/test/install.sh` on the commit.
+2. Bump `version` in `package.json` and move the top `## Unreleased` entry of the changelog under the version.
+3. Tag the commit `v<version>` and move `v1` to it (`git tag -f v1 && git push -f origin v1`).
+
+Third-party actions are pinned to commit SHAs with the version in a comment; Dependabot proposes the bumps. The
+engine's own workflows use the setup action at `@v1` too, so a change to it is exercised on the next release, not on
+the pull request that makes it.
+
 ## Commits
 
 One change per commit, with a subject that says what it does in plain words ("Count a command as run only if the
