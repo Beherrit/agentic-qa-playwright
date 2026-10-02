@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { configChecks } from '../doctor.ts';
-import { a11yReport, a11ySummary, addedMarkers, sensitivitySummary } from '../gates.ts';
+import { a11yReport, a11ySummary, addedMarkers, assertionBalance, sensitivitySummary } from '../gates.ts';
+import { defects, specFiles } from '../heal.ts';
 import { coverageMap, coverageMd } from '../lib/coverage.ts';
 import { canonicalTests, fingerprint } from '../lib/fingerprint.ts';
 import { gatesMd, strategyMd } from '../lib/render.ts';
@@ -201,5 +202,43 @@ describe('accessibility', () => {
     const dirty = a11ySummary(a11yReport(report(scan('https://shop.example/', [item('image-alt', 'critical')]))));
     assert.match(dirty.summary, /1 rule\(s\) violated \(1 serious or critical\)/);
     assert.match(dirty.table, /\| violation \| critical \| \[image-alt\]/);
+  });
+});
+
+describe('self-healing', () => {
+  const patch = [
+    '--- a/pages/CheckoutPage.ts',
+    '+++ b/pages/CheckoutPage.ts',
+    "-    this.postalCode = page.getByPlaceholder('Postal Code');",
+    "+    this.postalCode = page.getByPlaceholder('Zip/Postal Code');",
+    '--- a/tests/checkout.spec.ts',
+    '+++ b/tests/checkout.spec.ts',
+    "-    await expect(checkoutPage.total).toHaveText('Total: $41.02');",
+    '-    await expect(checkoutPage.cartBadge).toBeHidden();',
+    "+    await expect(checkoutPage.total).toHaveText('Total: $41.01');",
+  ].join('\n');
+
+  it('counts assertions removed and added per file, so a repair that drops one is caught', () => {
+    assert.deepEqual(assertionBalance(patch), [{ file: 'tests/checkout.spec.ts', removed: 2, added: 1 }]);
+  });
+
+  const failure = (test: string, verdict: string, confidence: string) => ({ test, file: 'tests/checkout.spec.ts:45', verdict, confidence, evidence: 'e', nextStep: 'n' });
+  const triage = {
+    summary: '',
+    bugs: [],
+    failures: [
+      failure('Checkout > Postal Code is required', 'test-defect', 'high'),
+      failure('Checkout > the total is the item total plus tax', 'product-bug', 'high'),
+      failure('Cart > the cart starts empty', 'test-defect', 'low'),
+      failure('Login > logging out returns to the login page', 'flaky', 'medium'),
+    ],
+    reported: [{ test: 'Checkout > Postal Code is required', file: 'tests/checkout.spec.ts:45', error: 'waiting for getByPlaceholder', evidence: ['test-results/x/error-context.md'] }],
+  } as Parameters<typeof defects>[0];
+
+  it('hands the healer only test defects triage was reasonably sure of, with what Playwright reported', () => {
+    const picked = defects(triage);
+    assert.deepEqual(picked.map((d) => d.test), ['Checkout > Postal Code is required']);
+    assert.equal(picked[0].error, 'waiting for getByPlaceholder');
+    assert.deepEqual(specFiles(picked), ['tests/checkout.spec.ts']);
   });
 });

@@ -89,6 +89,7 @@ jobs:
       contents: read
     outputs:
       bugs: ${{ steps.triage.outputs.bugs }}
+      defects: ${{ steps.triage.outputs.defects }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,6 +136,105 @@ jobs:
           path: qa-run/
           if-no-files-found: ignore
           retention-days: 14
+
+  # Self-healing. When triage says a failure is the test's fault, an agent repairs the test, gates
+  # check that nothing was weakened, and the repair is offered as a pull request. Product bugs are
+  # never "healed": those go to file-bugs below and the tests keep failing until the app is fixed.
+  heal:
+    name: Heal test defects
+    needs: triage
+    if: >-
+      ${{ !cancelled() && needs.triage.result == 'success' && github.event_name != 'pull_request'
+      && needs.triage.outputs.defects != '' && needs.triage.outputs.defects != '0' }}
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    outputs:
+      healed: ${{ steps.heal.outputs.healed }}
+      title: ${{ steps.heal.outputs.title }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: test-results
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: triage
+          path: qa-run
+
+      - name: Repair the tests and run the gates
+        id: heal
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+          SAUCE_USER: ${{ inputs.persona }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: npm run heal
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: heal
+          path: qa-run/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # No agent and no Claude credentials here. It applies the repair, refusing any path outside the
+  # test folders, pushes a branch and opens the pull request against the branch that failed.
+  heal-pr:
+    name: Open the repair
+    needs: heal
+    if: ${{ !cancelled() && needs.heal.outputs.healed == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: heal
+          path: qa-run
+
+      - name: Apply the repair
+        run: npm run pipeline -- apply heal.patch
+
+      - name: Push the branch and open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ needs.heal.outputs.title }}
+          BRANCH: qa/heal-${{ github.run_id }}
+          BASE: ${{ github.ref_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -- tests pages fixtures
+          if git diff --cached --quiet; then
+            echo "::error::The repair is empty. Nothing to open a pull request for."
+            exit 1
+          fi
+          git commit -m "$TITLE"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+          gh pr create --title "$TITLE" --body-file qa-run/heal.md --base "$BASE" --head "$BRANCH"
 
   file-bugs:
     name: File bugs

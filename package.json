@@ -11,7 +11,8 @@
     "pipeline": "tsx agents/cli.ts",
     "triage": "tsx agents/triage.ts",
     "coverage": "tsx agents/coverage.ts",
-    "doctor": "tsx agents/cli.ts doctor"
+    "doctor": "tsx agents/cli.ts doctor",
+    "heal": "tsx agents/heal.ts"
   },
   "author": "Lawrence Moran",
   "license": "MIT",

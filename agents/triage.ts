@@ -100,8 +100,10 @@ const bugs = output.bugs.map((bug) => ({
 }));
 
 const markdown = `${triageMd(output)}${landedMd ? `\n${landedMd}` : ''}`;
-save('triage.json', { ...output, bugs });
+// `reported` is what Playwright said about each failure. The healer works from it.
+save('triage.json', { ...output, bugs, reported: failed });
 save('triage.md', markdown);
 jobSummary(markdown);
 setOutput('bugs', bugs.length);
+setOutput('defects', output.failures.filter((f) => f.verdict === 'test-defect' && f.confidence !== 'low').length);
 console.log(`\n${markdown}`);

@@ -69,9 +69,9 @@ export function currentPatch(): string {
   return diff;
 }
 
-export function savePatch(): void {
+export function savePatch(name = 'changes.patch'): void {
   fs.mkdirSync(RUN_DIR, { recursive: true });
-  fs.writeFileSync(path.join(RUN_DIR, 'changes.patch'), currentPatch());
+  fs.writeFileSync(path.join(RUN_DIR, name), currentPatch());
 }
 
 /** The paths a patch touches, from `git apply --numstat -z`. A rename lists both the old and the new path. */
@@ -91,8 +91,8 @@ export function patchPaths(numstat: string): string[] {
  * Applies the change that came from the agent jobs. The patch file passed through jobs where generated test code
  * ran, so it is checked again here: a path outside the writable folders means it was tampered with.
  */
-export function applyPatch(): void {
-  const patch = path.join(RUN_DIR, 'changes.patch');
+export function applyPatch(name = 'changes.patch'): void {
+  const patch = path.join(RUN_DIR, name);
   const listing = spawnSync('git', ['apply', '--numstat', '-z', patch], { cwd: ROOT, encoding: 'utf8' });
   if (listing.status !== 0) throw new Error(`Could not read the generated change:\n${listing.stderr}`);
   const outside = patchPaths(listing.stdout).filter((file) => !config.writable.some((dir) => file.startsWith(dir)));
@@ -488,6 +488,78 @@ function accessibilityGate(request: Request): Gate | null {
   }
   const { summary, table } = a11ySummary(report);
   return { name: 'Accessibility', passed: report.violations.length === 0, advisory: !config.accessibility.required, summary, table };
+}
+
+// ── Healing ──────────────────────────────────────────────────────────────────
+
+/**
+ * How many assertions a patch removes and adds, per file. A repair may reword an assertion (one out, one in)
+ * but a file that ends up with fewer than it had has been weakened, not healed.
+ */
+export function assertionBalance(patch: string): { file: string; removed: number; added: number }[] {
+  const files = new Map<string, { removed: number; added: number }>();
+  let current = '';
+  for (const line of patch.split('\n')) {
+    const header = /^\+\+\+ b\/(.+)$/.exec(line) ?? /^--- a\/(.+)$/.exec(line);
+    if (header) {
+      current = header[1];
+      continue;
+    }
+    if (!current || !/\bexpect\s*[.(]/.test(line)) continue;
+    const tally = files.get(current) ?? { removed: 0, added: 0 };
+    if (line.startsWith('-')) tally.removed += 1;
+    if (line.startsWith('+')) tally.added += 1;
+    files.set(current, tally);
+  }
+  return [...files].map(([file, tally]) => ({ file, ...tally }));
+}
+
+/**
+ * The gates for a repair. Unlike new tests, a repair has to change existing lines, so the "only grow" rule does
+ * not apply. What replaces it: nothing may be skipped, marked as an expected failure, or left with fewer
+ * assertions than it had.
+ */
+export function runHealGates(files: string[], env: Record<string, string> = {}): GateReport {
+  const changes = changedFiles();
+  const patch = currentPatch();
+  const inside = (file: string): boolean => config.writable.some((dir) => file.startsWith(dir));
+  const scope = [
+    ...changes.filter((c) => !inside(c.file)).map((c) => `${c.file} is outside ${config.writable.join(', ')}`),
+    ...changes.filter((c) => c.status.includes('D') || c.from !== undefined).map((c) => `${c.file} was deleted or moved`),
+    ...(changes.length ? [] : ['nothing was changed']),
+  ];
+  const weakened = [
+    ...addedSkips(patch).map((line) => `\`${line}\` skips or focuses tests`),
+    ...addedMarkers(patch).map((marker) => `\`${marker.line}\` marks a test as an expected failure`),
+    ...assertionBalance(patch)
+      .filter((f) => f.added < f.removed)
+      .map((f) => `${f.file} lost assertions: ${f.removed} removed, ${f.added} added`),
+  ];
+
+  const results: Gate[] = [
+    { name: 'Scope', passed: scope.length === 0, summary: scope.length ? scope.join('; ') : `files changed: ${changes.map((c) => c.file).join(', ')}` },
+    { name: 'Nothing weakened', passed: weakened.length === 0, summary: weakened.length ? weakened.join('; ') : 'no skips, no expected-failure markers, no assertions lost' },
+    commandGate('Types', 'npx tsc --noEmit', 'compiles'),
+    commandGate('Lint', `npx eslint ${config.writable.join(' ')}`, 'no lint errors'),
+  ];
+
+  if (results.every((gate) => gate.passed)) {
+    const healed = sh(`npx playwright test ${files.map((file) => `"${file}"`).join(' ')} --repeat-each=${config.stabilityRuns} --retries=0 --reporter=line`, env);
+    results.push({
+      name: 'Healed tests',
+      passed: healed.ok,
+      summary: healed.ok ? `the repaired files pass ${config.stabilityRuns} times in a row` : 'the repaired files still fail',
+      output: healed.ok ? undefined : tail(healed.output),
+    });
+    const suite = sh('npx playwright test --retries=0 --reporter=line', env);
+    results.push({
+      name: 'Full suite',
+      passed: suite.ok,
+      summary: suite.ok ? 'every test in the suite passes' : 'the suite does not pass',
+      output: suite.ok ? undefined : tail(suite.output),
+    });
+  }
+  return { passed: results.every((gate) => gate.passed), results, changed: changes.map((c) => c.file) };
 }
 
 // ── All together ─────────────────────────────────────────────────────────────

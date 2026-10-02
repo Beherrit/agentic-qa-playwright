@@ -106,7 +106,8 @@ const commands: Record<string, () => unknown> = {
     if (problem) stop(problem);
   },
   generate: async () => (await stages.generate()) || stop('The generated tests did not pass the quality gates.'),
-  apply: stages.applyPatch,
+  // `apply` takes the generated tests; `apply heal.patch` takes a repair from the healer.
+  apply: () => stages.applyPatch(positionals[1] === 'heal.patch' ? 'heal.patch' : 'changes.patch'),
   review: stages.review,
   rework: stages.rework,
   report: stages.report,

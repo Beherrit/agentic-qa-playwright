@@ -200,3 +200,19 @@ export const Triage = z.object({
   ),
 });
 export type Triage = z.infer<typeof Triage>;
+
+// ── Healing a test defect ────────────────────────────────────────────────────
+
+export const Healing = z.object({
+  summary: z.string(),
+  fixes: z.array(
+    z.object({
+      test: z.string().describe('Title of the failing test this fixes'),
+      file: z.string().describe('The file you changed'),
+      cause: z.string().describe('What had changed in the app'),
+      change: z.string().describe('What you changed in the test or page object'),
+    }),
+  ),
+  notFixed: z.array(z.object({ test: z.string(), reason: z.string() })),
+});
+export type Healing = z.infer<typeof Healing>;
