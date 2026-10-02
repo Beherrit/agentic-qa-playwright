@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   history:
-    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-history.yml@main
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-history.yml@v1
     permissions:
       contents: write
       actions: read
