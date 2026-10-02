@@ -5,12 +5,14 @@ export class InventoryPage extends BasePage {
   readonly items: Locator;
   readonly itemNames: Locator;
   readonly itemPrices: Locator;
+  readonly sortSelect: Locator;
 
   constructor(page: Page) {
     super(page);
     this.items = page.getByTestId('inventory-item');
     this.itemNames = page.getByTestId('inventory-item-name');
     this.itemPrices = page.getByTestId('inventory-item-price');
+    this.sortSelect = page.getByRole('combobox', { name: 'Sort products' });
   }
 
   /** The card for one product, found by its visible name. */
@@ -32,5 +34,29 @@ export class InventoryPage extends BasePage {
 
   async removeFromCart(name: string): Promise<void> {
     await this.removeButton(name).click();
+  }
+
+  async sortBy(label: string): Promise<void> {
+    await this.sortSelect.selectOption({ label });
+  }
+
+  /** The visible name, price, description and image alt text of every card, in display order. */
+  async readCards(): Promise<{ name: string; price: string; description: string; alt: string }[]> {
+    const count = await this.items.count();
+    const cards = [];
+    for (let i = 0; i < count; i++) {
+      const card = this.items.nth(i);
+      cards.push({
+        name: (await card.getByTestId('inventory-item-name').textContent()) ?? '',
+        price: (await card.getByTestId('inventory-item-price').textContent()) ?? '',
+        description: (await card.getByTestId('inventory-item-desc').textContent()) ?? '',
+        alt: (await card.getByRole('img').getAttribute('alt')) ?? '',
+      });
+    }
+    return cards;
+  }
+
+  async openProduct(name: string): Promise<void> {
+    await this.itemNames.getByText(name, { exact: true }).click();
   }
 }
