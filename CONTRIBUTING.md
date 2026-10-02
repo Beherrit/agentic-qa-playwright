@@ -22,7 +22,11 @@ The pull request template asks three things: what, why, and how it was tested. K
   test data in `fixtures/`. Those are the only folders the pipeline may write to, and the scope gate rejects anything
   else. The rules for writing them are in [docs/test-conventions.md](docs/test-conventions.md).
 - **The pipeline:** `agents/`. Logic that can be tested without a network, a browser or a model goes in a small pure
-  function in `agents/lib/`, with a test in `agents/test/`.
+  function in `agents/lib/`, with a test in `agents/test/`. The engine is also a package other projects install, so
+  nothing in `agents/` may assume it runs in this repository: the project is `ROOT` (the nearest `qa.config.json`),
+  the engine's own files are under `PKG_ROOT`, and everything about the suite comes from the config.
+- **What `init` writes into a project:** `templates/host/`. The caller workflows there use the engine's workflows
+  with `uses:`.
 - **Instructions for an agent:** `agents/prompts/<role>.md`, one per role. A new role also goes in the roles table in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and in the list `npm run doctor` checks.
 

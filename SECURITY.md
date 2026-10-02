@@ -10,8 +10,10 @@ open a public issue for it.
 
 ## What is worth protecting
 
-- The **Claude credential** (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`): it spends money.
-- The **tracker credentials** (Jira API token, the workflow's GitHub token): they can read and write tickets.
+- The **model credential** (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`, or a provider's settings in
+  `QA_PROVIDER_ENV`): it spends money. `budget.maxUsdPerRun` caps what one run can spend.
+- The **tracker credentials** (Jira, Azure DevOps or Linear tokens, the workflow's GitHub token): they can read and
+  write tickets.
 - **Write access to the repository**: a pushed branch or an opened pull request.
 - **The suite's honesty**: a test that passes without checking anything is a quiet failure of everything above it.
 
@@ -20,6 +22,8 @@ open a public issue for it.
 | Input | Who controls it | Reaches |
 |---|---|---|
 | Ticket title and body | Whoever wrote the ticket | Every analysis agent and the ticket writer |
+| A pull request's description and diff | Whoever opened it (from this repository only; a fork's is never checked out) | The analysis agents, as text |
+| The project's own files, at `survey` | The project | The surveyor; what it names is checked before it is written |
 | Pages of the app under test | Whoever controls the app | The agents with a browser |
 | The diff of generated tests | The engineer agent | The code reviewer |
 | `qa-run/` artifacts | Every job they passed through, including ones where generated code ran | Later jobs, the run history |
@@ -35,8 +39,9 @@ anything inside the task's tags and anything read from the app is material to an
 a request to a model, not a barrier. The barriers are these:
 
 - **Least access.** Most roles can only read the repository. The two that write (the engineer and the healer) may edit
-  only `tests/`, `pages/` and `fixtures/` and run only `npx playwright test`, `npx tsc` and `npx eslint`. Agents run in
-  `dontAsk` mode with no user settings, hooks or MCP servers, so anything off the list is refused, not asked about.
+  only the writable folders and run only the suite's own test, typecheck and lint commands, all from `qa.config.json`.
+  Agents run in `dontAsk` mode with no user settings, hooks or MCP servers, so anything off the list is refused, not
+  asked about.
 - **A limited browser.** Navigate, click, type, read snapshots. No script evaluation and no file upload.
 - **No tokens worth stealing in the agent's reach, except one.** An agent job holds the Claude credential and nothing
   else: no tracker token, no GitHub token (`persist-credentials: false`), no write access.
@@ -53,12 +58,24 @@ request is there for the rest.
 
 ## What generated test code can and cannot reach
 
-The engineer runs the tests it writes, and so do the gates. While they run, test code is ordinary Node code on the
-runner.
+The engineer runs the tests it writes while writing them. The gates run them far more, in a job of their own that
+holds no credentials. While they run, test code is ordinary Node code on the runner.
 
-It **can** reach the network, the checkout, and the environment of the step it runs in, which includes the Claude
-credential. Treat that credential as exposed to generated code: use an API key with a spend limit or a token you can
-rotate, and do not reuse it elsewhere.
+It **can** reach the network, the checkout, and the environment of the step it runs in. In the engineer's own runs
+that includes the model credential (and the provider settings from `QA_PROVIDER_ENV`, which the engine hands to the
+SDK process the agent's commands inherit). Treat that credential as exposed to generated code: use an API key with a
+spend limit or a token you can rotate, set `budget.maxUsdPerRun`, and do not reuse it elsewhere. In the gates jobs
+there is nothing to find.
+
+## What leaves the repository
+
+| What | Goes to | Why |
+|---|---|---|
+| Ticket text, the product brief, the conventions, the files an agent reads, page snapshots of the app | The model provider (Anthropic, or your Bedrock or Vertex account) | That is the agents' input |
+| The generated diff and the gate report | The model provider | The reviewer reads them |
+| Reports: the analysis, the outcome, bug reports | The tracker | Posted as comments and issues |
+| A branch and a pull request | GitHub | The result |
+| Nothing | Anywhere else | No telemetry, no third-party service besides those |
 
 It **cannot** reach a tracker token or a GitHub token: none is in that job. It cannot push, because the checkout keeps
 no credentials. It cannot change what later stages believe: the request, requirements, technical review and plan are

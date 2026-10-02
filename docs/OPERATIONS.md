@@ -36,9 +36,26 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `autoRun.testsWhenPlanIsReady` | true | off | A plan that passes starts the test half without a person adding `qa-generate` |
 | `models` | `{}` | `QA_AGENT_MODEL`, then `sonnet` | A model per role, for example `{ "plan-critic": "haiku" }` |
 | `jira.fields` | `{}` | description only | Jira custom fields to read with the description, by display name |
+| `jira.project` | unset | | The Jira project for new tickets and open-ticket lists |
+| `app.previewUrl` | unset | tests run against `baseUrl` | Where a pull request's build answers, with `{number}` and `{branch}` filled in |
+| `suite.commands` | `npx playwright test`, `npx tsc --noEmit`, `npx eslint` | those | The suite's own test, typecheck and lint commands. The gates run them and the engineer may run them; `test` has to be Playwright, since flags are added to it |
+| `suite.specGlob`, `suite.testImport` | `tests/**/*.spec.ts`, `fixtures/test.ts` | those | Where the specs are and what they import `test` from |
+| `personas.envVar` | `QA_PERSONA` (`SAUCE_USER` here) | `QA_PERSONA` | The variable the suite reads to choose the account. The pipeline passes `QA_PERSONA` and hands it over under this name |
+| `personas.default`, `personas.list` | `standard_user`, six accounts | empty | For the documents and the doctor |
+| `auth.setup`, `auth.storageState` | unset | tests sign in through the app | A command that saves a Playwright storage state, and the file it writes. Run once before the tests and before any agent gets a browser; the browser starts from that state |
+| `sensitivity.targets[].initScript`, `.routes` | one fault target | | A fault instead of broken accounts: a script on every page, requests answered or dropped. See below |
+| `budget.maxUsdPerRun` | 0 | no cap | The most a run may spend on agents. A run stops at the cap; each agent is given what is left |
 
-Repository variables and environment: `QA_AGENT_MODEL` picks the model for every role. Locally, `QA_RUN_DIR` moves
-the run folder (default `qa-run/`), `BASE_URL` overrides the app address and `SAUCE_USER` picks the persona.
+Repository variables and environment: `QA_AGENT_MODEL` picks the model for every role. `QA_PROVIDER_ENV` (a secret)
+holds a model provider's settings as `KEY=value` lines, for Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`,
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) or Vertex (`CLAUDE_CODE_USE_VERTEX=1`, `CLOUD_ML_REGION`,
+`ANTHROPIC_VERTEX_PROJECT_ID`, and credentials); the engine unpacks it for the SDK alone. Locally, `QA_RUN_DIR`
+moves the run folder (default `qa-run/`), `QA_PROJECT_ROOT` names the project when the working directory is not in
+it, `BASE_URL` overrides the app address and `QA_PERSONA` picks the persona.
+
+The trackers read their settings from the `TRACKER` environment: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`;
+`AZURE_DEVOPS_ORG_URL`, `AZURE_DEVOPS_PROJECT`, `AZURE_DEVOPS_PAT`; `LINEAR_API_KEY`, `LINEAR_TEAM`. GitHub issues
+and pull requests use the workflow's own token.
 
 ## When a stage fails
 
@@ -53,7 +70,8 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 
 | Artifact | From | Holds |
 |---|---|---|
-| `qa-run` | every pipeline job | The run folder: `request.json`, `requirements.*`, `technical.*`, `strategy.*`, `gates.*`, `review*`, `changes.patch`, `ledger.json` (each agent's turns, time and cost) |
+| `qa-run` | every pipeline job | The run folder: `request.json`, `requirements.*`, `technical.*`, `strategy.*`, `generation.json`, `gates.*`, `review*`, `changes.patch`, `ledger.json` (each agent's turns, time and cost) |
+| `gates-playwright-output` | QA tests, 1b and 1d, when the gates fail | Playwright's report and `test-results/` (traces, screenshots), kept 14 days |
 | `qa-plan`, `qa-critic` | 2a and 2b | The architect's plan and the critic's checklist, before they are reconciled |
 | `qa-analysis-<key>` | QA analysis, 3 | The finished analysis, which the test half picks up |
 | `generate-playwright-output` | QA tests, 1, on failure | Playwright's report and `test-results/` (traces, screenshots), kept 14 days |
@@ -62,7 +80,10 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 
 | What the log says | What to do |
 |---|---|
-| `No Claude credentials` | Add `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` to the `POC` environment |
+| `No Claude credentials` | Add `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` to the `POC` environment, or `QA_PROVIDER_ENV` for Bedrock or Vertex |
+| `The run's budget of $N is spent` | The run reached `budget.maxUsdPerRun`. Raise it, or split the ticket |
+| `The sign-in command failed` | `auth.setup` could not save the storage state. Run it by hand and read its output |
+| `No qa.config.json in ...` | Run `npx agentic-qa init` in the project, or set `QA_PROJECT_ROOT` |
 | `<role> answered in the wrong shape` | The answer did not match its schema. Re-run the job; if it repeats, the prompt or the schema needs a look |
 | `<role> could not use the browser` | Every browser call failed. Check the app is up (`npm run doctor`) and re-run |
 | `<role> did not finish (error_max_turns)` | The agent ran out of turns. Re-run; if it repeats, the ticket is probably too big for one pass |
@@ -79,7 +100,7 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 - **The test half:** add `qa-generate` again, or run QA tests by hand. It reads the ticket again, so a change from
   built to test-first is picked up; it says so when the plan needs a new analysis.
 - **Locally, from a run's files:** download its `qa-run` artifact, point `QA_RUN_DIR` at it, and run a single stage:
-  `QA_RUN_DIR=./qa-run-123 npm run pipeline -- technical`. Stages that run an agent need a signed-in Claude Code CLI or
+  `QA_RUN_DIR=./qa-run-123 npx agentic-qa technical`. Stages that run an agent need a signed-in Claude Code CLI or
   a token.
 
 ## Turning a gate from advisory to blocking
@@ -90,19 +111,38 @@ is required it also sends the change back to the engineer, and then stops the ru
 
 ## Adding a sensitivity target
 
-A target is a set of environment variables that points the suite at something known to be wrong. The suite has to
-read the variable, so pick one it already reads (`BASE_URL` in `playwright.config.ts`, `SAUCE_USER` in
-`fixtures/personas.ts`) or add the reading there.
+A target is a version of the app known to be broken. Two kinds:
 
-1. Add it to `qa.config.json`:
-   ```json
-   { "name": "last-release", "env": { "BASE_URL": "https://staging-previous.example.com" } }
-   ```
-2. Check that the suite really fails against it: `BASE_URL=https://staging-previous.example.com npx playwright test`.
-   A target nothing fails against tells you nothing about the new tests.
-3. Run `npm run doctor`; the target is listed under "Sensitivity targets".
+**Environment variables** that point the suite at something wrong: an old build, a broken account. The suite has to
+read the variable, so pick one it already reads (`BASE_URL` in `playwright.config.ts`, the persona variable) or add
+the reading there.
+
+```json
+{ "name": "last-release", "env": { "BASE_URL": "https://staging-previous.example.com" } }
+```
+
+**A fault**, when there is no broken build to point at: a script run on every page before the app's own, and
+requests answered or dropped before they reach the server. This works on any app. The gate hands it to the suite as
+`QA_FAULT` and the shared fixture (`fixtures/fault.ts`, which `init` writes and `fixtures/test.ts` calls on every
+page) applies it. The demo's fault removes the cart badge whenever it appears.
+
+```json
+{ "name": "cart-badge-never-shows", "initScript": "fixtures/faults/cart-badge-never-shows.js" },
+{ "name": "cart-api-down", "routes": [{ "url": "**/api/cart", "status": 500, "body": "{}" }] },
+{ "name": "no-analytics", "routes": [{ "url": "**/analytics/**", "abort": true }] }
+```
+
+Then check that the suite really fails against it: `BASE_URL=... npx agentic-qa suite`, or for a fault
+`QA_FAULT='{"initScript":"fixtures/faults/x.js","routes":[]}' npx agentic-qa suite`. A target nothing fails against
+tells you nothing about the new tests. `npx agentic-qa doctor` lists the targets.
 
 The gate runs the new tests once per target, in built mode only, and reports which tests each target caught.
+
+## Exporting results
+
+`npx agentic-qa coverage --export junit|xray|testrail` writes the last run's results to `qa-run/` in the shape the
+tool imports, with the requirement and criteria tags on every test: JUnit properties, Xray's `testInfo` with the
+requirement as a Jira issue when the tag is a Jira key, a TestRail CSV with the tags as references.
 
 ## Cost
 
@@ -117,6 +157,14 @@ costs one analyst run.
 
 ## From Claude, or from a terminal
 
-The same flows run without Actions. `npm run pipeline -- --help` lists the commands; `npm run mcp` serves them to
+The same flows run without Actions. `npx agentic-qa --help` lists the commands; `npx agentic-qa mcp` serves them to
 Claude Desktop or Claude Code (see the README, "Use it from Claude"). Local runs of the agent stages use the plan or
 API key of whoever runs them.
+
+## In another CI system
+
+The four workflows are GitHub Actions, but every stage is a command. One job that checks the project out, installs
+it and runs `npx agentic-qa analyze --source <tracker> --ref <ticket>` is the analysis half; `npx agentic-qa tests`
+after it is the test half, which leaves the change in the working tree and the pull request text in
+`qa-run/pull-request.md` for the job to push and open. Give the model credential to those two steps and the tracker
+credentials to none of the agent steps, as the GitHub workflows do.

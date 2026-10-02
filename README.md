@@ -9,12 +9,17 @@ without an opinion, and a person decides whether the result is merged.
 I built this to show what I think QA looks like when agents take the repetitive work and people keep the judgement.
 Every agent gets the least access its job needs and answers in a schema; anything it claims that code can check (a
 file, a test title, a ticket, a verdict) is checked before it is used; and the new tests are run against versions of
-the app known to be broken, to see whether they would catch a real bug. It is a portfolio project and a working
-shell: everything specific to the app under test is in one config file, two documents and the tests themselves.
+the app known to be broken, to see whether they would catch a real bug.
+
+It is a tool, not only a demo. The engine installs into any Playwright project as a dependency, `npx agentic-qa
+init` writes the config and the workflows, `npx agentic-qa survey` reads the existing suite and drafts the documents
+the agents need, and the project's own workflows call the engine's. Requirements come from GitHub issues, pull
+requests, Jira, Azure DevOps Boards or Linear. This repository is also the first project it is installed in: the
+demo shop below is where it is shown working. See [Install it in your project](#install-it-in-your-project).
 
 ```mermaid
 flowchart LR
-  J["Ticket + qa-pipeline label"] --> R["1 Requirements"]
+  J["Ticket or pull request + qa-pipeline label"] --> R["1 Requirements"]
   R -->|blocking questions| Q["Ask on the ticket"]
   R --> X["1b Technical review"]
   X --> A["2 Architect"]
@@ -190,7 +195,8 @@ table, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SECURITY.md](SECU
 
 - **Least access per role.** The analyst, technical reviewer, architect, critic, reconciler, code reviewer and
   triager can read the repository and nothing else. The engineer and the healer can also write, but only in the
-  folders listed in `qa.config.json`, and can run only `npx playwright test`, `npx tsc` and `npx eslint`. Agents run
+  folders listed in `qa.config.json`, and can run only the suite's own test, typecheck and lint commands from the
+  same file. Agents run
   in `dontAsk` permission mode, so anything not on the allowlist is refused outright, and the settings, hooks and MCP
   servers of whoever runs the pipeline are not loaded.
 - **A limited browser.** The agents that get a browser can navigate, click, type and read page snapshots. Script
@@ -198,7 +204,9 @@ table, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SECURITY.md](SECU
   trusted.
 - **Credentials are kept apart.** The Claude token lives on the `POC` environment and is given only to the steps
   that run an agent. The tracker credentials live on the `TRACKER` environment and are given only to the jobs that
-  read or write the ticket, where no agent runs. The jobs that push a branch and open a pull request have neither.
+  read or write the ticket, where no agent runs. The job that runs the gates over the generated tests, the whole
+  suite and the known-broken targets, holds no credentials at all, and so do the jobs that push a branch and open
+  a pull request. A run can be capped at a dollar amount (`budget.maxUsdPerRun`).
 - **Structured answers.** Every agent answers in a schema (`agents/lib/schemas.ts`), validated with zod before the
   next stage reads it. A malformed answer fails the job.
 - **Input is data.** Ticket text, diffs and anything read from the app are wrapped in tags and the agents are told
@@ -228,8 +236,9 @@ table, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SECURITY.md](SECU
   what it should, rather than assuming it.
 - "Treat it as data" is an instruction to a model, not a hard barrier. The hard barriers are the tool allowlist, the
   scope gate and the credential separation.
-- The engineer runs the tests it writes, and test code runs with the job's environment. In principle it could write
-  a test that reads that environment. Treat the Claude token as exposed to generated code, and scope it accordingly.
+- The engineer runs the tests it writes while writing them, and test code runs with that job's environment. The
+  gates run in a job with no credentials, but the engineer's own runs do not. Treat the Claude token as exposed to
+  generated code, and scope it accordingly.
 - The technical review checks that a file and a test title exist, not that a page object member does: a member the
   notes call existing may still have to be added.
 - In test-first mode the tests are only as good as the contract. If the developers build something the contract did
@@ -304,27 +313,35 @@ summary page.
 
 **By hand.** Actions > QA analysis (or QA tests) > Run workflow, with the source and the issue number or ticket key.
 
-**Locally.** With the Claude Code CLI signed in (`claude` then `/login`), or one of the two tokens in your
-environment. `npm run pipeline -- --help` lists every command. It exits 0 when done, 1 when a stage or a check
-failed (the last line says why), and 2 when the command line was wrong.
+**From a pull request.** Add `qa-pipeline` to a pull request from this repository. The change itself is the
+requirement: its description, files and diff. The analyst derives the behaviour the change gives a user, the same
+stages follow, and the generated tests are opened against the pull request's own branch. With `app.previewUrl` set,
+the tests run against the preview of that change.
+
+**Locally.** With the Claude Code CLI signed in (`claude` then `/login`), one of the two tokens in your
+environment, or a provider's settings in `QA_PROVIDER_ENV`. `npx agentic-qa --help` lists every command (in this
+repository `npm run pipeline --` is the same thing). It exits 0 when done, 1 when a stage or a check failed (the
+last line says why), and 2 when the command line was wrong.
 
 ```bash
 # The analysis only: requirements, technical review, plan, score. Prints the report; posts it too when the source is a tracker.
-npm run pipeline -- analyze --source jira --ref SHOP-12
-npm run pipeline -- analyze --title "Sort products" --text "As a shopper I want to ..."
+npx agentic-qa analyze --source jira --ref SHOP-12
+npx agentic-qa analyze --title "Sort products" --text "As a shopper I want to ..."
 
 # Both halves, start to finish. Start from a clean working tree: the scope gate reads git status.
-npm run pipeline -- all --title "Sort products" --text "As a shopper I want to ..."
-npm run pipeline -- all --test-first --file requirement.md
+npx agentic-qa all --title "Sort products" --text "As a shopper I want to ..."
+npx agentic-qa all --test-first --file requirement.md
 
-# The baseline suite
-npm test
+# The suite, with the configured command, signed in first when the project needs it. Arguments go to Playwright.
+npx agentic-qa suite
+QA_PERSONA=problem_user npx agentic-qa suite --grep @REQ-1
 
 # After a failed run: classify the failures in test-results/results.json
-npm run triage
+npx agentic-qa triage
 
-# Which ticket each test exists for, and how it did in the last run
-npm run coverage
+# Which ticket each test exists for, and how it did in the last run; also as JUnit, Xray or TestRail
+npx agentic-qa coverage
+npx agentic-qa coverage --export junit
 ```
 
 A local run leaves its documents in `qa-run/` (request, requirements, technical review, strategy, analysis, gate
@@ -333,8 +350,9 @@ an empty `qa-run/`. A requirement given with `--text` or `--file` uses the key `
 analysis to the ticket when the source is a tracker, but never an outcome for the tests: there is no pull request to
 point at.
 
-To run the suite as another persona, set `SAUCE_USER`, for example `SAUCE_USER=problem_user npm test`. `BASE_URL`
-overrides the address in `qa.config.json`.
+To run the suite as another persona, set `QA_PERSONA`. The pipeline hands it to the suite under the variable the
+suite reads (`personas.envVar` in `qa.config.json`; `SAUCE_USER` here, so `SAUCE_USER=problem_user npm test` still
+works). `BASE_URL` overrides the address in `qa.config.json`.
 
 ### Writing the ticket
 
@@ -347,8 +365,8 @@ say yes. It adds `qa-pipeline` itself only when the ticket is ready and `autoRun
 otherwise you add it when you are happy.
 
 ```bash
-npm run pipeline -- draft --text "I want shoppers to save a wishlist" --source github
-npm run pipeline -- draft --file wish.md --answers answers.md --yes
+npx agentic-qa draft --text "I want shoppers to save a wishlist" --source github
+npx agentic-qa draft --file wish.md --answers answers.md --yes
 ```
 
 Without a terminal it stops after the preview; `--yes` files it. Jira tickets cannot be created yet, so use
@@ -470,23 +488,51 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
 | `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history) |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
+| `bin/agentic-qa.js` | The command line, which a project with the engine installed runs as `npx agentic-qa` |
+| `templates/host/` | What `npx agentic-qa init` writes into a project: the config, the documents, the caller workflows |
+| `agents/init.ts`, `agents/survey.ts` | Setting a project up, and the surveyor that reads an existing suite |
+| `agents/lib/suite.ts`, `agents/lib/fault.ts`, `agents/lib/export.ts` | Running the suite as configured, fault injection, exports for test management tools |
+| `fixtures/fault.ts` | The fixture that applies a fault from the sensitivity gate to every page |
 | `.github/ISSUE_TEMPLATE/requirement.yml` | The "QA requirement" issue template |
 
-## Use it on your own app
+## Install it in your project
 
-1. Edit `qa.config.json`: name, base URL, pass mark, stability runs, and sensitivity targets that point at
-   known-broken versions of your app (or an empty list).
-2. Rewrite `docs/product-brief.md` for your app, and `docs/test-conventions.md` for how your team writes tests.
-3. Replace `pages/`, `fixtures/` and `tests/` with your own. Keep `fixtures/test.ts` as the place specs import `test`
-   and `expect` from, or change the conventions to match.
-4. Adjust the persona input in `regression.yml`. The persona is passed as the `SAUCE_USER` environment variable,
-   which `fixtures/personas.ts` and `agents/triage.ts` read. Rename it if the name bothers you.
-5. Connect your tracker: GitHub issues work as they are; for Jira, follow the Jira setup above.
-6. Run `npm run doctor` and fix what it reports.
+The engine is a package. A project that has a Playwright suite installs it, runs `init`, and from then on its own
+workflows call the engine's with `uses:`. Nothing about Swag Labs comes along: the prompts, the gates and the
+workflows are generic, and the project's config says the rest.
 
-The prompts in `agents/prompts/` and the code in `agents/` should not need changes. Another tracker is one more file
-in `agents/sources/` with five functions: read a ticket, comment on it, change its labels, list the open ones, file a
-new one.
+```bash
+npm install --save-dev github:Beherrit/agentic-qa-playwright     # pin a tag once you depend on one
+npx agentic-qa init        # qa.config.json, docs/, the four caller workflows, the issue form, .mcp.json, fixtures/fault.ts
+npx agentic-qa survey      # an agent reads the suite and drafts the brief, the conventions and the suite settings
+npx agentic-qa doctor      # what is still missing, line by line
+```
+
+`survey` runs one agent over `package.json`, the Playwright config, the specs, page objects and fixtures, and
+drafts `docs/product-brief.md`, `docs/test-conventions.md` and the `suite`, `personas` and `auth` sections of the
+config. Every path and command it names is checked against the project before anything is written; `--yes` writes
+the drafts, otherwise they stay in `qa-run/` for a person to read first. Then:
+
+1. **Secrets.** An environment named `POC` with `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, or for Bedrock or
+   Vertex a single secret `QA_PROVIDER_ENV` holding the provider's variables as `KEY=value` lines (for example
+   `CLAUDE_CODE_USE_BEDROCK=1` and `AWS_REGION=...`). An environment named `TRACKER`, empty for GitHub issues and
+   pull requests, or holding the tracker's variables: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`;
+   `AZURE_DEVOPS_ORG_URL`, `AZURE_DEVOPS_PROJECT`, `AZURE_DEVOPS_PAT`; `LINEAR_API_KEY`, `LINEAR_TEAM`.
+2. **Permissions.** Settings > Actions > General > Workflow permissions: allow GitHub Actions to create pull requests.
+3. **Labels.** `qa-pipeline`, `qa-generate` and `qa-test-first`.
+4. **Sign-in**, if the app needs more than a form. Point `auth.setup` at the command that saves a Playwright storage
+   state (a setup project, usually) and `auth.storageState` at the file it writes. The suite and the agents' browser
+   both start from it, so an app behind single sign-on is not a problem as long as the setup project can get in.
+5. **Known-broken targets**, so the sensitivity gate has something to catch: environment variables that point the
+   suite at an old build or a broken account, or a fault (an init script, routes to drop or answer) that breaks one
+   behaviour of the current build for the length of a run. See [operations](docs/OPERATIONS.md).
+
+Everything the config takes is in [operations](docs/OPERATIONS.md). The callers `init` writes are a few lines each;
+a different CI system runs the same stages through `npx agentic-qa` (the analysis half is `analyze`, the test half is
+`tests`), with artifacts only for the pull request step.
+
+Tests written by the pipeline carry the requirement and the criterion as tags, so the traceability map, and the
+JUnit, Xray and TestRail exports of it, work in any project that keeps the convention.
 
 ## License
 
