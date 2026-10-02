@@ -38,6 +38,10 @@
         "env": {
           "SAUCE_USER": "error_user"
         }
+      },
+      {
+        "name": "cart-badge-never-shows",
+        "initScript": "fixtures/faults/cart-badge-never-shows.js"
       }
     ]
   },

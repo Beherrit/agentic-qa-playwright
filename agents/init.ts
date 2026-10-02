@@ -22,6 +22,7 @@ export const FILES: { to: string; from: string }[] = [
   { to: '.github/workflows/qa-history.yml', from: 'templates/host/.github/workflows/qa-history.yml' },
   { to: '.github/ISSUE_TEMPLATE/requirement.yml', from: 'templates/host/.github/ISSUE_TEMPLATE/requirement.yml' },
   { to: '.mcp.json', from: 'templates/host/.mcp.json' },
+  { to: 'fixtures/fault.ts', from: 'templates/host/fixtures/fault.ts' },
 ];
 
 export type InitResult = { root: string; written: string[]; kept: string[] };

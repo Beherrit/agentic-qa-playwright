@@ -36,7 +36,7 @@ export const TEMPLATES_DIR = path.join(PKG_ROOT, 'templates');
  * page before the app's own, and requests answered or dropped before they reach the server. The shared fixture
  * reads them from QA_FAULT (see templates/fixtures/fault.ts).
  */
-const Target = z.object({
+export const TargetSchema = z.object({
   name: z.string().min(1),
   env: z.record(z.string(), z.string()).default({}),
   initScript: z.string().optional().describe('A JavaScript file, relative to the project root, added to every page'),
@@ -52,7 +52,7 @@ const Target = z.object({
     )
     .default([]),
 });
-export type Target = z.infer<typeof Target>;
+export type Target = z.infer<typeof TargetSchema>;
 
 /** Everything specific to the project under test. The agents themselves are generic. */
 export const ConfigSchema = z.object({
@@ -110,7 +110,7 @@ export const ConfigSchema = z.object({
       storageState: z.string().nullable().default(null),
     })
     .prefault({}),
-  sensitivity: z.object({ required: z.boolean().default(false), targets: z.array(Target).default([]) }).prefault({}),
+  sensitivity: z.object({ required: z.boolean().default(false), targets: z.array(TargetSchema).default([]) }).prefault({}),
   accessibility: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false) }).prefault({}),
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
   /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */

@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { targetEnv } from './lib/fault.ts';
 import { tagGrep } from './lib/keys.ts';
 import { config, ROOT, RUN_DIR } from './lib/paths.ts';
 import type { Generation, Request, Strategy } from './lib/schemas.ts';
@@ -398,7 +399,7 @@ function sensitivityGate(request: Request): Gate | null {
 
   const tests = new Map<string, string[]>();
   for (const target of targets) {
-    const run = runJson(tagGrep(request.key), '', target.env);
+    const run = runJson(tagGrep(request.key), '', targetEnv(target));
     for (const outcome of run.report.filter((t) => !t.expectedToFail)) {
       const name = `${outcome.file}: ${outcome.title}`;
       const caught = tests.get(name) ?? [];
