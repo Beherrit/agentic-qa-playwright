@@ -1,0 +1,33 @@
+{
+  "id": "clear-wish",
+  "description": "A clear wish about something the shop already does. The writer should ask nothing that blocks, give at least one negative criterion, and name outcomes a test can check.",
+  "stage": "draft",
+  "input": {
+    "wish": "When a shopper removes an item on the cart page, the item disappears from the cart and the cart badge count goes down by one.",
+    "openTickets": [
+      {
+        "ref": "11",
+        "title": "Requirement: Product details page",
+        "url": null
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "no-blocking-question"
+    },
+    {
+      "check": "negative-criterion"
+    },
+    {
+      "check": "min-criteria",
+      "min": 3
+    },
+    {
+      "check": "no-vague-then"
+    },
+    {
+      "check": "no-duplicate"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "title": "Continue shopping from the cart",
+  "story": {
+    "asA": "a shopper on the cart page",
+    "iWant": "to go back to the product list",
+    "soThat": "I can add more before checking out"
+  },
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "the cart page with one item",
+      "when": "the shopper clicks Continue Shopping",
+      "then": "the product list is shown"
+    },
+    {
+      "id": "AC-2",
+      "kind": "happy",
+      "given": "the cart page with one item",
+      "when": "the shopper clicks Continue Shopping",
+      "then": "the cart badge still shows 1"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "an empty cart page",
+      "when": "the shopper clicks Continue Shopping",
+      "then": "the product list is shown and no badge is shown"
+    },
+    {
+      "id": "AC-4",
+      "kind": "negative",
+      "given": "the cart page with one item",
+      "when": "the shopper clicks Continue Shopping",
+      "then": "the item is not removed from the cart"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "openQuestions": [],
+  "risk": "low",
+  "riskReason": "A convenience link; the cart itself is covered elsewhere."
+}

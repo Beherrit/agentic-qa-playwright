@@ -1,0 +1,14 @@
+{
+  "id": "vague-requirement",
+  "description": "A complaint, not a requirement. The analyst must block and ask what should be different, as on issue 3.",
+  "stage": "requirements",
+  "input": {
+    "title": "Search is bad",
+    "body": "Users are unhappy with search."
+  },
+  "checks": [
+    {
+      "check": "blocking-question"
+    }
+  ]
+}

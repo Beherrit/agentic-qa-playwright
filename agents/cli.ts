@@ -1,68 +1,85 @@
-import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { doctor } from './doctor.ts';
 import { draft as writeTicket } from './draft.ts';
-import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
+import { analyze as runAnalysis, intake, type RequirementInput } from './flow.ts';
 import { config } from './lib/paths.ts';
-import { Request } from './lib/schemas.ts';
-import { exists, reset, save, setOutput } from './lib/store.ts';
-import { intakeTicket } from './sources/index.ts';
 import * as stages from './stages.ts';
 
 /**
- * Runs the pipeline, one stage at a time or a whole half at once.
+ * Runs the pipeline, one stage at a time or a whole half at once. `npm run pipeline -- --help` lists it all.
  *
- *   Check a checkout is ready:           npm run pipeline -- doctor
- *   In CI each stage is its own job:     npm run pipeline -- requirements
- *   On your machine, from a ticket:      npm run pipeline -- analyze --source jira --ref SHOP-12
- *   Write a ticket from a wish:          npm run pipeline -- draft --text "I want shoppers to save a wishlist" [--source github] [--yes]
- *   On your machine, from plain words:   npm run pipeline -- all --title "Sort products" --text "As a shopper ..."
- *
- * Add --test-first to a local run when the feature is not built yet. A ticket says so itself, with the
- * qa-test-first label or the issue form.
+ * Exit codes: 0 done, 1 a stage or a check failed (the last line says why), 2 the command line was wrong.
  */
 
-const { positionals, values } = parseArgs({
-  allowPositionals: true,
-  options: {
-    source: { type: 'string' }, // github or jira
-    ref: { type: 'string' }, // issue number or ticket key
-    title: { type: 'string' },
-    text: { type: 'string' },
-    file: { type: 'string' },
-    answers: { type: 'string' }, // draft: a file with answers to the writer's questions
-    yes: { type: 'boolean', default: false }, // draft: file the ticket without asking
-    'test-first': { type: 'boolean', default: false },
-  },
-});
+const HELP = `Usage: npm run pipeline -- <command> [options]
 
-async function intake(): Promise<void> {
-  let request: Request;
-  // An empty --source (a dispatch event without one) is an error, not a quiet fall back to a local run.
-  if (values.source !== undefined && values.source !== 'local') {
-    if (!values.ref) throw new Error('Give the ticket with --ref (an issue number or a ticket key).');
-    request = await intakeTicket(values.source as SourceName, values.ref);
-  } else {
-    const body = values.file ? fs.readFileSync(values.file, 'utf8') : values.text;
-    if (!body) throw new Error('Give the requirement with --source and --ref, or with --text "<words>" or --file <path>.');
-    request = Request.parse({
-      key: keyFor('local', ''),
-      source: 'local',
-      ref: 'local',
-      url: null,
-      title: values.title ?? body.split('\n')[0].slice(0, 80),
-      body,
-      mode: values['test-first'] ? 'test-first' : 'built',
-    });
-  }
-  // A new requirement starts from an empty run folder, so nothing left by the last one is mistaken for its own.
-  reset();
-  save('request.json', request);
-  setOutput('key', request.key);
-  setOutput('artifact', artifactFor(request.key));
-  setOutput('mode', request.mode);
-  console.log(`Requirement ${request.key} (${request.mode}): ${request.title}`);
+On your machine
+  doctor                 Check this checkout is ready: config, documents, browser, the app, credentials
+  draft                  Write a requirement ticket from a wish (--text or --file); --source github --yes files it
+  analyze                The analysis half: requirements, technical review, plan and score
+  tests                  The test half, from the analysis in qa-run/: code, gates, review, pull request text
+  all                    Both halves, start to finish. Start from a clean working tree
+
+One stage at a time, as the CI jobs run them
+  intake, requirements, technical, plan, critic, reconcile, check-plan,
+  generate, apply [heal.patch], review, rework, report, notify <analysis|tests>
+
+Options
+  --source github|jira   Where the ticket lives, with --ref
+  --ref <ref>            The issue number (github) or the ticket key (jira)
+  --text <words>         The requirement or the wish as text
+  --file <path>          The requirement or the wish from a file
+  --title <title>        A title for a requirement given as text
+  --test-first           The feature is not built yet (a ticket says so itself)
+  --answers <path>       draft: answers to the writer's blocking questions
+  --yes                  draft: file the ticket without asking
+  -h, --help             This text
+
+Examples
+  npm run pipeline -- analyze --source jira --ref SHOP-12
+  npm run pipeline -- all --title "Sort products" --text "As a shopper I want to ..."
+  npm run pipeline -- draft --text "I want shoppers to save a wishlist" --source github
+
+Exit codes: 0 done, 1 a stage or a check failed, 2 the command line was wrong.
+Stages that run an agent need a signed-in Claude Code CLI, CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.`;
+
+/** A wrong command line. Says what was wrong and how to ask for help. */
+function usage(message: string): never {
+  console.error(`${message}\nRun \`npm run pipeline -- --help\` for the commands and options.`);
+  process.exit(2);
 }
+
+function parse() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        source: { type: 'string' }, // github or jira
+        ref: { type: 'string' }, // issue number or ticket key
+        title: { type: 'string' },
+        text: { type: 'string' },
+        file: { type: 'string' },
+        answers: { type: 'string' }, // draft: a file with answers to the writer's questions
+        yes: { type: 'boolean', default: false }, // draft: file the ticket without asking
+        'test-first': { type: 'boolean', default: false },
+        help: { type: 'boolean', short: 'h', default: false },
+      },
+    });
+  } catch (error) {
+    return usage(error instanceof Error ? error.message : String(error));
+  }
+}
+
+const { positionals, values } = parse();
+
+const input = (): RequirementInput => ({
+  source: values.source,
+  ref: values.ref,
+  title: values.title,
+  text: values.text,
+  file: values.file,
+  testFirst: values['test-first'],
+});
 
 /** Stops the run with a message, without a stack trace. The job turns red and the message is the last line. */
 function stop(message: string): never {
@@ -72,17 +89,8 @@ function stop(message: string): never {
 
 const runUrl = (): string | null => process.env.RUN_URL || null;
 
-/** The first half: requirement in, scored plan out. No test code. */
-async function analyze(): Promise<boolean> {
-  if (!exists('request.json') || values.source !== undefined || values.text || values.file) await intake();
-  let ok = await stages.requirements();
-  if (ok) {
-    await Promise.all([stages.plan(), stages.critic()]);
-    ok = await stages.reconcile();
-  }
-  await stages.notifyAnalysis(runUrl());
-  return ok;
-}
+/** The first half. A local run posts its analysis when the source is a tracker, as the README says. */
+const analyze = (): Promise<boolean> => runAnalysis(input(), { post: true, runUrl: runUrl() });
 
 /** The second half: plan in, reviewed tests out. */
 async function tests(): Promise<void> {
@@ -100,9 +108,10 @@ async function tests(): Promise<void> {
 
 const commands: Record<string, () => unknown> = {
   doctor: async () => (await doctor()) || process.exit(1),
-  intake,
+  intake: () => intake(input()),
   draft: () => writeTicket({ text: values.text, file: values.file, source: values.source, answers: values.answers, yes: values.yes }),
   requirements: stages.requirements,
+  technical: stages.technical,
   plan: stages.plan,
   critic: stages.critic,
   reconcile: async () => (await stages.reconcile()) || stop(`The plan scored below ${config.minPlanScore}.`),
@@ -120,7 +129,7 @@ const commands: Record<string, () => unknown> = {
     const what = positionals[1];
     if (what === 'analysis') return stages.notifyAnalysis(runUrl());
     if (what === 'tests') return stages.notifyTests(runUrl(), process.env.PR_URL || null);
-    stop('Usage: npm run pipeline -- notify <analysis|tests>');
+    usage('Usage: npm run pipeline -- notify <analysis|tests>');
   },
   analyze: async () => (await analyze()) || stop('The analysis did not reach a usable plan. See qa-run/analysis.md.'),
   tests,
@@ -130,8 +139,13 @@ const commands: Record<string, () => unknown> = {
   },
 };
 
-const command = commands[positionals[0]];
-if (!command) stop(`Usage: npm run pipeline -- <${Object.keys(commands).join('|')}>`);
+if (values.help || positionals[0] === 'help') {
+  console.log(HELP);
+  process.exit(0);
+}
+if (!positionals[0]) usage('Name a command.');
+const command = Object.hasOwn(commands, positionals[0]) ? commands[positionals[0]] : undefined;
+if (!command) usage(`Unknown command "${positionals[0]}".`);
 
 try {
   await command();

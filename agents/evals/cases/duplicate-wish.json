@@ -1,0 +1,21 @@
+{
+  "id": "duplicate-wish",
+  "description": "A wish that asks for the same thing as an open ticket. The writer must name that ticket as a duplicate.",
+  "stage": "draft",
+  "input": {
+    "wish": "Shoppers can open a product's own page from the list and see its name, description, price and an Add to cart button.",
+    "openTickets": [
+      {
+        "ref": "11",
+        "title": "Requirement: Product details page",
+        "url": null
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "duplicate-of",
+      "ref": "11"
+    }
+  ]
+}

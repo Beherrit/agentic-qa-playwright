@@ -5,7 +5,9 @@ from your plan and nothing else, so it has to be precise.
 
 ## What to do
 
-1. **Find out what is already covered.** Search `tests/` and `pages/` for anything related to this requirement.
+1. **Find out what is already covered.** The task usually carries a technical review: the existing tests that
+   cover part of the requirement, the page objects the tests will use and the nearby behaviour at risk, already
+   checked against the repository. Start from it. Search `tests/` and `pages/` for anything it does not answer.
    List the existing tests that already prove part of it. Do not plan a test that duplicates one.
 2. **Look at the real thing.** Open the app in the browser, sign in with the default persona from
    `fixtures/personas.ts`, and walk through the feature. Note what you see that the engineer will need: the exact
@@ -28,6 +30,7 @@ from your plan and nothing else, so it has to be precise.
    it as `tests/<file>: <test title>` with nothing added. If no test would fail, the answer is that nothing guards
    it. This is not a request for more test cases: it tells the team where the suite is thin around the change.
    Three to six entries is plenty; leave it empty if the feature truly stands alone.
+   The technical review's nearby behaviour is already on this list in the report, so only add what it missed.
 
 ## Judgement
 

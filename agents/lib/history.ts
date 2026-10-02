@@ -190,6 +190,21 @@ export function cleanEntry(raw: unknown): RunEntry | null {
   };
 }
 
+/** The entries in runs.jsonl. A damaged line is skipped, not fatal. */
+export function parseRunLog(text: string): RunEntry[] {
+  const entries: RunEntry[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const entry = cleanEntry(JSON.parse(line));
+      if (entry) entries.push(entry);
+    } catch {
+      // Not JSON: skipped.
+    }
+  }
+  return entries;
+}
+
 /** Newest first. The sort is stable, so entries with the same time keep their order. */
 export function newestFirst(entries: RunEntry[]): RunEntry[] {
   return [...entries].sort((a, b) => (a.finishedAt < b.finishedAt ? 1 : a.finishedAt > b.finishedAt ? -1 : 0));
@@ -322,10 +337,30 @@ export function escapeMd(value: string): string {
     .replace(/[|[\]`*_~]/g, (c) => `\\${c}`);
 }
 
-export function historyMd(entries: RunEntry[]): string {
-  const sorted = newestFirst(entries);
-  const lines = ['# QA run history', '', 'Written by the "QA run history" workflow after every analysis and tests run. Newest first.', ''];
-  for (const [label, value] of summaryLines(summary(sorted))) lines.push(`- ${label}: ${escapeMd(value)}`);
+/** The history page. With a limit, the summary still covers every run and the table shows the newest ones. */
+export function historyMd(entries: RunEntry[], limit?: number): string {
+  const all = newestFirst(entries);
+  const sorted = limit === undefined ? all : all.slice(0, limit);
+  const s = summary(all);
+  // The same opening as every other report: a verdict line and the numbers behind it.
+  const lines = [
+    '## QA run history',
+    '',
+    `**${s.runs} runs: ${s.analysisRuns} analysis, ${s.testsRuns} tests.** Gates passed in ${percent(s.gatePassRate)} of tests runs; the review approved ${percent(s.approvedFirstRate)} at first review.`,
+    '',
+    `Average plan score ${s.avgPlanScore === null ? '-' : s.avgPlanScore.toFixed(0)}, estimated cost ${dollars(s.avgCostUsd)} per run, ${dollars(s.totalCostUsd)} in all.`,
+    '',
+    'Written by the "QA run history" workflow after every analysis and tests run.',
+    '',
+    '### Totals',
+    '',
+  ];
+  for (const [label, value] of summaryLines(s)) lines.push(`- ${label}: ${escapeMd(value)}`);
+  lines.push('', '### Runs', '');
+  // A long table is folded behind its summary line, as in the other reports.
+  const folded = sorted.length > 10;
+  lines.push(`${sorted.length < all.length ? `The newest ${sorted.length} of ${all.length} runs` : `${sorted.length} runs`}, newest first.`);
+  if (folded) lines.push('', '<details><summary>Show the runs</summary>');
   lines.push('', '| Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |');
   lines.push('| --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |');
   for (const e of sorted) {
@@ -345,6 +380,7 @@ export function historyMd(entries: RunEntry[]): string {
     lines.push(`| ${cells.join(' | ')} |`);
   }
   if (!sorted.length) lines.push('| No runs recorded yet. | | | | | | | | | |');
+  if (folded) lines.push('', '</details>');
   return `${lines.join('\n')}\n`;
 }
 

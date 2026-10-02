@@ -1,0 +1,53 @@
+{
+  "title": "Improve checkout",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to check out more easily",
+    "soThat": "I finish my order"
+  },
+  "why": "Unclear until the wish says what should change.",
+  "built": true,
+  "alreadyThere": "Checkout has three steps: information, overview, complete.",
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "a cart with an item",
+      "when": "the shopper completes checkout",
+      "then": "the order confirmation page is shown"
+    },
+    {
+      "id": "AC-2",
+      "kind": "negative",
+      "given": "the information step",
+      "when": "the shopper leaves First Name empty and continues",
+      "then": "an error names First Name as required"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "the overview step",
+      "when": "the shopper cancels",
+      "then": "the product list is shown and the cart keeps its items"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "risk": "medium",
+  "riskReason": "",
+  "technical": {
+    "covered": [],
+    "pages": [],
+    "touches": [],
+    "related": [],
+    "notes": ""
+  },
+  "duplicates": [],
+  "questions": [
+    {
+      "question": "What should be different about checkout when this is done?",
+      "blocking": true,
+      "why": "The wish names no change; criteria for checkout as it is would pass today and prove nothing."
+    }
+  ]
+}

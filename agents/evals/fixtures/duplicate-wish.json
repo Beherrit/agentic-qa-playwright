@@ -1,0 +1,52 @@
+{
+  "title": "Product details page",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to open a product's own page",
+    "soThat": "I can read about it before I buy it"
+  },
+  "why": "Shoppers decide on the product page.",
+  "built": true,
+  "alreadyThere": "Clicking a product name opens its page with the name, description, price and Add to cart.",
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "the product list",
+      "when": "the shopper clicks a product name",
+      "then": "that product's page shows its name, description and price"
+    },
+    {
+      "id": "AC-2",
+      "kind": "happy",
+      "given": "a product page",
+      "when": "the shopper clicks Add to cart",
+      "then": "the cart badge shows 1"
+    },
+    {
+      "id": "AC-3",
+      "kind": "negative",
+      "given": "a product page for an id that does not exist",
+      "when": "the shopper opens it",
+      "then": "no Add to cart button is shown"
+    }
+  ],
+  "assumptions": [],
+  "outOfScope": [],
+  "risk": "medium",
+  "riskReason": "",
+  "technical": {
+    "covered": [],
+    "pages": [],
+    "touches": [],
+    "related": [],
+    "notes": ""
+  },
+  "duplicates": [
+    {
+      "ref": "11",
+      "reason": "Issue 11 asks for the same product page with the same details."
+    }
+  ],
+  "questions": []
+}

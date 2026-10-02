@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFirst, type RunEntry, type RunFiles } from './lib/history.ts';
+import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFirst, parseRunLog, type RunEntry, type RunFiles } from './lib/history.ts';
 
 /**
  * The run history, kept by .github/workflows/qa-history.yml:
@@ -49,20 +49,7 @@ function record(dir: string, out: string): void {
   console.log(`Recorded run ${entry.runId} (${entry.workflow}, ${entry.key ?? 'no key'}).`);
 }
 
-function readLog(file: string): RunEntry[] {
-  if (!fs.existsSync(file)) return [];
-  const entries: RunEntry[] = [];
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    if (!line.trim()) continue;
-    try {
-      const entry = cleanEntry(JSON.parse(line));
-      if (entry) entries.push(entry);
-    } catch {
-      // A damaged line is skipped, not fatal.
-    }
-  }
-  return entries;
-}
+const readLog = (file: string): RunEntry[] => (fs.existsSync(file) ? parseRunLog(fs.readFileSync(file, 'utf8')) : []);
 
 function render(dir: string, entryFile?: string): void {
   fs.mkdirSync(dir, { recursive: true });

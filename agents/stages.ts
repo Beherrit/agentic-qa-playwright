@@ -1,11 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { applyPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
 import { checkedRisks } from './lib/draft.ts';
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
-import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, testsReadyMd } from './lib/render.ts';
+import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
 import {
   Checklist,
   Generation,
@@ -13,20 +11,24 @@ import {
   Reconciled,
   Requirements,
   Review,
+  TechnicalReview,
   type Request,
   type Strategy,
 } from './lib/schemas.ts';
 import { planHealth } from './lib/score.ts';
-import { requirementsFromTicket, technicalNotes } from './lib/ticket.ts';
+import { repoAt } from './lib/repo.ts';
+import { checkTechnical, mergeRisks, technicalFromTicket, type TechnicalResult } from './lib/technical.ts';
+import { requirementsFromTicket } from './lib/ticket.ts';
 import { exists, jobSummary, load, loadText, prompt, save, setOutput, type RunRecord } from './lib/store.ts';
 import { sourceFor } from './sources/index.ts';
+import type { OpenTicket } from './sources/types.ts';
 
 /**
  * The pipeline, one function per stage. Each stage reads what earlier stages left in the run folder,
  * does its work, and leaves its own result there as JSON (for the next stage) and markdown (for people).
  *
  * Two halves, run by two workflows:
- *   analysis   requirements -> plan + critic -> reconcile -> report on the ticket      (minutes, no code)
+ *   analysis   requirements -> technical review -> plan + critic -> reconcile -> report on the ticket   (minutes, no code)
  *   tests      generate + gates -> review -> rework -> pull request -> report on the ticket
  */
 
@@ -49,6 +51,19 @@ const BUILT_PLAN = `The feature is built. Leave the contract empty.`;
 
 // ── 1. Requirements ──────────────────────────────────────────────────────────
 
+/** Asks the requirements analyst. Exported so the evaluation harness can call it with a case of its own. */
+export async function analyse(req: Request): Promise<Requirements> {
+  const { output } = await runAgent({
+    role: 'requirements-analyst',
+    instructions: prompt('requirements-analyst'),
+    task: `Analyse this requirement for ${config.app.name}.\n\n${requirementText(req)}\n\n${brief()}`,
+    schema: Requirements,
+    access: 'read',
+    maxTurns: 20,
+  });
+  return output;
+}
+
 export async function requirements(): Promise<boolean> {
   const req = request();
   // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
@@ -63,15 +78,7 @@ export async function requirements(): Promise<boolean> {
     console.log('Ticket written by the ticket writer: requirements taken from it, analyst skipped.');
     return ready;
   }
-  const { output } = await runAgent({
-    role: 'requirements-analyst',
-    instructions: prompt('requirements-analyst'),
-    task: `Analyse this requirement for ${config.app.name}.\n\n${requirementText(req)}\n\n${brief()}`,
-    schema: Requirements,
-    access: 'read',
-    maxTurns: 20,
-  });
-
+  const output = await analyse(req);
   const ready = !output.openQuestions.some((question) => question.blocking);
   const markdown = requirementsMd(req, output);
   save('requirements.json', output);
@@ -81,16 +88,79 @@ export async function requirements(): Promise<boolean> {
   return ready;
 }
 
+// ── 1b. Technical review ─────────────────────────────────────────────────────
+
+/** What the checks may ask about this repository. */
+const repo = repoAt(ROOT);
+
+/** The tickets that were open when the ticket was read. The intake job saves them; agent jobs have no tracker token. */
+const openTickets = (): OpenTicket[] => (exists('open-tickets.json') ? load<OpenTicket[]>('open-tickets.json') : []);
+
+const technicalReview = (): TechnicalResult | null => (exists('technical.json') ? load<TechnicalResult>('technical.json') : null);
+
+/** Asks the technical reviewer. Exported so the evaluation harness can call it with a case of its own. */
+export async function reviewTechnically(req: Request, requirementsText: string, open: OpenTicket[]): Promise<TechnicalReview> {
+  const { output } = await runAgent({
+    role: 'technical-reviewer',
+    instructions: prompt('technical-reviewer'),
+    task: `Write the technical review for this requirement. The app is ${config.app.name} at ${config.app.baseUrl}.
+
+<requirements>
+${requirementsText}
+</requirements>
+
+${requirementText(req)}
+
+<open-tickets>
+${JSON.stringify(open, null, 2)}
+</open-tickets>
+
+${brief()}`,
+    schema: TechnicalReview,
+    access: 'read',
+    browser: true,
+    maxTurns: 40,
+  });
+  return output;
+}
+
+/**
+ * Every ticket gets technical notes: what already covers it, which page objects its tests will use, what it could
+ * break and whether a test would notice. A ticket from the ticket writer already has them, so they are read back,
+ * checked and kept. Any other ticket gets a reviewer run. Either way the checks below decide what is kept.
+ */
+export async function technical(): Promise<TechnicalResult> {
+  const req = request();
+  const open = openTickets();
+  const fromWriter = technicalFromTicket(req.body, repo.titlesIn);
+  const review = fromWriter ?? (await reviewTechnically(req, loadText('requirements.md'), open));
+  const checked = checkTechnical(review, repo, open.map((ticket) => ticket.ref));
+  const result: TechnicalResult = { ...checked.technical, by: fromWriter ? 'ticket-writer' : 'technical-reviewer', dropped: checked.dropped };
+
+  const markdown = technicalMd(result);
+  save('technical.json', result);
+  save('technical.md', markdown);
+  // The architect, the critic and the engineer read the requirements from requirements.md, so the review goes there too.
+  save('requirements.md', `${loadText('requirements.md').trimEnd()}\n\n${markdown}`);
+  jobSummary(markdown);
+  console.log(
+    fromWriter
+      ? `Technical notes taken from the ticket writer and checked: ${checked.dropped.length} claim(s) taken out.`
+      : `Technical review written and checked: ${checked.dropped.length} claim(s) taken out.`,
+  );
+  return result;
+}
+
 // ── 2. Strategy: architect and critic work apart, then the plan is reconciled ──
 
 const criteriaText = (): string => `<requirements>\n${loadText('requirements.md')}\n</requirements>`;
 
-const TECHNICAL_NOTES_NOTE =
-  'The ticket writer wrote these notes and checked the files and test titles in them against the repository. Start from them rather than surveying from scratch, but still verify anything you rely on.';
+const TECHNICAL_REVIEW_NOTE =
+  'The technical review below was checked against the repository: every file and test title in it exists. Start from it rather than surveying from scratch, and start your regression risks from its nearby behaviour. Verify anything you rely on.';
 
 export async function plan(): Promise<void> {
   const req = request();
-  const notes = technicalNotes(req.body);
+  const review = technicalReview();
   const { output } = await runAgent({
     role: 'test-architect',
     instructions: prompt('test-architect'),
@@ -100,7 +170,7 @@ ${req.mode === 'test-first' ? TEST_FIRST_PLAN : BUILT_PLAN}
 ${criteriaText()}
 
 ${requirementText(req)}
-${notes ? `\n${TECHNICAL_NOTES_NOTE}\n<ticket-technical-notes>\n${notes}\n</ticket-technical-notes>\n` : ''}
+${review ? `\n${TECHNICAL_REVIEW_NOTE}\n<technical-review>\n${JSON.stringify(review, null, 2)}\n</technical-review>\n` : ''}
 ${brief()}
 
 ${design()}`,
@@ -153,7 +223,8 @@ export async function reconcile(): Promise<boolean> {
     existingCoverage: draft.existingCoverage,
     siteNotes: draft.siteNotes,
     contract: draft.contract,
-    regressionRisks: checkedRisks(draft.regressionRisks ?? [], (file) => fs.existsSync(path.join(ROOT, file))),
+    // The review's nearby behaviour comes first; the architect's own finds are added after it.
+    regressionRisks: checkedRisks(mergeRisks(technicalReview()?.touches ?? [], draft.regressionRisks ?? []), repo.fileExists, repo.titlesIn),
     ...output,
     added: output.added.filter((id) => caseIds.has(id)),
     cases,
@@ -246,10 +317,10 @@ type Brief = { request: Request; strategy: Strategy; text: string };
 function readBrief(): Brief {
   const req = request();
   const strategy = load<Strategy>('strategy.json');
-  return { request: req, strategy, text: engineerBrief(req, strategy) };
+  return { request: req, strategy, text: engineerBrief(req, strategy, technicalReview()) };
 }
 
-function engineerBrief(req: Request, strategy: Strategy): string {
+function engineerBrief(req: Request, strategy: Strategy, review: TechnicalResult | null): string {
   const cases = strategy.cases.filter((c) => c.layer === 'e2e');
   const others = strategy.cases.filter((c) => c.layer !== 'e2e').map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
   return `The app is ${config.app.name} at ${config.app.baseUrl}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
@@ -271,7 +342,7 @@ ${others.join('\n') || 'None'}
 <site-notes>
 ${strategy.siteNotes}
 </site-notes>
-
+${review ? `\n<technical-review>\n${technicalMd(review)}\n</technical-review>\n` : ''}
 ${conventions()}`;
 }
 
@@ -280,7 +351,7 @@ ${conventions()}`;
  * before the engineer started. These files are also written back afterwards, so nothing a test does to them
  * reaches the reviewer or the pull request in a later job.
  */
-const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'strategy.json', 'strategy.md'];
+const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md'];
 
 async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   const saved = PROTECTED.filter(exists).map((name) => [name, loadText(name)] as const);
@@ -419,6 +490,7 @@ export function report(): void {
     review: reviewDoc,
     round: exists('round.json') ? load<{ round: number }>('round.json').round : 1,
     ledger: exists('ledger.json') ? load<RunRecord[]>('ledger.json') : [],
+    technical: technicalReview(),
   });
   save('pull-request.md', body);
   setOutput('title', `test: ${requirementsDoc.title} (${req.key})`);
@@ -428,8 +500,11 @@ export function report(): void {
 
 // ── 6. Tell the ticket ───────────────────────────────────────────────────────
 
-/** Posts the analysis on the ticket and moves its labels on. Runs whatever state the analysis ended in. */
-export async function notifyAnalysis(runUrl: string | null): Promise<void> {
+/**
+ * Posts the analysis on the ticket and moves its labels on. Runs whatever state the analysis ended in.
+ * Without `post` the analysis is only saved: nothing goes to the ticket and no label changes.
+ */
+export async function notifyAnalysis(runUrl: string | null, options: { post: boolean } = { post: true }): Promise<void> {
   const req = request();
   const requirementsDoc = exists('requirements.json') ? load<Requirements>('requirements.json') : null;
   const strategy = exists('strategy.json') ? load<Strategy>('strategy.json') : null;
@@ -438,12 +513,18 @@ export async function notifyAnalysis(runUrl: string | null): Promise<void> {
 
   // Say on the ticket when the requirements were taken from it as filed, so nobody looks for an analyst run.
   const fromWriter = requirementsFromTicket(req.title, req.body) !== null;
-  const markdown = analysisMd({ request: req, requirements: requirementsDoc, strategy, runUrl, compact: req.source === 'jira' }).replace(
-    '\n## Requirements:',
-    `${fromWriter ? '\n_Requirements taken from the ticket as the ticket writer filed them. No analyst run._\n' : ''}\n## Requirements:`,
-  );
+  const markdown = analysisMd({
+    request: req,
+    requirements: requirementsDoc,
+    strategy,
+    technical: technicalReview(),
+    runUrl,
+    compact: req.source === 'jira',
+    fromWriter,
+  });
   save('analysis.md', markdown);
   jobSummary(markdown);
+  if (!options.post) return;
 
   const source = sourceFor(req.source);
   await source.comment(req.ref, markdown);

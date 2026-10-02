@@ -21,6 +21,10 @@ Start here. This ticket went through both halves of the pipeline.
    - the critic's checklist. A second agent wrote it without seeing the plan, and the cases marked `*` were added
      because of it
    - **Nearby behaviour at risk**: what this feature could break, and which existing test would notice
+   - the **Technical review** under the requirements (on runs since it was added): the existing tests that already
+     cover part of the ticket, the page objects the tests will use, related open tickets, and a line for each claim
+     the checks took out because the file, test or ticket it named does not exist. A ticket from the ticket writer
+     says "No reviewer run": its notes were read back from the ticket and checked, not written again
 3. **The pull request:** [#12](https://github.com/Beherrit/agentic-qa-playwright/pull/12), 32 tests. Point at:
    - **Suspected product bugs**: the engineer found that the page for a product that does not exist still offers
      Add to cart, and that the item can be added. The tests assert the right behaviour and are marked as expected
@@ -110,6 +114,14 @@ A product bug is never "healed". That is the line between the two.
 **How do you know the AI's tests are any good?** Four layers, in order of how much I trust them: the gates, which
 are plain commands; the sensitivity run against a broken app; a reviewer agent with fresh context that cannot
 write; and a person who merges. The README's Limits section says where each one falls short.
+
+**And how do you know the agents themselves behave?** `agents/evals/` has ten canned cases (a vague wish, a
+duplicate, contradictory criteria, a feature already built, and so on) with checks in code against each agent's
+structured answer. `npm run evals` runs them live and prints a pass rate; `npm run evals -- --dry` checks the cases
+against recorded answers without calling an agent. The answer to "is it any good" is a rate, not an anecdote.
+
+**Can I use it without GitHub Actions?** `npm run mcp` serves it to Claude Desktop or Claude Code: draft a ticket,
+run an analysis, see the coverage map, the run history or what is in flight, in a conversation.
 
 **What stops it doing damage?** Each agent gets the least it needs. Readers cannot write. The engineer can write in
 three folders and run three commands. Agents never hold a GitHub token, and the job that pushes never holds the

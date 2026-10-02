@@ -23,13 +23,22 @@ function listing(): string {
   return file;
 }
 
-const results = path.join(ROOT, 'test-results', 'results.json');
-const source = fs.existsSync(results) ? results : listing();
-if (!fs.existsSync(source)) {
-  console.error('Could not list the tests.');
-  process.exit(1);
+/** The traceability map as markdown, from the last run's results or, without one, from a listing of the tests. */
+export function coverageReport(): string {
+  const results = path.join(ROOT, 'test-results', 'results.json');
+  const source = fs.existsSync(results) ? results : listing();
+  if (!fs.existsSync(source)) throw new Error('Could not list the tests.');
+  return coverageMd(coverageMap(JSON.parse(fs.readFileSync(source, 'utf8'))));
 }
 
-const markdown = coverageMd(coverageMap(JSON.parse(fs.readFileSync(source, 'utf8'))));
-jobSummary(markdown);
-console.log(markdown);
+// Only when run as a script, so the MCP server can import coverageReport.
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('agents/coverage.ts')) {
+  try {
+    const markdown = coverageReport();
+    jobSummary(markdown);
+    console.log(markdown);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}

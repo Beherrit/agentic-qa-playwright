@@ -1,0 +1,23 @@
+{
+  "id": "vague-wish",
+  "description": "A wish that names no change anyone could observe. The writer must block on a question rather than write criteria for how checkout already works.",
+  "stage": "draft",
+  "input": {
+    "wish": "Make checkout better.",
+    "openTickets": []
+  },
+  "checks": [
+    {
+      "check": "blocking-question"
+    },
+    {
+      "check": "question-mentions",
+      "any": [
+        "better",
+        "different",
+        "change",
+        "improve"
+      ]
+    }
+  ]
+}

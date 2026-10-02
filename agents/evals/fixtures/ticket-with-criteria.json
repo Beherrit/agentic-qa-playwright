@@ -1,0 +1,45 @@
+{
+  "title": "Log out from the menu",
+  "story": {
+    "asA": "a shopper",
+    "iWant": "to log out from the menu",
+    "soThat": "nobody else can use my session"
+  },
+  "criteria": [
+    {
+      "id": "AC-1",
+      "kind": "happy",
+      "given": "a signed-in shopper",
+      "when": "they choose Logout in the menu",
+      "then": "the login page is shown"
+    },
+    {
+      "id": "AC-2",
+      "kind": "negative",
+      "given": "a shopper who logged out",
+      "when": "they open /inventory.html directly",
+      "then": "the login page is shown with an error"
+    },
+    {
+      "id": "AC-3",
+      "kind": "edge",
+      "given": "a shopper with items in the cart",
+      "when": "they log out and sign in again",
+      "then": "the cart still holds the items"
+    },
+    {
+      "id": "AC-4",
+      "kind": "negative",
+      "given": "a shopper who logged out",
+      "when": "they press the browser's back button",
+      "then": "the product list is not shown"
+    }
+  ],
+  "assumptions": [
+    "Added AC-4 for the back button, which the ticket did not cover. AC-1 to AC-3 are kept as written."
+  ],
+  "outOfScope": [],
+  "openQuestions": [],
+  "risk": "medium",
+  "riskReason": ""
+}

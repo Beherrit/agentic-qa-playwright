@@ -1,0 +1,33 @@
+{
+  "id": "technical-sort",
+  "description": "The technical review of a sorting requirement. Every test it says already covers part of it must exist, the inventory page must be among the page objects, and it must name nearby behaviour.",
+  "stage": "technical",
+  "input": {
+    "title": "Sort products",
+    "body": "As a shopper I want to sort the product list by name or price so I can find what I want faster.",
+    "requirements": "## Requirements: Sort products (REQ-0)\n\n**As** a shopper, **I want** to sort the product list by name or price, **so that** I find what I want faster.\n\n| | Kind | Given | When | Then |\n|---|---|---|---|---|\n| AC-1 | happy | the product list | the shopper picks Price (low to high) | the cheapest product is first |\n| AC-2 | negative | the list sorted by price | the shopper adds an item to the cart | the order does not change |\n| AC-3 | edge | the list sorted by price | the shopper reloads | the control label matches the order shown |",
+    "openTickets": [
+      {
+        "ref": "11",
+        "title": "Requirement: Product details page",
+        "url": null
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "covered-tests-exist"
+    },
+    {
+      "check": "pages-include",
+      "file": "pages/InventoryPage.ts"
+    },
+    {
+      "check": "min-touches",
+      "min": 1
+    },
+    {
+      "check": "related-only-open"
+    }
+  ]
+}

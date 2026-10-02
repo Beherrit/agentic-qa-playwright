@@ -14,7 +14,18 @@ import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 type Level = 'ok' | 'warn' | 'fail';
 export type Check = { name: string; level: Level; detail: string };
 
-const ROLES = ['requirements-analyst', 'test-architect', 'plan-critic', 'plan-reconciler', 'automation-engineer', 'code-reviewer', 'failure-triager', 'ticket-writer'];
+const ROLES = [
+  'requirements-analyst',
+  'technical-reviewer',
+  'test-architect',
+  'plan-critic',
+  'plan-reconciler',
+  'automation-engineer',
+  'code-reviewer',
+  'failure-triager',
+  'test-healer',
+  'ticket-writer',
+];
 
 const runs = (command: string): boolean => spawnSync(command, { cwd: ROOT, shell: true, stdio: 'ignore' }).status === 0;
 
@@ -70,7 +81,8 @@ async function reachable(url: string): Promise<Check> {
   }
 }
 
-export async function doctor(): Promise<boolean> {
+/** Every check, with no output. */
+export async function doctorChecks(): Promise<Check[]> {
   const has = (file: string): boolean => fs.existsSync(path.join(ROOT, file));
   const [major, minor] = process.versions.node.split('.').map(Number);
   const missingPrompts = ROLES.filter((role) => !fs.existsSync(path.join(PROMPTS_DIR, `${role}.md`)));
@@ -118,9 +130,20 @@ export async function doctor(): Promise<boolean> {
     },
   ];
 
+  return checks;
+}
+
+/** The checks as the terminal shows them, one per line, and the verdict at the end. */
+export function doctorText(checks: Check[]): string {
   const label = { ok: 'ok  ', warn: 'warn', fail: 'FAIL' };
-  for (const check of checks) console.log(`${label[check.level]}  ${check.name.padEnd(20)} ${check.detail}`);
   const failed = checks.filter((check) => check.level === 'fail').length;
-  console.log(failed ? `\n${failed} problem(s) to fix before the pipeline can run.` : '\nReady.');
-  return failed === 0;
+  const lines = checks.map((check) => `${label[check.level]}  ${check.name.padEnd(20)} ${check.detail}`);
+  return `${lines.join('\n')}\n\n${failed ? `${failed} problem(s) to fix before the pipeline can run.` : 'Ready.'}`;
+}
+
+/** Prints the checks. True when nothing failed. */
+export async function doctor(): Promise<boolean> {
+  const checks = await doctorChecks();
+  console.log(doctorText(checks));
+  return checks.every((check) => check.level !== 'fail');
 }

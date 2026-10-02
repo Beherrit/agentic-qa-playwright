@@ -1,7 +1,7 @@
 name: QA analysis
 
 # A requirement in, a QA analysis out, posted back on the ticket within minutes: user story, acceptance
-# criteria, risk, open questions and a scored test plan. No test code is written here; that is
+# criteria, risk, open questions, a technical review and a scored test plan. No test code is written here; that is
 # qa-tests.yml, started by a second label once a person has read this.
 #
 # Three ways in:
@@ -139,11 +139,48 @@ jobs:
           path: qa-run/
           overwrite: true
 
+  # Every ticket gets technical notes, hand-written ones included. A ticket from the ticket writer
+  # already has them: they are read back and checked, and no agent runs. Otherwise a read-only
+  # reviewer with a browser writes them, and the same checks decide what is kept.
+  technical:
+    name: 1b Technical review
+    needs: requirements
+    if: needs.requirements.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Review the requirement against the code and the app
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- technical
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
   # 2a and 2b run side by side and do not see each other's work. Each uploads only the file it
   # produced, so neither can overwrite the shared qa-run artifact under the other.
   plan:
     name: '2a Strategy: architect'
-    needs: requirements
+    needs: [requirements, technical]
     if: needs.requirements.outputs.ready == 'true'
     runs-on: ubuntu-latest
     environment: POC
@@ -185,7 +222,7 @@ jobs:
 
   critic:
     name: '2b Strategy: critic'
-    needs: requirements
+    needs: [requirements, technical]
     if: needs.requirements.outputs.ready == 'true'
     runs-on: ubuntu-latest
     environment: POC
@@ -294,7 +331,7 @@ jobs:
   # on the ticket. It also keeps the analysis under a name per ticket for qa-tests.yml to pick up.
   report:
     name: 3 Report on the ticket
-    needs: [intake, requirements, plan, critic, reconcile]
+    needs: [intake, requirements, technical, plan, critic, reconcile]
     if: ${{ !cancelled() && needs.intake.result == 'success' }}
     runs-on: ubuntu-latest
     environment: TRACKER

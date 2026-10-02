@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { OpenIssue, OpenPull } from '../lib/status.ts';
 import type { Source, Ticket } from './types.ts';
 
 /**
@@ -18,6 +19,27 @@ function ensureLabel(name: string): void {
   } catch {
     // It exists already.
   }
+}
+
+/** Open issues with their labels, and open pull requests with their branches. Read only. */
+export function openWork(): { issues: OpenIssue[]; pulls: OpenPull[] } {
+  const issues = JSON.parse(gh('issue', 'list', '--state', 'open', '--limit', '200', '--json', 'number,title,url,labels')) as {
+    number: number;
+    title: string;
+    url: string | null;
+    labels: { name: string }[];
+  }[];
+  const pulls = JSON.parse(gh('pr', 'list', '--state', 'open', '--limit', '100', '--json', 'number,title,url,headRefName,isDraft')) as {
+    number: number;
+    title: string;
+    url: string | null;
+    headRefName: string;
+    isDraft: boolean;
+  }[];
+  return {
+    issues: issues.map((i) => ({ ref: String(i.number), title: i.title, url: i.url, labels: (i.labels ?? []).map((l) => l.name) })),
+    pulls: pulls.map((p) => ({ number: p.number, title: p.title, url: p.url, branch: p.headRefName, draft: p.isDraft })),
+  };
 }
 
 export const github: Source = {

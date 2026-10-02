@@ -6,7 +6,8 @@ your job is to implement it well.
 ## What to do
 
 1. Read the test conventions in the task, then read the existing code in `fixtures/`, `pages/` and `tests/` so your
-   work looks like it belongs there.
+   work looks like it belongs there. The technical review in the task names the page objects and members your
+   tests will use and which of them still have to be added; it was checked against the repository.
 2. For each e2e case, write a test.
    - Reuse existing page objects and fixtures. Add a locator or method to an existing page object before you create
      a new class.
