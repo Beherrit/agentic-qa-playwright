@@ -75,6 +75,7 @@ jobs:
       ${{ failure() && needs.test.result == 'failure' && needs.test.outputs.tests == 'failure'
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 20
     permissions:
       contents: read
@@ -103,7 +104,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::notice title=Triage skipped::No Claude credentials are configured. Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to have failures triaged."
+            echo "::notice title=Triage skipped::No Claude credentials are configured. Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to the POC environment to have failures triaged."
             echo "available=false" >> "$GITHUB_OUTPUT"
           else
             echo "available=true" >> "$GITHUB_OUTPUT"

@@ -96,8 +96,10 @@ npx playwright install chromium
 
 **Authentication.** Pick one:
 
-- (a) A Claude Pro or Max subscription. Run `claude setup-token` and save the result as the repository secret `CLAUDE_CODE_OAUTH_TOKEN`. This is what the demo uses. It is meant for personal use, so a team should use option (b).
-- (b) An API key, saved as the repository secret `ANTHROPIC_API_KEY`.
+- (a) A Claude Pro or Max subscription. Run `claude setup-token` and save the result as the secret `CLAUDE_CODE_OAUTH_TOKEN`. This is what the demo uses. It is meant for personal use, so a team should use option (b).
+- (b) An API key, saved as the secret `ANTHROPIC_API_KEY`.
+
+Save the secret on an environment named `POC` (Settings > Environments), not as a plain repository secret. Only the jobs that run an agent name that environment, so the job that pushes the branch and opens the pull request cannot read the token at all.
 
 The optional repository variable `QA_AGENT_MODEL` picks the model. The default is `sonnet`.
 

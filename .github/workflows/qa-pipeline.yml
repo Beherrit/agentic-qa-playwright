@@ -35,6 +35,9 @@ env:
 # How the jobs are laid out:
 # - The run folder qa-run/ travels from job to job as the artifact `qa-run`.
 # - The Claude credentials are set on the single step that runs an agent, nowhere else.
+#   The token is stored as a secret of the `POC` environment, and only the jobs that run
+#   an agent name that environment. The job that pushes and opens the pull request does
+#   not, so it has no way to read it.
 # - Jobs that run an agent check out with persist-credentials: false, so the GitHub token
 #   is not left in .git/config where an agent could read it. The token is only handed to
 #   the `gh` steps, through GH_TOKEN.
@@ -46,6 +49,7 @@ jobs:
     name: 1 Requirements
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'qa-pipeline'
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 20
     permissions:
       contents: read
@@ -63,7 +67,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error title=No Claude credentials::Add the repository secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY under Settings > Secrets and variables > Actions."
+            echo "::error title=No Claude credentials::Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to the POC environment under Settings > Environments."
             exit 1
           fi
 
@@ -118,6 +122,7 @@ jobs:
     needs: requirements
     if: needs.requirements.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 30
     permissions:
       contents: read
@@ -159,6 +164,7 @@ jobs:
     needs: requirements
     if: needs.requirements.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 20
     permissions:
       contents: read
@@ -199,6 +205,7 @@ jobs:
     name: '2c Strategy: reconcile'
     needs: [plan, critic]
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 20
     permissions:
       contents: read
@@ -270,6 +277,7 @@ jobs:
     name: 3 Code generation + gates
     needs: reconcile
     runs-on: ubuntu-latest
+    environment: POC
     # The engineer can take a second pass when the gates fail, and the gates run the
     # whole suite each time.
     timeout-minutes: 45
@@ -331,6 +339,7 @@ jobs:
     name: 4 Code review
     needs: generate
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 20
     permissions:
       contents: read
@@ -374,6 +383,7 @@ jobs:
     needs: review
     if: needs.review.outputs.verdict == 'request-changes'
     runs-on: ubuntu-latest
+    environment: POC
     timeout-minutes: 45
     permissions:
       contents: read
