@@ -504,8 +504,11 @@ export function report(): void {
 
 // ── 6. Tell the ticket ───────────────────────────────────────────────────────
 
-/** Posts the analysis on the ticket and moves its labels on. Runs whatever state the analysis ended in. */
-export async function notifyAnalysis(runUrl: string | null): Promise<void> {
+/**
+ * Posts the analysis on the ticket and moves its labels on. Runs whatever state the analysis ended in.
+ * Without `post` the analysis is only saved: nothing goes to the ticket and no label changes.
+ */
+export async function notifyAnalysis(runUrl: string | null, options: { post: boolean } = { post: true }): Promise<void> {
   const req = request();
   const requirementsDoc = exists('requirements.json') ? load<Requirements>('requirements.json') : null;
   const strategy = exists('strategy.json') ? load<Strategy>('strategy.json') : null;
@@ -520,6 +523,7 @@ export async function notifyAnalysis(runUrl: string | null): Promise<void> {
   );
   save('analysis.md', markdown);
   jobSummary(markdown);
+  if (!options.post) return;
 
   const source = sourceFor(req.source);
   await source.comment(req.ref, markdown);

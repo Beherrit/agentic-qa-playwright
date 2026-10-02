@@ -222,6 +222,42 @@ npm run pipeline -- draft --file wish.md --answers answers.md --yes
 
 Without a terminal it stops after the preview; `--yes` files it. Jira tickets cannot be created yet, so use `--source github` (the default prints the ticket instead). The preview is saved as `qa-run/draft.md`.
 
+## Use it from Claude
+
+`npm run mcp` starts the pipeline as an MCP server over stdio, so Claude Desktop or Claude Code can draft a ticket, run an analysis or answer "where is everything?" in a conversation. No tool starts a GitHub workflow or adds a label.
+
+| Tool | What it does | Runs agents |
+|---|---|---|
+| `qa_draft_ticket` | The ticket writer. Returns the preview; with `file: true` (and `source: "github"`) it files the issue, without labels, and says which labels to add | yes |
+| `qa_analyze` | The analysis for a wish given as text, or for a ticket (`source` and `ref`): requirements, technical review, plan and score. Returns the analysis markdown and posts nothing on the ticket. Takes several minutes | yes |
+| `qa_coverage` | The traceability map, as `npm run coverage` | no |
+| `qa_history` | Run history totals and the newest runs, read from `origin/qa-history` in your clone (`git fetch origin qa-history` first) | no |
+| `qa_doctor` | The preflight check, as `npm run doctor` | no |
+| `qa_status` | Open issues with a pipeline label and the stage each is at, and open pull requests from the pipeline. Needs `gh` signed in | no |
+
+The two agent-backed tools spend the Claude plan or API budget of whoever runs the server, the same as a local run, and leave their files in `qa-run/`. Every tool checks its input before anything runs; a ticket reference has to be an issue number or a Jira key.
+
+**Claude Code**, from anywhere:
+
+```bash
+claude mcp add agentic-qa -- node /path/to/agentic-qa-playwright/agents/mcp.ts
+```
+
+**Claude Desktop**, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "agentic-qa": {
+      "command": "node",
+      "args": ["/path/to/agentic-qa-playwright/agents/mcp.ts"]
+    }
+  }
+}
+```
+
+Node 22.18 or newer runs the TypeScript directly. The server finds the repository from its own path, so it does not matter where the client starts it. For GitHub issues it uses `gh` as you are signed in; for Jira, put the three `JIRA_*` variables in the server's `env`.
+
 ## Try the demo
 
 Sorting the product list is deliberately not covered by the baseline suite, which makes it a good first requirement:

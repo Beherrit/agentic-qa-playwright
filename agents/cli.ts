@@ -1,12 +1,8 @@
-import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 import { doctor } from './doctor.ts';
 import { draft as writeTicket } from './draft.ts';
-import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
+import { analyze as runAnalysis, intake, type RequirementInput } from './flow.ts';
 import { config } from './lib/paths.ts';
-import { Request } from './lib/schemas.ts';
-import { exists, reset, save, setOutput } from './lib/store.ts';
-import { intakeTicket, sourceFor } from './sources/index.ts';
 import * as stages from './stages.ts';
 
 /**
@@ -36,39 +32,14 @@ const { positionals, values } = parseArgs({
   },
 });
 
-async function intake(): Promise<void> {
-  let request: Request;
-  // An empty --source (a dispatch event without one) is an error, not a quiet fall back to a local run.
-  if (values.source !== undefined && values.source !== 'local') {
-    if (!values.ref) throw new Error('Give the ticket with --ref (an issue number or a ticket key).');
-    request = await intakeTicket(values.source as SourceName, values.ref);
-  } else {
-    const body = values.file ? fs.readFileSync(values.file, 'utf8') : values.text;
-    if (!body) throw new Error('Give the requirement with --source and --ref, or with --text "<words>" or --file <path>.');
-    request = Request.parse({
-      key: keyFor('local', ''),
-      source: 'local',
-      ref: 'local',
-      url: null,
-      title: values.title ?? body.split('\n')[0].slice(0, 80),
-      body,
-      mode: values['test-first'] ? 'test-first' : 'built',
-    });
-  }
-  // A new requirement starts from an empty run folder, so nothing left by the last one is mistaken for its own.
-  reset();
-  save('request.json', request);
-  // The technical review checks related tickets against these. Its job has no tracker token, so they are kept now.
-  try {
-    save('open-tickets.json', await sourceFor(request.source).list());
-  } catch (error) {
-    console.warn(`Could not list the open tickets, so no related ticket will be kept: ${error instanceof Error ? error.message : error}`);
-  }
-  setOutput('key', request.key);
-  setOutput('artifact', artifactFor(request.key));
-  setOutput('mode', request.mode);
-  console.log(`Requirement ${request.key} (${request.mode}): ${request.title}`);
-}
+const input = (): RequirementInput => ({
+  source: values.source,
+  ref: values.ref,
+  title: values.title,
+  text: values.text,
+  file: values.file,
+  testFirst: values['test-first'],
+});
 
 /** Stops the run with a message, without a stack trace. The job turns red and the message is the last line. */
 function stop(message: string): never {
@@ -78,18 +49,8 @@ function stop(message: string): never {
 
 const runUrl = (): string | null => process.env.RUN_URL || null;
 
-/** The first half: requirement in, scored plan out. No test code. */
-async function analyze(): Promise<boolean> {
-  if (!exists('request.json') || values.source !== undefined || values.text || values.file) await intake();
-  let ok = await stages.requirements();
-  if (ok) {
-    await stages.technical();
-    await Promise.all([stages.plan(), stages.critic()]);
-    ok = await stages.reconcile();
-  }
-  await stages.notifyAnalysis(runUrl());
-  return ok;
-}
+/** The first half. A local run posts its analysis when the source is a tracker, as the README says. */
+const analyze = (): Promise<boolean> => runAnalysis(input(), { post: true, runUrl: runUrl() });
 
 /** The second half: plan in, reviewed tests out. */
 async function tests(): Promise<void> {
@@ -107,7 +68,7 @@ async function tests(): Promise<void> {
 
 const commands: Record<string, () => unknown> = {
   doctor: async () => (await doctor()) || process.exit(1),
-  intake,
+  intake: () => intake(input()),
   draft: () => writeTicket({ text: values.text, file: values.file, source: values.source, answers: values.answers, yes: values.yes }),
   requirements: stages.requirements,
   technical: stages.technical,

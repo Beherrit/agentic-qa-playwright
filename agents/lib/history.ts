@@ -190,6 +190,21 @@ export function cleanEntry(raw: unknown): RunEntry | null {
   };
 }
 
+/** The entries in runs.jsonl. A damaged line is skipped, not fatal. */
+export function parseRunLog(text: string): RunEntry[] {
+  const entries: RunEntry[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const entry = cleanEntry(JSON.parse(line));
+      if (entry) entries.push(entry);
+    } catch {
+      // Not JSON: skipped.
+    }
+  }
+  return entries;
+}
+
 /** Newest first. The sort is stable, so entries with the same time keep their order. */
 export function newestFirst(entries: RunEntry[]): RunEntry[] {
   return [...entries].sort((a, b) => (a.finishedAt < b.finishedAt ? 1 : a.finishedAt > b.finishedAt ? -1 : 0));
@@ -322,10 +337,13 @@ export function escapeMd(value: string): string {
     .replace(/[|[\]`*_~]/g, (c) => `\\${c}`);
 }
 
-export function historyMd(entries: RunEntry[]): string {
-  const sorted = newestFirst(entries);
+/** The history page. With a limit, the summary still covers every run and the table shows the newest ones. */
+export function historyMd(entries: RunEntry[], limit?: number): string {
+  const all = newestFirst(entries);
+  const sorted = limit === undefined ? all : all.slice(0, limit);
   const lines = ['# QA run history', '', 'Written by the "QA run history" workflow after every analysis and tests run. Newest first.', ''];
-  for (const [label, value] of summaryLines(summary(sorted))) lines.push(`- ${label}: ${escapeMd(value)}`);
+  for (const [label, value] of summaryLines(summary(all))) lines.push(`- ${label}: ${escapeMd(value)}`);
+  if (sorted.length < all.length) lines.push('', `The table shows the newest ${sorted.length} of ${all.length} runs.`);
   lines.push('', '| Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |');
   lines.push('| --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |');
   for (const e of sorted) {
