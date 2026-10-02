@@ -1,0 +1,38 @@
+name: QA analysis
+
+# A requirement in, a QA analysis out, posted back on the ticket. The work is done by the engine's own workflow;
+# this file only says when to start it and what it may touch. Pin the ref to a tag once you depend on one.
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled]
+  repository_dispatch:
+    types: [qa-analyze]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Where the requirement lives
+        type: choice
+        options: [github, jira, pr]
+        default: github
+      ref:
+        description: Issue or pull request number (github, pr) or ticket key (jira)
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  analysis:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-analysis.yml@main
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      actions: write
+    with:
+      source: ${{ inputs.source }}
+      ref: ${{ inputs.ref }}
+    secrets: inherit

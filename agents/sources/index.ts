@@ -3,6 +3,7 @@ import { LABELS } from '../lib/paths.ts';
 import { Request, type Mode } from '../lib/schemas.ts';
 import { github } from './github.ts';
 import { jira } from './jira.ts';
+import { pull } from './pull.ts';
 import type { Source, Ticket } from './types.ts';
 
 /** Prints instead of posting. Used for runs on your own machine from --text or --file. */
@@ -23,10 +24,10 @@ const local: Source = {
   },
 };
 
-const sources: Record<SourceName, Source> = { github, jira, local };
+const sources: Record<SourceName, Source> = { github, jira, pr: pull, local };
 
 export function sourceFor(name: string): Source {
-  if (!(name in sources)) throw new Error(`Unknown source "${name}". Use github or jira.`);
+  if (!(name in sources)) throw new Error(`Unknown source "${name}". Use github, jira or pr.`);
   return sources[name as SourceName];
 }
 
@@ -56,5 +57,7 @@ export async function intakeTicket(name: SourceName, ref: string): Promise<Reque
     title: ticket.title,
     body: ticket.body,
     mode: modeOf(ticket),
+    ...(ticket.baseUrl ? { baseUrl: ticket.baseUrl } : {}),
+    ...(ticket.base ? { base: ticket.base } : {}),
   });
 }

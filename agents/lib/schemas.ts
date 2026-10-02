@@ -16,15 +16,52 @@ export type Mode = z.infer<typeof Mode>;
 
 export const Request = z.object({
   key: z.string().regex(KEY).describe('Requirement key, e.g. REQ-12 or SHOP-123. Used to tag the tests that come out of it.'),
-  source: z.enum(['github', 'jira', 'local']),
-  /** The issue number on GitHub, the ticket key on Jira. */
+  source: z.enum(['github', 'jira', 'pr', 'local']),
+  /** The issue number on GitHub, the ticket key on Jira, the pull request number for a change. */
   ref: z.string(),
   url: z.string().nullable(),
   title: z.string(),
   body: z.string(),
   mode: Mode,
+  /** Where the build under test answers, when it is not the configured app: a pull request's preview. */
+  baseUrl: z.string().optional(),
+  /** The branch the generated tests are opened against. The default branch when absent; a pull request's own branch otherwise. */
+  base: z.string().optional(),
 });
 export type Request = z.infer<typeof Request>;
+
+// ── Setting up: the suite surveyor ───────────────────────────────────────────
+
+export const Survey = z.object({
+  app: z.object({
+    name: z.string().describe('The product, as the README or the tests call it'),
+    baseUrl: z.string().describe('Where the app answers for tests, from the Playwright config or an environment variable. Empty when unknown'),
+  }),
+  layout: z.object({
+    specGlob: z.string().describe('A glob matching the spec files, e.g. tests/**/*.spec.ts'),
+    testImport: z.string().describe('The file specs import test and expect from, relative to the project root, or @playwright/test'),
+    writable: z.array(z.string()).describe('The folders generated tests, page objects and fixtures go in, each ending with /'),
+  }),
+  commands: z.object({
+    test: z.string().describe('Runs the Playwright suite, e.g. npx playwright test'),
+    typecheck: z.string(),
+    lint: z.string(),
+  }),
+  personas: z.object({
+    envVar: z.string().describe('The environment variable that chooses the account tests sign in as, or QA_PERSONA when there is none'),
+    default: z.string(),
+    list: z.array(z.string()),
+  }),
+  auth: z.object({
+    setup: z.string().nullable().describe('A command that saves a signed-in storage state, or null when tests sign in through the app'),
+    storageState: z.string().nullable().describe('The file that command writes, relative to the project root'),
+    how: z.string().describe('One or two sentences on how tests sign in today'),
+  }),
+  brief: z.string().describe('The product brief as markdown, starting with a level-1 heading'),
+  conventions: z.string().describe('The test conventions as markdown, starting with a level-1 heading'),
+  gaps: z.array(z.string()).describe('What a person must fill in or check'),
+});
+export type Survey = z.infer<typeof Survey>;
 
 // ── Stage 1: requirements ────────────────────────────────────────────────────
 

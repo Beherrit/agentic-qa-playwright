@@ -2,6 +2,28 @@
   "name": "agentic-qa-playwright",
   "version": "1.0.0",
   "description": "An agentic QA pipeline on GitHub Actions: a Jira or GitHub ticket in, a QA analysis and reviewed Playwright tests out, with a person merging the pull request.",
+  "keywords": [
+    "playwright",
+    "qa",
+    "testing",
+    "agents",
+    "mcp",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Beherrit/agentic-qa-playwright.git"
+  },
+  "bin": {
+    "agentic-qa": "bin/agentic-qa.js"
+  },
+  "files": [
+    "agents",
+    "bin",
+    "templates",
+    "docs/test-design.md",
+    "CHANGELOG.md"
+  ],
   "scripts": {
     "test": "playwright test",
     "test:unit": "node --test agents/test/*.test.ts",
@@ -22,22 +44,26 @@
   "author": "Lawrence Moran",
   "license": "MIT",
   "type": "module",
-  "devDependencies": {
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.287",
-    "@axe-core/playwright": "^4.13.0",
     "@modelcontextprotocol/sdk": "^1.32.0",
     "@playwright/mcp": "^0.0.83",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.50"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "eslint": "^10.11.0",
     "eslint-plugin-playwright": "^2.12.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0",
-    "typescript-eslint": "^8.71.0",
-    "zod": "^4.6.5"
-  },
-  "private": true,
-  "engines": {
-    "node": ">=22.18"
+    "typescript-eslint": "^8.71.0"
   }
 }

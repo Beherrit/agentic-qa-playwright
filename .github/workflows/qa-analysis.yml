@@ -4,17 +4,24 @@ name: QA analysis
 # criteria, risk, open questions, a technical review and a scored test plan. No test code is written here; that is
 # qa-tests.yml, started by a second label once a person has read this.
 #
-# Three ways in:
+# Four ways in:
 # - a GitHub issue gets the `qa-pipeline` label
+# - a pull request from this repository gets the `qa-pipeline` label: the change itself is the requirement
 # - a Jira ticket gets the `qa-pipeline` label, and a Jira Automation rule sends a repository_dispatch
 #   event `qa-analyze` with {"source": "jira", "ref": "<KEY>"} (the README has the rule)
 # - a manual run, naming the source and the ticket
 #
-# Only people with triage rights can label a GitHub issue, and only holders of a token with write
-# access can send repository_dispatch, so a stranger's text never reaches an agent on its own.
+# Only people with triage rights can label a GitHub issue or pull request, and only holders of a token
+# with write access can send repository_dispatch, so a stranger's text never reaches an agent on its own.
+#
+# Another repository runs this same workflow with `uses: Beherrit/agentic-qa-playwright/.github/workflows/
+# qa-analysis.yml@<ref>` (`npx agentic-qa init` writes the caller). The engine is then a dependency of that
+# repository, and `npx agentic-qa` finds it there; in this repository it finds the engine's own bin.
 
 on:
   issues:
+    types: [labeled]
+  pull_request:
     types: [labeled]
   repository_dispatch:
     types: [qa-analyze]
@@ -23,19 +30,33 @@ on:
       source:
         description: Where the requirement lives
         type: choice
-        options: [github, jira]
+        options: [github, jira, pr]
         default: github
       ref:
-        description: Issue number (GitHub) or ticket key (Jira)
+        description: Issue or pull request number (github, pr) or ticket key (jira)
         required: true
         type: string
+  workflow_call:
+    inputs:
+      source:
+        description: Where the requirement lives, for a manual run of the caller
+        type: string
+        default: ''
+      ref:
+        description: The ticket, for a manual run of the caller
+        type: string
+        default: ''
+      tests_workflow:
+        description: The caller's file name for the test half, which a good plan starts
+        type: string
+        default: qa-tests.yml
 
 # One run per ticket: labelling it again replaces the run in progress. Other labels on a GitHub
-# issue also start this workflow (and are then skipped); they get a group of their own.
+# issue or pull request also start this workflow (and are then skipped); they get a group of their own.
 concurrency:
   group: >-
-    ${{ (github.event_name != 'issues' || github.event.label.name == 'qa-pipeline')
-    && format('qa-analysis-{0}', github.event.issue.number || github.event.client_payload.ref || inputs.ref)
+    ${{ ((github.event_name != 'issues' && github.event_name != 'pull_request') || github.event.label.name == 'qa-pipeline')
+    && format('qa-analysis-{0}', github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref)
     || format('qa-ignored-{0}', github.run_id) }}
   cancel-in-progress: true
 
@@ -44,8 +65,8 @@ permissions: {}
 # Values from issues and payloads reach scripts as environment variables, never by ${{ }} inside a
 # script, and the intake stage checks the reference before using it.
 env:
-  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event.client_payload.source || inputs.source }}
-  REF: ${{ github.event.issue.number || github.event.client_payload.ref || inputs.ref }}
+  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event_name == 'pull_request' && 'pr' || github.event.client_payload.source || inputs.source }}
+  REF: ${{ github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref }}
   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 # Credentials, kept apart:
@@ -57,13 +78,19 @@ env:
 jobs:
   intake:
     name: 0 Read the ticket
-    if: github.event_name != 'issues' || github.event.label.name == 'qa-pipeline'
+    # A pull request from a fork is read only when a person with triage rights labels it, like an issue, but
+    # its head is still someone else's code: the analysis reads it as text and never checks it out.
+    if: >-
+      ${{ (github.event_name != 'issues' && github.event_name != 'pull_request')
+      || (github.event.label.name == 'qa-pipeline'
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10
     permissions:
       contents: read
       issues: read
+      pull-requests: read
     outputs:
       artifact: ${{ steps.intake.outputs.artifact }}
     steps:
@@ -71,7 +98,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -83,7 +110,7 @@ jobs:
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-        run: npm run pipeline -- intake --source "$SOURCE" --ref "$REF"
+        run: npx agentic-qa intake --source "$SOURCE" --ref "$REF"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -110,13 +137,14 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: |
-          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error title=No Claude credentials::Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to the POC environment under Settings > Environments."
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$QA_PROVIDER_ENV" ]; then
+            echo "::error title=No Claude credentials::Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY (or QA_PROVIDER_ENV for Bedrock or Vertex) to the POC environment under Settings > Environments."
             exit 1
           fi
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -131,7 +159,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- requirements
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa requirements
 
       - uses: actions/upload-artifact@v4
         with:
@@ -156,7 +185,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
       - uses: actions/download-artifact@v4
         with:
@@ -168,7 +197,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- technical
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa technical
 
       - uses: actions/upload-artifact@v4
         with:
@@ -192,7 +222,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
       - uses: actions/download-artifact@v4
         with:
@@ -204,7 +234,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- plan
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa plan
 
       # Both parallel jobs append to qa-run/ledger.json. Each sends its copy under its own name and
       # the reconcile job puts them back together.
@@ -234,7 +265,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -248,7 +279,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- critic
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa critic
 
       - name: Keep this job's cost ledger
         run: cp qa-run/ledger.json qa-run/ledger-critic.json
@@ -275,7 +307,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -316,7 +348,8 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-        run: npm run pipeline -- reconcile
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa reconcile
 
       # The stage exits 1 when the plan scores too low. The strategy is still worth keeping and
       # reporting then, because it says why.
@@ -339,6 +372,7 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: write
       # To start the test half when the plan is good (autoRun.testsWhenPlanIsReady in qa.config.json).
       actions: write
     steps:
@@ -346,7 +380,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -363,7 +397,7 @@ jobs:
           JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-        run: npm run pipeline -- notify analysis
+        run: npx agentic-qa notify analysis
 
       # Uploaded before the test half is started, because that is what it picks up.
       - uses: actions/upload-artifact@v4
@@ -378,4 +412,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: gh workflow run qa-tests.yml --ref "$DEFAULT_BRANCH" -f "source=$SOURCE" -f "ref=$REF"
+          TESTS_WORKFLOW: ${{ inputs.tests_workflow || 'qa-tests.yml' }}
+        run: gh workflow run "$TESTS_WORKFLOW" --ref "$DEFAULT_BRANCH" -f "source=$SOURCE" -f "ref=$REF"

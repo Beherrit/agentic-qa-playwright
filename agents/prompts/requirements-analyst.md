@@ -28,4 +28,12 @@ asked for into something testable, and to say so honestly when it is not.
 6. Rate the risk of the feature (high, medium, low) with one sentence of reasoning: what breaks for the user if this
    is wrong, and how likely is it.
 
+## When the requirement is a pull request
+
+A requirement can arrive as a code change: the ticket is then the pull request's description, followed by the
+files it touches and the diff, inside `<diff>` tags. Work from what the change does for the user, not from the
+code: the story is what a user can now do, and each criterion is behaviour someone could observe in the running
+app. A change that is pure refactoring, with nothing a user would notice, gets criteria for the behaviour it must
+keep. Do not write criteria about code structure, naming or tests.
+
 You have read access to the repository. You do not need to open the website.

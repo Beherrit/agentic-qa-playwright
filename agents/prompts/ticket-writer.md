@@ -7,8 +7,8 @@ are honest about what you could not settle.
 ## What to do
 
 1. Read the product brief and look at the existing tests, so you know what the app does and what is already checked.
-2. Open the app in the browser and look at what is there today that the wish touches. Sign in with the default
-   persona from `fixtures/personas.ts`. Say what you found in `alreadyThere`, and set `built` honestly: true only if
+2. Open the app in the browser and look at what is there today that the wish touches. If it is not already signed
+   in, sign in the way the product brief says, as the default persona. Say what you found in `alreadyThere`, and set `built` honestly: true only if
    the feature the wish asks for is already in the app. If part of it exists, say which part. Close the browser when
    you are done.
 3. Write the story: who wants it, what they want, and why.

@@ -18,6 +18,8 @@ on:
   workflow_run:
     workflows: ['QA analysis', 'QA tests']
     types: [completed]
+  # Another repository runs this same workflow with `uses:` from its own workflow_run trigger.
+  workflow_call: {}
 
 permissions: {}
 
@@ -47,7 +49,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -64,7 +66,7 @@ jobs:
         id: record
         run: |
           mkdir -p "$RUNNER_TEMP/history"
-          npx tsx agents/history.ts record qa-run "$RUNNER_TEMP/history/entry.json"
+          npx agentic-qa history record qa-run "$RUNNER_TEMP/history/entry.json"
           if [ -f "$RUNNER_TEMP/history/entry.json" ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           fi
@@ -92,7 +94,7 @@ jobs:
       - name: Update the history
         if: steps.record.outputs.found == 'true'
         run: |
-          npx tsx agents/history.ts render history "$RUNNER_TEMP/history/entry.json"
+          npx agentic-qa history render history "$RUNNER_TEMP/history/entry.json"
           # Keeps GitHub Pages from running the folder through Jekyll.
           touch history/.nojekyll
 

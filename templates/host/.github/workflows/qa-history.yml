@@ -1,0 +1,17 @@
+name: QA run history
+
+# Records every QA analysis and QA tests run on the qa-history branch: a table, and a one-file dashboard.
+
+on:
+  workflow_run:
+    workflows: ['QA analysis', 'QA tests']
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  history:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/qa-history.yml@main
+    permissions:
+      contents: write
+      actions: read

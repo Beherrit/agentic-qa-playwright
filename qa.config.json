@@ -5,9 +5,25 @@
     "brief": "docs/product-brief.md"
   },
   "conventions": "docs/test-conventions.md",
-  "writable": ["tests/", "pages/", "fixtures/"],
+  "writable": [
+    "tests/",
+    "pages/",
+    "fixtures/"
+  ],
   "minPlanScore": 70,
   "stabilityRuns": 3,
+  "personas": {
+    "envVar": "SAUCE_USER",
+    "default": "standard_user",
+    "list": [
+      "standard_user",
+      "locked_out_user",
+      "problem_user",
+      "performance_glitch_user",
+      "error_user",
+      "visual_user"
+    ]
+  },
   "sensitivity": {
     "required": false,
     "targets": [
@@ -36,5 +52,8 @@
   "models": {},
   "jira": {
     "fields": {}
+  },
+  "budget": {
+    "maxUsdPerRun": 0
   }
 }

@@ -3,6 +3,8 @@ name: Regression
 # Runs the whole suite. When tests fail, an agent works out what the failures mean and,
 # outside pull requests, the bugs it finds are filed as issues.
 
+# Another repository runs this same workflow with `uses:` (see qa-analysis.yml).
+
 on:
   push:
     branches: [main]
@@ -12,15 +14,15 @@ on:
   workflow_dispatch:
     inputs:
       persona:
-        description: Sign in as this demo account. The non-standard ones are broken on purpose, which is a quick way to see triage work.
-        type: choice
-        default: standard_user
-        options:
-          - standard_user
-          - problem_user
-          - error_user
-          - performance_glitch_user
-          - visual_user
+        description: Sign in as this account (the suite's default when empty). The demo shop's problem_user and error_user are broken on purpose, which is a quick way to see triage work.
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      persona:
+        description: Sign in as this account, for a manual run of the caller
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -37,26 +39,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
-      - run: npx tsc --noEmit
+      # The project's own typecheck and lint commands, from qa.config.json.
+      - run: npx agentic-qa check
 
-      - run: npx eslint .
+      # The engine's own rules: gates, plan score, tracker adapters, reports. Only where the engine's code is.
+      - if: hashFiles('agents/test/*.test.ts') != ''
+        run: npm run test:unit
 
-      # The pipeline's own rules: gates, plan score, tracker adapters, reports.
-      - run: npm run test:unit
-
+      # The configured test command, signed in first when the project needs it. QA_PERSONA reaches the
+      # suite under the variable it reads (personas.envVar); empty means the suite's default account.
       - name: Run the tests
         id: tests
         env:
-          # Empty except on a manual run. The suite then signs in as standard_user.
-          SAUCE_USER: ${{ inputs.persona }}
-        run: npx playwright test
+          QA_PERSONA: ${{ inputs.persona }}
+        run: npx agentic-qa suite
 
       # On the run's summary page: each requirement, the criteria its tests claim, and how they did.
       - name: Traceability map
         if: ${{ !cancelled() && hashFiles('test-results/results.json') != '' }}
-        run: npm run -s coverage
+        run: npx agentic-qa coverage
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -95,7 +98,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -111,8 +114,9 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: |
-          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$QA_PROVIDER_ENV" ]; then
             echo "::notice title=Triage skipped::No Claude credentials are configured. Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to the POC environment to have failures triaged."
             echo "available=false" >> "$GITHUB_OUTPUT"
           else
@@ -126,8 +130,9 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-          SAUCE_USER: ${{ inputs.persona }}
-        run: npm run triage
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+          QA_PERSONA: ${{ inputs.persona }}
+        run: npx agentic-qa triage
 
       - uses: actions/upload-artifact@v4
         if: steps.auth.outputs.available == 'true'
@@ -154,12 +159,13 @@ jobs:
     outputs:
       healed: ${{ steps.heal.outputs.healed }}
       title: ${{ steps.heal.outputs.title }}
+      writable: ${{ steps.heal.outputs.writable }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
 
       - uses: actions/download-artifact@v4
         with:
@@ -177,9 +183,10 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
-          SAUCE_USER: ${{ inputs.persona }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+          QA_PERSONA: ${{ inputs.persona }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: npm run heal
+        run: npx agentic-qa heal
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -205,7 +212,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
         with:
           browser: 'false'
 
@@ -215,19 +222,21 @@ jobs:
           path: qa-run
 
       - name: Apply the repair
-        run: npm run pipeline -- apply heal.patch
+        run: npx agentic-qa apply heal.patch
 
       - name: Push the branch and open the pull request
         env:
           GH_TOKEN: ${{ github.token }}
           TITLE: ${{ needs.heal.outputs.title }}
+          WRITABLE: ${{ needs.heal.outputs.writable }}
           BRANCH: qa/heal-${{ github.run_id }}
           BASE: ${{ github.ref_name }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add -- tests pages fixtures
+          # shellcheck disable=SC2086
+          git add -- $WRITABLE
           if git diff --cached --quiet; then
             echo "::error::The repair is empty. Nothing to open a pull request for."
             exit 1

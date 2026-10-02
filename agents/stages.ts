@@ -35,6 +35,8 @@ import type { OpenTicket } from './sources/types.ts';
 export { planHealth, checkedRisks };
 
 const request = (): Request => load<Request>('request.json');
+/** Where the build under test answers: a pull request's preview when the requirement names one, else the app. */
+const appUrl = (r: Request): string => r.baseUrl ?? config.app.baseUrl;
 const brief = (): string => `<product-brief>\n${projectDoc(config.app.brief)}\n</product-brief>`;
 const conventions = (): string => `<test-conventions>\n${projectDoc(config.conventions)}\n</test-conventions>`;
 const design = (): string => `<test-design-notes>\n${projectDoc('docs/test-design.md')}\n</test-design-notes>`;
@@ -103,7 +105,7 @@ export async function reviewTechnically(req: Request, requirementsText: string, 
   const { output } = await runAgent({
     role: 'technical-reviewer',
     instructions: prompt('technical-reviewer'),
-    task: `Write the technical review for this requirement. The app is ${config.app.name} at ${config.app.baseUrl}.
+    task: `Write the technical review for this requirement. The app is ${config.app.name} at ${appUrl(req)}.
 
 <requirements>
 ${requirementsText}
@@ -164,7 +166,7 @@ export async function plan(): Promise<void> {
   const { output } = await runAgent({
     role: 'test-architect',
     instructions: prompt('test-architect'),
-    task: `Write the test plan for this requirement. The app is ${config.app.name} at ${config.app.baseUrl}.
+    task: `Write the test plan for this requirement. The app is ${config.app.name} at ${appUrl(req)}.
 ${req.mode === 'test-first' ? TEST_FIRST_PLAN : BUILT_PLAN}
 
 ${criteriaText()}
@@ -323,7 +325,7 @@ function readBrief(): Brief {
 function engineerBrief(req: Request, strategy: Strategy, review: TechnicalResult | null): string {
   const cases = strategy.cases.filter((c) => c.layer === 'e2e');
   const others = strategy.cases.filter((c) => c.layer !== 'e2e').map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
-  return `The app is ${config.app.name} at ${config.app.baseUrl}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
+  return `The app is ${config.app.name} at ${appUrl(req)}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
 
 You may write only inside: ${config.writable.join(', ')}
 
@@ -496,6 +498,9 @@ export function report(): void {
   setOutput('title', `test: ${requirementsDoc.title} (${req.key})`);
   setOutput('branch', branchFor(req.key));
   setOutput('draft', reviewDoc.verdict !== 'approve');
+  // For the publish job, which has no config loaded: what to commit, and where to open the pull request.
+  setOutput('writable', config.writable.join(' '));
+  setOutput('base', req.base ?? '');
 }
 
 // ── 6. Tell the ticket ───────────────────────────────────────────────────────

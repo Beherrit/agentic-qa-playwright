@@ -1,0 +1,48 @@
+{
+  "app": {
+    "name": "My app",
+    "baseUrl": "http://localhost:3000",
+    "brief": "docs/product-brief.md"
+  },
+  "conventions": "docs/test-conventions.md",
+  "writable": ["tests/", "pages/", "fixtures/"],
+  "minPlanScore": 70,
+  "stabilityRuns": 3,
+  "suite": {
+    "specGlob": "tests/**/*.spec.ts",
+    "testImport": "fixtures/test.ts",
+    "commands": {
+      "test": "npx playwright test",
+      "typecheck": "npx tsc --noEmit",
+      "lint": "npx eslint"
+    }
+  },
+  "personas": {
+    "envVar": "QA_PERSONA",
+    "default": "",
+    "list": []
+  },
+  "auth": {
+    "setup": null,
+    "storageState": null
+  },
+  "sensitivity": {
+    "required": false,
+    "targets": []
+  },
+  "accessibility": {
+    "enabled": true,
+    "required": false
+  },
+  "autoRun": {
+    "analysisWhenWriterFiles": true,
+    "testsWhenPlanIsReady": false
+  },
+  "budget": {
+    "maxUsdPerRun": 0
+  },
+  "models": {},
+  "jira": {
+    "fields": {}
+  }
+}

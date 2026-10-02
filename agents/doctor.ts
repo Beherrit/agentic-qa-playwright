@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { providerName } from './lib/agent.ts';
 import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 
 /**
@@ -25,12 +26,27 @@ const ROLES = [
   'failure-triager',
   'test-healer',
   'ticket-writer',
+  'suite-surveyor',
 ];
 
 const runs = (command: string): boolean => spawnSync(command, { cwd: ROOT, shell: true, stdio: 'ignore' }).status === 0;
 
+type Loose = {
+  app?: Partial<typeof config.app>;
+  conventions?: string;
+  writable?: string[];
+  minPlanScore?: number;
+  stabilityRuns?: number;
+  sensitivity?: { targets?: { name: string }[] };
+  suite?: { commands?: Partial<typeof config.suite.commands>; testImport?: string };
+  auth?: { setup?: string | null; storageState?: string | null };
+  budget?: { maxUsdPerRun?: number };
+};
+
 /** The checks that only look at the configuration, so they can be tested without a network or a browser. */
-export function configChecks(cfg: typeof config, has: (file: string) => boolean): Check[] {
+export function configChecks(cfg: Loose, has: (file: string) => boolean): Check[] {
+  // The defaults the config schema fills in; a loose config in a test may leave them out.
+  const commands = { test: 'npx playwright test', typecheck: 'npx tsc --noEmit', lint: 'npx eslint', ...cfg.suite?.commands };
   const missingDocs = [cfg.app?.brief, cfg.conventions, 'docs/test-design.md'].filter((file) => !file || !has(file));
   const missingDirs = (cfg.writable ?? []).filter((dir) => !has(dir));
   const badDirs = (cfg.writable ?? []).filter((dir) => !dir.endsWith('/'));
@@ -59,7 +75,7 @@ export function configChecks(cfg: typeof config, has: (file: string) => boolean)
     },
     {
       name: 'Pass mark',
-      level: typeof score === 'number' && score >= 0 && score <= 100 && cfg.stabilityRuns >= 1 ? 'ok' : 'fail',
+      level: typeof score === 'number' && score >= 0 && score <= 100 && (cfg.stabilityRuns ?? 0) >= 1 ? 'ok' : 'fail',
       detail: `plan score ${score}, stability runs ${cfg.stabilityRuns}`,
     },
     {
@@ -68,6 +84,34 @@ export function configChecks(cfg: typeof config, has: (file: string) => boolean)
       detail: cfg.sensitivity?.targets?.length
         ? cfg.sensitivity.targets.map((target) => target.name).join(', ')
         : 'none: new tests will not be tried against a known-broken version of the app',
+    },
+    {
+      name: 'Suite commands',
+      level: /\bplaywright test\b/.test(commands.test) ? 'ok' : 'fail',
+      detail: /\bplaywright test\b/.test(commands.test)
+        ? `test: ${commands.test}; typecheck: ${commands.typecheck}; lint: ${commands.lint}`
+        : `suite.commands.test must run Playwright (the gates add flags to it): "${commands.test}"`,
+    },
+    {
+      name: 'Test import',
+      level: !cfg.suite?.testImport || cfg.suite.testImport === '@playwright/test' || has(cfg.suite.testImport) ? 'ok' : 'fail',
+      detail: !cfg.suite?.testImport || cfg.suite.testImport === '@playwright/test' || has(cfg.suite.testImport)
+        ? `specs import test from ${cfg.suite?.testImport ?? '@playwright/test'}`
+        : `suite.testImport names ${cfg.suite.testImport}, which does not exist`,
+    },
+    {
+      name: 'Sign-in',
+      level: !cfg.auth?.setup ? 'ok' : cfg.auth.storageState ? 'ok' : 'fail',
+      detail: !cfg.auth?.setup
+        ? 'tests sign in through the app (no auth.setup)'
+        : cfg.auth.storageState
+          ? `${cfg.auth.setup} writes ${cfg.auth.storageState}, which the agents\' browser starts from`
+          : 'auth.setup is set but auth.storageState is not: say which file the sign-in command writes',
+    },
+    {
+      name: 'Budget',
+      level: 'ok',
+      detail: cfg.budget?.maxUsdPerRun ? `a run stops at $${cfg.budget.maxUsdPerRun.toFixed(2)} of agent cost` : 'no cap on what a run may spend (budget.maxUsdPerRun)',
     },
   ];
 }
@@ -86,7 +130,7 @@ export async function doctorChecks(): Promise<Check[]> {
   const has = (file: string): boolean => fs.existsSync(path.join(ROOT, file));
   const [major, minor] = process.versions.node.split('.').map(Number);
   const missingPrompts = ROLES.filter((role) => !fs.existsSync(path.join(PROMPTS_DIR, `${role}.md`)));
-  const token = Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY);
+  const token = Boolean(process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY || process.env.QA_PROVIDER_ENV);
   const jira = Boolean(process.env.JIRA_BASE_URL && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN);
   const dirty = spawnSync('git', ['status', '--porcelain', '--', ...(config.writable ?? [])], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
 
@@ -111,7 +155,7 @@ export async function doctorChecks(): Promise<Check[]> {
     {
       name: 'Claude credentials',
       level: token ? 'ok' : 'warn',
-      detail: token ? 'found in the environment' : 'none in the environment; a signed-in Claude Code CLI works too',
+      detail: token ? `${providerName()}, from the environment` : 'none in the environment; a signed-in Claude Code CLI works too',
     },
     {
       name: 'GitHub issues',

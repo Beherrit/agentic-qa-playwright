@@ -4,7 +4,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { z } from 'zod';
 import { config, ROOT } from './paths.ts';
-import { recordRun } from './store.ts';
+import { recordRun, spent } from './store.ts';
+import { commands, prepareAuth, storageStatePath } from './suite.ts';
 
 /**
  * What an agent is allowed to touch. Every role gets the least it needs:
@@ -32,8 +33,9 @@ export type AgentResult<T> = { output: T; turns: number; seconds: number; costUs
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 
-// The only shell commands an agent may run. Anything else is denied, not prompted for.
-const SHELL_ALLOWLIST = ['Bash(npx playwright test:*)', 'Bash(npx tsc:*)', 'Bash(npx eslint:*)'];
+// The only shell commands an agent may run: the suite's own test, typecheck and lint commands from qa.config.json.
+// Anything else is denied, not prompted for.
+const SHELL_ALLOWLIST = [commands.test, commands.typecheck, commands.lint].map((command) => `Bash(${command}:*)`);
 
 // The only places an agent may write (from qa.config.json).
 const WRITE_ALLOWLIST = config.writable.map((dir) => `Edit(${dir}**)`);
@@ -68,9 +70,46 @@ const BROWSER_NOTE = `
 The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. It lists every element with its role and accessible name, which is what you need for locators.
 `;
 
-function browserServer():NonNullable<Options['mcpServers']> {
+/**
+ * The environment the model provider needs, from one secret: KEY=value lines in QA_PROVIDER_ENV. That is how a
+ * CI job hands Bedrock or Vertex settings (CLAUDE_CODE_USE_BEDROCK=1, AWS_REGION=..., and so on) to the agent
+ * without a line per variable in every workflow step. Exported for the tests.
+ */
+export function providerEnv(text: string | undefined = process.env.QA_PROVIDER_ENV): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const line of (text ?? '').split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (match && !line.trim().startsWith('#')) env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
+  }
+  return env;
+}
+
+/** Which provider the environment points at, for the doctor and the logs. */
+export function providerName(env: NodeJS.ProcessEnv = process.env): string {
+  const all = { ...env, ...providerEnv(env.QA_PROVIDER_ENV) };
+  if (all.CLAUDE_CODE_USE_BEDROCK === '1' || all.CLAUDE_CODE_USE_BEDROCK === 'true') return 'Amazon Bedrock';
+  if (all.CLAUDE_CODE_USE_VERTEX === '1' || all.CLAUDE_CODE_USE_VERTEX === 'true') return 'Google Vertex AI';
+  if (all.ANTHROPIC_API_KEY) return 'Anthropic API key';
+  if (all.CLAUDE_CODE_OAUTH_TOKEN) return 'Claude subscription token';
+  return 'the signed-in Claude Code CLI';
+}
+
+/**
+ * The budget left for this run, or null without a cap. Throws once the cap is spent, so a run that has already
+ * cost what it was allowed does not start one more agent.
+ */
+export function budgetLeft(cap: number = config.budget.maxUsdPerRun, used: number = spent()): number | null {
+  if (!cap) return null;
+  const left = cap - used;
+  if (left <= 0) throw new Error(`The run's budget of $${cap.toFixed(2)} is spent ($${used.toFixed(2)} so far). Raise budget.maxUsdPerRun in qa.config.json to go on.`);
+  return left;
+}
+
+function browserServer(): NonNullable<Options['mcpServers']> {
   const require = createRequire(import.meta.url);
   const cli = path.join(path.dirname(require.resolve('@playwright/mcp/package.json')), 'cli.js');
+  // A signed-in session saved by the project's own setup (auth.storageState), so the agent starts where the tests do.
+  const state = storageStatePath();
   return {
     playwright: {
       command: process.execPath,
@@ -83,6 +122,7 @@ function browserServer():NonNullable<Options['mcpServers']> {
         chromium.executablePath(),
         // Chromium's own sandbox cannot start on GitHub's Linux runners. The runner is thrown away after the job.
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+        ...(state ? ['--storage-state', state] : []),
       ],
       alwaysLoad: true,
     },
@@ -90,6 +130,8 @@ function browserServer():NonNullable<Options['mcpServers']> {
 }
 
 export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise<AgentResult<z.infer<S>>> {
+  // An agent with a browser starts from the same signed-in state as the tests, when the project has one.
+  if (spec.browser) prepareAuth();
   const tools = spec.access === 'write' ? [...READ_TOOLS, 'Write', 'Edit', 'Bash'] : READ_TOOLS;
   const allowed = [
     ...READ_TOOLS,
@@ -97,8 +139,12 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
     ...(spec.browser ? BROWSER_TOOLS : []),
   ];
 
+  const left = budgetLeft();
   const options: Options = {
     cwd: ROOT,
+    // The provider's settings (Bedrock, Vertex) travel in one variable and are unpacked here, for the SDK alone.
+    env: { ...process.env, ...providerEnv() },
+    ...(left === null ? {} : { maxBudgetUsd: left }),
     // A model per role from qa.config.json, else the repository-wide choice, else sonnet.
     model: config.models?.[spec.role] || process.env.QA_AGENT_MODEL || 'sonnet',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
@@ -156,7 +202,11 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
 
     const seconds = Math.round((Date.now() - started) / 1000);
     const run = { role: spec.role, turns: message.num_turns, seconds, costUsd: message.total_cost_usd };
-    recordRun(run);
+    const total = recordRun(run);
+    const cap = config.budget.maxUsdPerRun;
+    if (cap && total > cap) {
+      throw new Error(`${spec.role} took the run over its budget: $${total.toFixed(2)} of $${cap.toFixed(2)}. Raise budget.maxUsdPerRun in qa.config.json to go on.`);
+    }
 
     if (spec.browser && browser.calls > 0 && browser.worked === 0) {
       // An agent that could not see the app will still hand in confident work. Stop it here instead.

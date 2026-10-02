@@ -6,6 +6,7 @@ import { config, ROOT } from './lib/paths.ts';
 import { bugMd, landedMd, triageMd } from './lib/render.ts';
 import { Triage } from './lib/schemas.ts';
 import { jobSummary, prompt, save, setOutput } from './lib/store.ts';
+import { currentPersona } from './lib/suite.ts';
 
 /**
  * Reads a failed Playwright run and has an agent work out what each failure means.
@@ -43,62 +44,66 @@ function failures(suite: JsonSuite, parents: string[] = []): Failure[] {
   return [...own, ...(suite.suites ?? []).flatMap((child) => failures(child, names))];
 }
 
-const resultsFile = path.join(ROOT, 'test-results', 'results.json');
-if (!fs.existsSync(resultsFile)) {
-  console.error('test-results/results.json not found. Run the tests first.');
-  process.exit(1);
-}
+/** Reads the last run's results and has the triage agent classify every failure. */
+export async function triage(): Promise<void> {
+  const resultsFile = path.join(ROOT, 'test-results', 'results.json');
+  if (!fs.existsSync(resultsFile)) throw new Error('test-results/results.json not found. Run the tests first.');
 
-const all = (JSON.parse(fs.readFileSync(resultsFile, 'utf8')).suites as JsonSuite[]).flatMap((suite) => failures(suite));
-const landed = all.filter((f) => LANDED.test(f.error));
-const failed = all.filter((f) => !LANDED.test(f.error));
+  const all = (JSON.parse(fs.readFileSync(resultsFile, 'utf8')).suites as JsonSuite[]).flatMap((suite) => failures(suite));
+  const landed = all.filter((f) => LANDED.test(f.error));
+  const failed = all.filter((f) => !LANDED.test(f.error));
 
-const landedAlone = landedMd(landed);
+  const landedAlone = landedMd(landed);
 
-if (failed.length === 0) {
-  if (landedAlone) {
-    save('triage.md', landedAlone);
-    jobSummary(landedAlone);
-    console.log(landedAlone);
-  } else {
-    console.log('Nothing failed. Nothing to triage.');
+  if (failed.length === 0) {
+    if (landedAlone) {
+      save('triage.md', landedAlone);
+      jobSummary(landedAlone);
+      console.log(landedAlone);
+    } else {
+      console.log('Nothing failed. Nothing to triage.');
+    }
+    setOutput('bugs', 0);
+    return;
   }
-  setOutput('bugs', 0);
-  process.exit(0);
+
+  const chosen = currentPersona();
+  const persona = chosen
+    ? `${chosen}. The run signed in as that account on purpose, to see how the app treats it. It is a real account of the app: where the app misbehaves for it, that is a product bug, not a problem with the environment or the run, whatever the product brief says about why the account exists`
+    : 'the default persona';
+  const { output } = await runAgent({
+    role: 'failure-triager',
+    instructions: prompt('failure-triager'),
+    task: `${failed.length} tests failed in a regression run against ${config.app.name} (${config.app.baseUrl}), signed in as ${persona}.
+
+  <failures>
+  ${JSON.stringify(failed, null, 2)}
+  </failures>
+
+  The paths under "evidence" are files you can read. Start there.`,
+    schema: Triage,
+    access: 'read',
+    maxTurns: 50,
+  });
+
+  // One fingerprint per test the bug breaks. The workflow matches a bug to an open issue that shares any of them,
+  // so a bug that starts breaking one more test is still recognised as the same bug. The fingerprints come from
+  // the failures as Playwright reported them, not from how the agent happened to word the test names this time.
+  const bugs = output.bugs.map((bug) => ({
+    ...bug,
+    fingerprints: bug.tests.length ? canonicalTests(bug.tests, failed).map(fingerprint) : [fingerprint(bug.title)],
+    body: bugMd(bug),
+  }));
+
+  const markdown = `${triageMd(output)}${landed.length ? `\n${landedMd(landed, 3)}` : ''}`;
+  // `reported` is what Playwright said about each failure. The healer works from it.
+  save('triage.json', { ...output, bugs, reported: failed });
+  save('triage.md', markdown);
+  jobSummary(markdown);
+  setOutput('bugs', bugs.length);
+  setOutput('defects', output.failures.filter((f) => f.verdict === 'test-defect' && f.confidence !== 'low').length);
+  console.log(`\n${markdown}`);
 }
 
-const persona = process.env.SAUCE_USER
-  ? `${process.env.SAUCE_USER}. The run signed in as that account on purpose, to see how the app treats it. It is a real account of the app: where the app misbehaves for it, that is a product bug, not a problem with the environment or the run, whatever the product brief says about why the account exists`
-  : 'the default persona';
-const { output } = await runAgent({
-  role: 'failure-triager',
-  instructions: prompt('failure-triager'),
-  task: `${failed.length} tests failed in a regression run against ${config.app.name} (${config.app.baseUrl}), signed in as ${persona}.
-
-<failures>
-${JSON.stringify(failed, null, 2)}
-</failures>
-
-The paths under "evidence" are files you can read. Start there.`,
-  schema: Triage,
-  access: 'read',
-  maxTurns: 50,
-});
-
-// One fingerprint per test the bug breaks. The workflow matches a bug to an open issue that shares any of them,
-// so a bug that starts breaking one more test is still recognised as the same bug. The fingerprints come from
-// the failures as Playwright reported them, not from how the agent happened to word the test names this time.
-const bugs = output.bugs.map((bug) => ({
-  ...bug,
-  fingerprints: bug.tests.length ? canonicalTests(bug.tests, failed).map(fingerprint) : [fingerprint(bug.title)],
-  body: bugMd(bug),
-}));
-
-const markdown = `${triageMd(output)}${landed.length ? `\n${landedMd(landed, 3)}` : ''}`;
-// `reported` is what Playwright said about each failure. The healer works from it.
-save('triage.json', { ...output, bugs, reported: failed });
-save('triage.md', markdown);
-jobSummary(markdown);
-setOutput('bugs', bugs.length);
-setOutput('defects', output.failures.filter((f) => f.verdict === 'test-defect' && f.confidence !== 'low').length);
-console.log(`\n${markdown}`);
+// Only when run as a script, so the CLI can import triage.
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('agents/triage.ts')) await triage();

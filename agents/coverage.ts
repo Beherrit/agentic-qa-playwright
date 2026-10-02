@@ -5,6 +5,7 @@ import path from 'node:path';
 import { coverageMap, coverageMd } from './lib/coverage.ts';
 import { ROOT } from './lib/paths.ts';
 import { jobSummary } from './lib/store.ts';
+import { testCommand } from './lib/suite.ts';
 
 /**
  * Prints the traceability map: every requirement the suite has tests for, the criteria those tests claim,
@@ -15,7 +16,7 @@ import { jobSummary } from './lib/store.ts';
 
 function listing(): string {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-list-')), 'list.json');
-  spawnSync('npx playwright test --list --reporter=json', {
+  spawnSync(testCommand('--list --reporter=json'), {
     cwd: ROOT,
     shell: true,
     env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: file },
