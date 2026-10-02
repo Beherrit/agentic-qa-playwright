@@ -23,6 +23,11 @@ type Config = {
    * them may not be checking anything. Each target is a set of environment variables for the test run.
    */
   sensitivity?: { required: boolean; targets: { name: string; env: Record<string, string> }[] };
+  /**
+   * Accessibility: an axe scan of the pages the new tests end on. Reported on the pull request; it only stops a
+   * run when required is true.
+   */
+  accessibility?: { enabled: boolean; required: boolean };
   /** A model per agent role, e.g. { "plan-critic": "haiku" }. Falls back to QA_AGENT_MODEL, then sonnet. */
   models?: Record<string, string>;
   /** Jira only: custom fields to read along with the description, by display name, e.g. acceptance criteria. */

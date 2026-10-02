@@ -404,6 +404,92 @@ function sensitivityGate(request: Request): Gate | null {
   };
 }
 
+// ── Accessibility ────────────────────────────────────────────────────────────
+
+type A11yItem = { rule: string; impact: string; help: string; helpUrl: string; elements: number };
+type A11yScan = { url: string; violations: A11yItem[]; incomplete: A11yItem[] };
+type AttachedSuite = { specs?: { tests: { results: { attachments?: { name: string; body?: string }[] }[] }[] }[]; suites?: AttachedSuite[] };
+
+export type A11yFinding = A11yItem & { pages: string[] };
+export type A11yReport = { pages: string[]; violations: A11yFinding[]; review: A11yFinding[] };
+
+/** Collects the axe scans the tests attached, and merges findings for the same rule across pages. */
+export function a11yReport(report: { suites?: AttachedSuite[] }): A11yReport {
+  const scans: A11yScan[] = [];
+  const walk = (suite: AttachedSuite): void => {
+    for (const spec of suite.specs ?? [])
+      for (const test of spec.tests)
+        for (const result of test.results)
+          for (const attachment of result.attachments ?? []) {
+            if (attachment.name !== 'a11y' || !attachment.body) continue;
+            try {
+              scans.push(JSON.parse(Buffer.from(attachment.body, 'base64').toString('utf8')));
+            } catch {
+              // An attachment that is not valid JSON is not a scan.
+            }
+          }
+    for (const child of suite.suites ?? []) walk(child);
+  };
+  for (const suite of report.suites ?? []) walk(suite);
+
+  // The same page is scanned once per test that ends on it. Count each page once, without its query string.
+  const page = (url: string): string => url.split(/[?#]/)[0];
+  const merge = (pick: (scan: A11yScan) => A11yItem[]): A11yFinding[] => {
+    const byRule = new Map<string, A11yFinding>();
+    for (const scan of scans)
+      for (const item of pick(scan) ?? []) {
+        const found = byRule.get(item.rule) ?? { ...item, elements: 0, pages: [] };
+        if (!found.pages.includes(page(scan.url))) found.pages.push(page(scan.url));
+        found.elements = Math.max(found.elements, item.elements);
+        byRule.set(item.rule, found);
+      }
+    const order = ['critical', 'serious', 'moderate', 'minor', 'unknown'];
+    return [...byRule.values()].sort((a, b) => order.indexOf(a.impact) - order.indexOf(b.impact));
+  };
+
+  return { pages: [...new Set(scans.map((scan) => page(scan.url)))], violations: merge((s) => s.violations), review: merge((s) => s.incomplete) };
+}
+
+/**
+ * There is no "accessible" verdict here on purpose. An automated scan finds only part of what WCAG asks for,
+ * so the gate reports what was found and what needs a person, and never says a page passed.
+ */
+export function a11ySummary(report: A11yReport): { summary: string; table: string } {
+  const pages = `${report.pages.length} page(s) scanned`;
+  const rows = [
+    ...report.violations.map((f) => `| violation | ${f.impact} | [${f.rule}](${f.helpUrl}): ${f.help} | ${f.elements} | ${f.pages.join('<br>')} |`),
+    ...report.review.map((f) => `| needs a person | ${f.impact} | [${f.rule}](${f.helpUrl}): ${f.help} | ${f.elements} | ${f.pages.join('<br>')} |`),
+  ];
+  const table = `${pages}: ${report.pages.join(', ') || 'none'}\n\n${
+    rows.length ? `| | Impact | Rule | Elements | Pages |\n|---|---|---|---|---|\n${rows.join('\n')}` : 'axe reported nothing on these pages.'
+  }\n\nAn automated scan checks only part of WCAG. No findings is not the same as accessible.`;
+  const serious = report.violations.filter((f) => f.impact === 'critical' || f.impact === 'serious').length;
+  const summary = report.violations.length
+    ? `${report.violations.length} rule(s) violated (${serious} serious or critical), ${report.review.length} need a person; ${pages}`
+    : `no violations detected by axe, ${report.review.length} need a person; ${pages}. Not a pass: automation covers part of WCAG`;
+  return { summary, table };
+}
+
+/**
+ * Scans the pages the new tests end on. The tests attach an axe scan when QA_A11Y is set (see fixtures/test.ts),
+ * so the scan happens on real states of the app, signed in, mid-journey, not only on the front page.
+ */
+function accessibilityGate(request: Request): Gate | null {
+  if (!config.accessibility?.enabled || request.mode !== 'built') return null;
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-a11y-')), 'report.json');
+  sh(`npx playwright test --grep "${tagGrep(request.key)}" --retries=0 --reporter=json`, { QA_A11Y: '1', PLAYWRIGHT_JSON_OUTPUT_NAME: file });
+  if (!fs.existsSync(file)) return { name: 'Accessibility', passed: false, advisory: true, summary: 'the scan run produced no report' };
+
+  const report = a11yReport(JSON.parse(fs.readFileSync(file, 'utf8')));
+  fs.mkdirSync(RUN_DIR, { recursive: true });
+  fs.writeFileSync(path.join(RUN_DIR, 'accessibility.json'), `${JSON.stringify(report, null, 2)}\n`);
+  if (report.pages.length === 0) {
+    return { name: 'Accessibility', passed: false, advisory: true, summary: 'no page was scanned: the tests attached no axe results' };
+  }
+  const { summary, table } = a11ySummary(report);
+  return { name: 'Accessibility', passed: report.violations.length === 0, advisory: !config.accessibility.required, summary, table };
+}
+
 // ── All together ─────────────────────────────────────────────────────────────
 
 export function runGates(request: Request, strategy: Strategy, generation: Generation): GateReport {
@@ -440,6 +526,9 @@ export function runGates(request: Request, strategy: Strategy, generation: Gener
 
     const sensitivity = stability.ok ? sensitivityGate(request) : null;
     if (sensitivity) results.push(sensitivity);
+
+    const accessibility = stability.ok ? accessibilityGate(request) : null;
+    if (accessibility) results.push(accessibility);
   }
 
   return {

@@ -11,10 +11,26 @@
   "sensitivity": {
     "required": false,
     "targets": [
-      { "name": "problem_user", "env": { "SAUCE_USER": "problem_user" } },
-      { "name": "error_user", "env": { "SAUCE_USER": "error_user" } }
+      {
+        "name": "problem_user",
+        "env": {
+          "SAUCE_USER": "problem_user"
+        }
+      },
+      {
+        "name": "error_user",
+        "env": {
+          "SAUCE_USER": "error_user"
+        }
+      }
     ]
   },
+  "accessibility": {
+    "enabled": true,
+    "required": false
+  },
   "models": {},
-  "jira": { "fields": {} }
+  "jira": {
+    "fields": {}
+  }
 }

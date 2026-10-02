@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { configChecks } from '../doctor.ts';
-import { addedMarkers, sensitivitySummary } from '../gates.ts';
+import { a11yReport, a11ySummary, addedMarkers, sensitivitySummary } from '../gates.ts';
 import { coverageMap, coverageMd } from '../lib/coverage.ts';
 import { canonicalTests, fingerprint } from '../lib/fingerprint.ts';
 import { gatesMd, strategyMd } from '../lib/render.ts';
@@ -168,5 +168,38 @@ describe('reports', () => {
     const text = (value: string, type?: string, attrs?: Record<string, unknown>) => ({ type: 'text', text: value, marks: type ? [{ type, attrs }] : undefined });
     const doc = { type: 'doc', content: [{ type: 'paragraph', content: [text('See '), text('the design', 'link', { href: 'https://example.com/d' }), text(' and use '), text('data-test="sort"', 'code')] }] };
     assert.equal(adfToMarkdown(doc), 'See [the design](https://example.com/d) and use `data-test="sort"`');
+  });
+});
+
+describe('accessibility', () => {
+  const scan = (url: string, violations: object[], incomplete: object[] = []) => ({
+    name: 'a11y',
+    body: Buffer.from(JSON.stringify({ url, violations, incomplete })).toString('base64'),
+  });
+  const item = (rule: string, impact: string, elements = 1) => ({ rule, impact, help: `${rule} help`, helpUrl: `https://rules.example/${rule}`, elements });
+  const report = (...attachments: { name: string; body?: string }[]) => ({
+    suites: [{ suites: [{ specs: [{ tests: [{ results: [{ attachments: [...attachments, { name: 'screenshot' }, { name: 'a11y', body: 'not json' }] }] }] }] }] }],
+  });
+
+  it('merges the same rule across pages, counts a page once, and puts the worst first', () => {
+    const found = a11yReport(
+      report(
+        scan('https://shop.example/cart?x=1', [item('label', 'minor')], [item('color-contrast', 'serious', 3)]),
+        scan('https://shop.example/cart', [item('image-alt', 'critical', 2), item('label', 'minor', 4)]),
+        scan('https://shop.example/', [item('label', 'minor')]),
+      ),
+    );
+    assert.deepEqual(found.pages, ['https://shop.example/cart', 'https://shop.example/']);
+    assert.deepEqual(found.violations.map((v) => [v.rule, v.elements, v.pages.length]), [['image-alt', 2, 1], ['label', 4, 2]]);
+    assert.deepEqual(found.review.map((v) => v.rule), ['color-contrast']);
+  });
+
+  it('never calls a clean scan a pass', () => {
+    const clean = a11ySummary(a11yReport(report(scan('https://shop.example/', []))));
+    assert.match(clean.summary, /no violations detected by axe.*Not a pass/);
+    assert.match(clean.table, /No findings is not the same as accessible/);
+    const dirty = a11ySummary(a11yReport(report(scan('https://shop.example/', [item('image-alt', 'critical')]))));
+    assert.match(dirty.summary, /1 rule\(s\) violated \(1 serious or critical\)/);
+    assert.match(dirty.table, /\| violation \| critical \| \[image-alt\]/);
   });
 });
