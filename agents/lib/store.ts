@@ -33,7 +33,9 @@ export function recordRun(run: RunRecord): void {
 
 /** Hands a value to later workflow steps. Does nothing outside GitHub Actions. */
 export function setOutput(name: string, value: string | number | boolean): void {
-  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
+  // One line per output. A value with a line break in it could otherwise smuggle in a second output.
+  const line = String(value).replace(/[\r\n]+/g, ' ');
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${line}\n`);
 }
 
 /** Adds to the job's summary page. Does nothing outside GitHub Actions. */
