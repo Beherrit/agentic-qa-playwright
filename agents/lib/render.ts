@@ -77,6 +77,17 @@ ${technicalSection(review)}${dropped}
 `;
 }
 
+/** What a blocked ticket says next: how to answer so the analysis runs again by itself. Worded per tracker. */
+export function howToAnswer(request: Pick<Request, 'source'>): string {
+  const again =
+    request.source === 'jira'
+      ? 'The analysis runs again when the comment is added, through the Jira automation rule for `/qa-answer` (see the README), or when the `qa-pipeline` label is added again.'
+      : request.source === 'github' || request.source === 'pr'
+        ? `The analysis runs again by itself; adding the \`${LABELS.analyze}\` label again also works.`
+        : `Then add the \`${LABELS.analyze}\` label again.`;
+  return `The pipeline has stopped here. Answer on this ticket in a comment that starts with \`/qa-answer\` on its own line, one answer per question, numbered like the questions. Only a member of the project can answer. ${again}`;
+}
+
 export function requirementsMd(request: Request, req: Requirements, technical: TechnicalResult | null = null, level = 2): string {
   const blocking = req.openQuestions.filter((q) => q.blocking);
   const other = req.openQuestions.filter((q) => !q.blocking);
@@ -102,7 +113,7 @@ ${sub('Out of scope')}
 ${list(req.outOfScope)}
 ${
   blocking.length
-    ? `\n${sub('Questions that block testing')}\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\nThe pipeline has stopped here. Answer these on the ticket, then add the \`${LABELS.analyze}\` label again.\n`
+    ? `\n${sub('Questions that block testing')}\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\n${howToAnswer(request)}\n`
     : ''
 }${other.length ? `\n${sub('Open questions (not blocking)')}\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''}${technical ? `\n${technicalMd(technical, level + 1)}` : ''}`;
 }

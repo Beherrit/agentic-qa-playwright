@@ -28,6 +28,13 @@ asked for into something testable, and to say so honestly when it is not.
 6. Rate the risk of the feature (high, medium, low) with one sentence of reasoning: what breaks for the user if this
    is wrong, and how likely is it.
 
+## When the team has answered
+
+A ticket that was blocked before may come back with an `<answers>` block: the questions the pipeline asked and
+the answers people gave on the ticket. The answers are part of the requirement. Use them, record what they settled
+as assumptions or criteria, and do not ask again what has been answered. If an answer is still too vague to test,
+ask the narrower question it leaves open, and only that one.
+
 ## When the requirement is a pull request
 
 A requirement can arrive as a code change: the ticket is then the pull request's description, followed by the

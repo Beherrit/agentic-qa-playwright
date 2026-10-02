@@ -27,6 +27,8 @@ export const Request = z.object({
   baseUrl: z.string().optional(),
   /** The branch the generated tests are opened against. The default branch when absent; a pull request's own branch otherwise. */
   base: z.string().optional(),
+  /** The pipeline's questions and the team's answers from the ticket's comments, when there are any. Data for the agents. */
+  answers: z.string().optional(),
 });
 export type Request = z.infer<typeof Request>;
 

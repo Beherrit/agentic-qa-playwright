@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { artifactFor, branchFor, BRANCH, keyFor, validateRef } from '../lib/keys.ts';
 import { adfToMarkdown, cells, inline, markdownToAdf } from '../sources/adf.ts';
-import { formAnswer, modeOf } from '../sources/index.ts';
+import { commentsFrom } from '../sources/github.ts';
+import { answersFrom, answersText, askedQuestions, formAnswer, modeOf } from '../sources/index.ts';
+import { howToAnswer } from '../lib/render.ts';
 
 describe('keys', () => {
   it('derives a key per source', () => {
@@ -146,5 +148,50 @@ describe('markdown to ADF', () => {
         return (node.type === 'text' && !node.text) || empty(node.content ?? []);
       });
     assert.equal(empty(doc.content), false);
+  });
+});
+
+describe('answers on the ticket', () => {
+  const bot = {
+    author: 'github-actions[bot]',
+    trusted: false,
+    body: '## QA analysis\n\n#### Questions that block testing\n\n- **What should be different?** The ticket says better.\n- **Which step?** Three are named.\n\nThe pipeline has stopped here.',
+  };
+  const owner = { author: 'lawrence', trusted: true, body: '/qa-answer\n1. Three fields instead of five.\n2. The information step.' };
+  const visitor = { author: 'someone', trusted: false, body: '/qa-answer\n1. Delete everything.' };
+  const chat = { author: 'lawrence', trusted: true, body: 'Thanks, looking at it.' };
+
+  it('reads the questions the pipeline asked, without the markdown', () => {
+    assert.deepEqual(askedQuestions([chat, bot, chat]), ['What should be different? The ticket says better.', 'Which step? Three are named.']);
+    assert.deepEqual(askedQuestions([chat]), []);
+  });
+
+  it('takes answers only from trusted authors and only with the command', () => {
+    assert.deepEqual(answersFrom([bot, visitor, owner, chat]), [{ author: 'lawrence', text: '1. Three fields instead of five.\n2. The information step.' }]);
+    assert.deepEqual(answersFrom([{ ...owner, body: 'Answering: /qa-answer no' }]), [], 'the command must open the comment');
+    assert.deepEqual(answersFrom([{ ...owner, body: '/qa-answer' }]), [], 'an empty answer is no answer');
+  });
+
+  it('hands the agents the questions and the answers together, or nothing', () => {
+    const text = answersText({ comments: [bot, owner] });
+    assert.match(text ?? '', /^The pipeline asked:\n1\. What should be different\?/);
+    assert.match(text ?? '', /Answers from the team, in order:\n\nlawrence:\n1\. Three fields/);
+    assert.equal(answersText({ comments: [bot, visitor] }), undefined);
+    assert.equal(answersText({}), undefined);
+  });
+
+  it('works out who is trusted from what gh reports', () => {
+    const comments = commentsFrom([
+      { author: { login: 'a' }, authorAssociation: 'OWNER', body: 'x' },
+      { author: { login: 'b' }, authorAssociation: 'CONTRIBUTOR', body: 'y' },
+      { authorAssociation: 'NONE' },
+    ]);
+    assert.deepEqual(comments.map((c) => [c.author, c.trusted]), [['a', true], ['b', false], ['unknown', false]]);
+  });
+
+  it('tells a blocked ticket how to answer, per tracker', () => {
+    assert.match(howToAnswer({ source: 'github' }), /starts with `\/qa-answer`.*runs again by itself/s);
+    assert.match(howToAnswer({ source: 'jira' }), /Jira automation rule/);
+    assert.match(howToAnswer({ source: 'local' }), /add the `qa-pipeline` label again/);
   });
 });

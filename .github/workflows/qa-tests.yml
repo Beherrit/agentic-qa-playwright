@@ -72,11 +72,11 @@ jobs:
       issues: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
@@ -93,7 +93,7 @@ jobs:
           cp qa-run/request.json "$RUNNER_TEMP/request.json"
 
       # Kept even if a later step fails, so the report job can tell the ticket why.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -121,6 +121,7 @@ jobs:
             run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq '[.path, .event] | join(" ")')
             case "$run" in
               "$ANALYSIS_WORKFLOW issues" | \
+              "$ANALYSIS_WORKFLOW issue_comment" | \
               "$ANALYSIS_WORKFLOW pull_request" | \
               "$ANALYSIS_WORKFLOW repository_dispatch" | \
               "$ANALYSIS_WORKFLOW workflow_dispatch")
@@ -134,7 +135,7 @@ jobs:
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: ${{ steps.intake.outputs.artifact }}
           path: qa-run
@@ -147,7 +148,7 @@ jobs:
           cp "$RUNNER_TEMP/request.json" qa-run/request.json
           npx agentic-qa check-plan
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -166,13 +167,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -186,7 +187,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa write
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -204,13 +205,13 @@ jobs:
     outputs:
       gates: ${{ steps.stage.outputs.gates }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -223,14 +224,14 @@ jobs:
         id: stage
         run: npx agentic-qa gates
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
           path: qa-run/
           overwrite: true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: steps.stage.outputs.gates != 'passed'
         with:
           name: gates-playwright-output
@@ -251,13 +252,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -274,7 +275,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa fix
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -291,13 +292,13 @@ jobs:
     outputs:
       gates: ${{ steps.stage.outputs.gates }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -309,14 +310,14 @@ jobs:
         id: stage
         run: npx agentic-qa gates
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
           path: qa-run/
           overwrite: true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: steps.stage.outputs.gates != 'passed'
         with:
           name: gates-playwright-output
@@ -346,15 +347,15 @@ jobs:
     outputs:
       verdict: ${{ steps.stage.outputs.verdict }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -371,7 +372,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa review
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: qa-run
           path: qa-run/
@@ -389,13 +390,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -413,7 +414,7 @@ jobs:
         run: npx agentic-qa rework
 
       # Uploaded on failure too, so the ticket gets the gate report of the reworked tests.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -439,16 +440,16 @@ jobs:
     outputs:
       url: ${{ steps.pr.outputs.url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       # The report stage runs through tsx, so the dependencies are needed. The browser is not.
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: qa-run
           path: qa-run
@@ -526,15 +527,15 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
-      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@main
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: qa-run

@@ -47,7 +47,7 @@ const LIMIT = 30_000;
 export const jira: Source = {
   async read(ref) {
     const extra = config.jira?.fields ?? {};
-    const fields = ['summary', 'description', 'labels', ...Object.values(extra)].join(',');
+    const fields = ['summary', 'description', 'labels', 'comment', ...Object.values(extra)].join(',');
     const issue = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(ref)}?fields=${fields}`)) as {
       key: string;
       fields: Record<string, unknown>;
@@ -56,12 +56,19 @@ export const jira: Source = {
       .map(([name, id]) => [name, fieldText(issue.fields[id])] as const)
       .filter(([, value]) => value.trim())
       .map(([name, value]) => `## ${name}\n\n${value}`);
+    // Anyone who can comment on a Jira ticket is in the project, so every comment counts as trusted.
+    const comments = ((issue.fields.comment as { comments?: { author?: { displayName?: string }; body?: unknown }[] } | undefined)?.comments ?? []).map((c) => ({
+      author: c.author?.displayName ?? 'unknown',
+      trusted: true,
+      body: fieldText(c.body),
+    }));
     return {
       ref: issue.key,
       url: `${settings().base}/browse/${issue.key}`,
       title: String(issue.fields.summary ?? ''),
       body: [fieldText(issue.fields.description), ...sections].filter(Boolean).join('\n\n'),
       labels: (issue.fields.labels as string[] | undefined) ?? [],
+      comments,
     } satisfies Ticket;
   },
 

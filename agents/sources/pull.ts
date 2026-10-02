@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { config } from '../lib/paths.ts';
-import { github } from './github.ts';
+import { commentsFrom, github } from './github.ts';
 import type { Source, Ticket } from './types.ts';
 
 /**
@@ -48,7 +48,7 @@ ${diff.trim()}
 
 export const pull: Source = {
   async read(ref) {
-    const pr = JSON.parse(gh('pr', 'view', ref, '--json', 'number,title,body,url,labels,headRefName,baseRefName,files')) as {
+    const pr = JSON.parse(gh('pr', 'view', ref, '--json', 'number,title,body,url,labels,headRefName,baseRefName,files,comments')) as {
       number: number;
       title: string;
       body: string | null;
@@ -57,6 +57,7 @@ export const pull: Source = {
       headRefName: string;
       baseRefName: string;
       files: PullFile[];
+      comments?: { author?: { login?: string }; authorAssociation?: string; body?: string }[];
     };
     const diff = gh('pr', 'diff', ref);
     const number = String(pr.number);
@@ -66,6 +67,7 @@ export const pull: Source = {
       title: pr.title,
       body: pullBody({ body: pr.body ?? '', headRefName: pr.headRefName, baseRefName: pr.baseRefName, files: pr.files ?? [], diff }),
       labels: (pr.labels ?? []).map((label) => label.name),
+      comments: commentsFrom(pr.comments),
       baseUrl: previewUrl(number, pr.headRefName),
       base: pr.headRefName,
     } satisfies Ticket;

@@ -40,7 +40,8 @@ const appUrl = (r: Request): string => r.baseUrl ?? config.app.baseUrl;
 const brief = (): string => `<product-brief>\n${projectDoc(config.app.brief)}\n</product-brief>`;
 const conventions = (): string => `<test-conventions>\n${projectDoc(config.conventions)}\n</test-conventions>`;
 const design = (): string => `<test-design-notes>\n${projectDoc('docs/test-design.md')}\n</test-design-notes>`;
-const requirementText = (r: Request): string => `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>`;
+const requirementText = (r: Request): string =>
+  `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>${r.answers ? `\n\n<answers>\n${r.answers}\n</answers>` : ''}`;
 
 const TEST_FIRST_PLAN = `
 This requirement is in test-first mode: the feature is not built yet, so you will not find it in the app. Use the
