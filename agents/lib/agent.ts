@@ -104,6 +104,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
     systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
     tools,
     allowedTools: allowed,
+    // Not offered at all, so the agent does not spend a turn finding out they are refused.
+    disallowedTools: ['mcp__playwright__browser_run_code_unsafe', 'mcp__playwright__browser_evaluate'],
     // "dontAsk": whatever is not on the allowlist is refused outright. There is no human to approve anything in CI.
     permissionMode: 'dontAsk',
     // Ignore the settings, hooks and MCP servers of whoever happens to run this. The agent gets exactly what is listed here.
@@ -139,11 +141,13 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
     }
     if (message.type === 'user') {
       for (const result of toolResults(message.message.content)) {
-        const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__');
+        // A call the allowlist refused says nothing about whether the browser works, or whether a command ran.
+        const refused = /has been denied/.test(result.text);
+        const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__') && !refused;
         if (isBrowser) browser.calls += 1;
         if (isBrowser && !result.failed) browser.worked += 1;
         const command = asked.get(result.id);
-        if (command !== undefined && !/has been denied/.test(result.text)) commands.push(command);
+        if (command !== undefined && !refused) commands.push(command);
         if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
       }
       continue;
