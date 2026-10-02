@@ -1,8 +1,10 @@
 import { keyFor, validateRef, type SourceName } from '../lib/keys.ts';
 import { LABELS } from '../lib/paths.ts';
 import { Request, type Mode } from '../lib/schemas.ts';
+import { azure } from './azure.ts';
 import { github } from './github.ts';
 import { jira } from './jira.ts';
+import { linear } from './linear.ts';
 import { pull } from './pull.ts';
 import type { Source, Ticket } from './types.ts';
 
@@ -24,10 +26,10 @@ const local: Source = {
   },
 };
 
-const sources: Record<SourceName, Source> = { github, jira, pr: pull, local };
+const sources: Record<SourceName, Source> = { github, jira, pr: pull, azure, linear, local };
 
 export function sourceFor(name: string): Source {
-  if (!(name in sources)) throw new Error(`Unknown source "${name}". Use github, jira or pr.`);
+  if (!(name in sources)) throw new Error(`Unknown source "${name}". Use github, jira, pr, azure or linear.`);
   return sources[name as SourceName];
 }
 

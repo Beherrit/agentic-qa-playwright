@@ -16,7 +16,7 @@ export type Mode = z.infer<typeof Mode>;
 
 export const Request = z.object({
   key: z.string().regex(KEY).describe('Requirement key, e.g. REQ-12 or SHOP-123. Used to tag the tests that come out of it.'),
-  source: z.enum(['github', 'jira', 'pr', 'local']),
+  source: z.enum(['github', 'jira', 'pr', 'azure', 'linear', 'local']),
   /** The issue number on GitHub, the ticket key on Jira, the pull request number for a change. */
   ref: z.string(),
   url: z.string().nullable(),
