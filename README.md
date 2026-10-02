@@ -129,7 +129,7 @@ The agents are useful only as long as the things around them are strict.
 - In test-first mode the tests are only as good as the contract. If the developers build something the contract did not say, the tests fail for the wrong reason on the day the feature lands, and need a person to adjust them.
 - Jira comments are converted from markdown to Atlassian's document format. Headings, tables, lists, bold, code and links survive; if Jira refuses a document, the report is posted as plain text instead.
 - A run takes time and costs money, and both vary with the requirement. I am not quoting numbers here: the pull request description records turns, time and estimated cost for every agent run.
-- Swag Labs has no API and no source code I can reach, so every automated test against it is a browser test. The plan can still name lower-layer cases, so the gap is visible. The demo shop in `demo-app/` is there to close it; the suite has not been moved over to it yet.
+- Swag Labs has no API and no source code I can reach, so every automated test against it is a browser test. The plan can still name lower-layer cases, so the gap is visible, but this repository cannot write them.
 - The accessibility gate scans the page a test ends on, not every page it passes through.
 - The healer trusts triage's verdict. If triage calls a product bug a test defect, the healer is told to stop when it sees the app is wrong, and the gates stop a weakened test, but a person reading the pull request is the real check.
 
@@ -237,7 +237,6 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `agents/doctor.ts` | The preflight check (`npm run doctor`) |
 | `agents/heal.ts` | Self-healing: repairs test defects found by triage (`npm run heal`) |
 | `agents/history.ts` | Records a run and renders the run history (`npm run history`) |
-| `demo-app/` | Pantry, a small shop with an API, bugs that can be switched on and a feature behind a flag (`npm run demo`) |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
 | `agents/prompts/` | One instruction file per role |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, keys and labels, markdown rendering, the run folder |
@@ -249,18 +248,6 @@ Choose "No, write the tests first". The analysis comes back with a contract for 
 | `.github/workflows/qa-history.yml` | Records every pipeline run on the `qa-history` branch |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
 | `.github/ISSUE_TEMPLATE/requirement.yml` | The "QA requirement" issue template |
-
-## The demo shop
-
-`demo-app/` holds Pantry, a small grocery shop written for this project: sign in, a product list with sorting, a cart, checkout with tax, and a JSON API behind all of it. It has no dependencies and starts with `npm run demo`.
-
-It exists because a practice site somebody else runs can only take a QA demo so far. Pantry adds three things:
-
-- **An API and source code.** The plan's lower-layer cases can be real tests. Pantry's own unit and API tests run in Regression (`npm run demo:test`).
-- **Bugs on a switch.** `BUGS=sort-price,tax-rounding npm run demo` starts the shop with those bugs in it. There are five, each one small and believable, each in one marked place. They are what the sensitivity gate needs: a version of the app that is known to be broken in a known way.
-- **A feature on a switch.** `FEATURES=search` turns on product search. Write the tests first against the shop without it, then switch it on and watch the expected failures report "expected to fail, but passed".
-
-The Playwright suite in this repository still runs against Swag Labs. Moving it to Pantry is the next step, and it is a config change plus a new set of page objects, which is the point of keeping everything app-specific in one place.
 
 ## Use it on your own app
 

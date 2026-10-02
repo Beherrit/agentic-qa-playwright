@@ -46,9 +46,6 @@ jobs:
       # The pipeline's own rules: gates, plan score, tracker adapters, reports.
       - run: npm run test:unit
 
-      # The demo shop's own unit and API tests, including proof that each seeded bug changes behaviour.
-      - run: npm run demo:test
-
       - name: Run the tests
         id: tests
         env:

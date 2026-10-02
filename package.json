@@ -13,9 +13,7 @@
     "coverage": "tsx agents/coverage.ts",
     "doctor": "tsx agents/cli.ts doctor",
     "heal": "tsx agents/heal.ts",
-    "history": "tsx agents/history.ts",
-    "demo": "node demo-app/server.mjs",
-    "demo:test": "node --test \"demo-app/test/**/*.test.mjs\""
+    "history": "tsx agents/history.ts"
   },
   "author": "Lawrence Moran",
   "license": "MIT",
