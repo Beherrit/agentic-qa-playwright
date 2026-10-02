@@ -1,5 +1,5 @@
 import { LABELS } from './paths.ts';
-import type { TicketDraft } from './schemas.ts';
+import type { Plan, TicketDraft } from './schemas.ts';
 
 /** The pure parts of the ticket writer: the definition of ready, the ticket text and its labels. */
 
@@ -28,6 +28,50 @@ export function readiness(draft: TicketDraft): string[] {
 export function checkedDuplicates(draft: TicketDraft, open: { ref: string }[]): TicketDraft['duplicates'] {
   const refs = new Set(open.map((ticket) => ticket.ref));
   return draft.duplicates.filter((d) => refs.has(d.ref) || refs.has(bare(d.ref)));
+}
+
+/**
+ * A risk only counts as guarded if the guard names a spec file that exists. Anything else, a file that is not
+ * there or a sentence instead of a test, is reported as unguarded rather than taken on trust.
+ */
+export function checkedRisks(risks: Plan['regressionRisks'], fileExists: (file: string) => boolean): Plan['regressionRisks'] {
+  return risks.map((risk) => {
+    const file = /^([\w./-]+\.spec\.ts): \S/.exec(risk.guardedBy ?? '')?.[1];
+    return file && fileExists(file) ? risk : { ...risk, guardedBy: null };
+  });
+}
+
+/** The writer works from memory as much as from the repository, so what it names is checked before it is filed. */
+export function checkedTechnical(
+  technical: TicketDraft['technical'],
+  fileExists: (file: string) => boolean,
+  openRefs: string[],
+): TicketDraft['technical'] {
+  const refs = new Set(openRefs.map(bare));
+  return {
+    ...technical,
+    covered: technical.covered.filter((c) => fileExists(c.file)),
+    pages: technical.pages.map((p) => (fileExists(p.file) ? p : { ...p, exists: false })),
+    touches: checkedRisks(technical.touches, fileExists),
+    related: technical.related.filter((r) => refs.has(bare(r.ref))),
+  };
+}
+
+/** The technical notes section. Parts with nothing in them are left out. */
+function technicalSection(technical: TicketDraft['technical']): string {
+  const list = (items: string[]): string => items.map((item) => `- ${item}`).join('\n');
+  const table = (head: string[], rows: string[][]): string =>
+    [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map((row) => `| ${row.map(cell).join(' | ')} |`)].join('\n');
+  const parts = [
+    technical.covered.length > 0 && `**Already covered**\n\n${list(technical.covered.map((c) => `${c.file}: ${c.test}. ${c.covers}`.trim()))}`,
+    technical.pages.length > 0 &&
+      `**Page objects and locators**\n\n${table(['File', 'Member', 'Today', 'Note'], technical.pages.map((p) => [p.file, p.member, p.exists ? 'exists' : 'to add', p.note]))}`,
+    technical.touches.length > 0 &&
+      `**Nearby behaviour**\n\n${table(['Could break', 'Because', 'Guarded by'], technical.touches.map((t) => [t.area, t.why, t.guardedBy ?? '**nothing**']))}`,
+    technical.related.length > 0 && `**Related**\n\n${list(technical.related.map((r) => `#${bare(r.ref)}: ${r.why}`))}`,
+    technical.notes.trim(),
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join('\n\n') : '_No response_';
 }
 
 /** The ticket text, in the shape of the GitHub issue form so the pipeline reads it the same way. */
@@ -62,6 +106,14 @@ ${draft.built ? 'Yes, test what is there' : 'No, write the tests first'}
 ### Anything already known
 
 ${known.length > 0 ? known.join('\n\n') : '_No response_'}
+
+### Risk
+
+**${draft.risk}.** ${draft.riskReason.trim()}
+
+### Technical notes
+
+${technicalSection(draft.technical)}
 `;
 }
 

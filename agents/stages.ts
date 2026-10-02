@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
+import { checkedRisks } from './lib/draft.ts';
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
 import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, testsReadyMd } from './lib/render.ts';
@@ -16,6 +17,7 @@ import {
   type Strategy,
 } from './lib/schemas.ts';
 import { planHealth } from './lib/score.ts';
+import { requirementsFromTicket, technicalNotes } from './lib/ticket.ts';
 import { exists, jobSummary, load, loadText, prompt, save, setOutput, type RunRecord } from './lib/store.ts';
 import { sourceFor } from './sources/index.ts';
 
@@ -28,7 +30,7 @@ import { sourceFor } from './sources/index.ts';
  *   tests      generate + gates -> review -> rework -> pull request -> report on the ticket
  */
 
-export { planHealth };
+export { planHealth, checkedRisks };
 
 const request = (): Request => load<Request>('request.json');
 const brief = (): string => `<product-brief>\n${projectDoc(config.app.brief)}\n</product-brief>`;
@@ -49,6 +51,18 @@ const BUILT_PLAN = `The feature is built. Leave the contract empty.`;
 
 export async function requirements(): Promise<boolean> {
   const req = request();
+  // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
+  const filed = requirementsFromTicket(req.title, req.body);
+  if (filed) {
+    const markdown = `_Taken from the ticket as the ticket writer filed it. No analyst run._\n\n${requirementsMd(req, filed)}`;
+    save('requirements.json', filed);
+    save('requirements.md', markdown);
+    jobSummary(markdown);
+    const ready = !filed.openQuestions.some((question) => question.blocking);
+    setOutput('ready', ready);
+    console.log('Ticket written by the ticket writer: requirements taken from it, analyst skipped.');
+    return ready;
+  }
   const { output } = await runAgent({
     role: 'requirements-analyst',
     instructions: prompt('requirements-analyst'),
@@ -71,8 +85,12 @@ export async function requirements(): Promise<boolean> {
 
 const criteriaText = (): string => `<requirements>\n${loadText('requirements.md')}\n</requirements>`;
 
+const TECHNICAL_NOTES_NOTE =
+  'The ticket writer wrote these notes and checked the files and test titles in them against the repository. Start from them rather than surveying from scratch, but still verify anything you rely on.';
+
 export async function plan(): Promise<void> {
   const req = request();
+  const notes = technicalNotes(req.body);
   const { output } = await runAgent({
     role: 'test-architect',
     instructions: prompt('test-architect'),
@@ -82,7 +100,7 @@ ${req.mode === 'test-first' ? TEST_FIRST_PLAN : BUILT_PLAN}
 ${criteriaText()}
 
 ${requirementText(req)}
-
+${notes ? `\n${TECHNICAL_NOTES_NOTE}\n<ticket-technical-notes>\n${notes}\n</ticket-technical-notes>\n` : ''}
 ${brief()}
 
 ${design()}`,
@@ -154,17 +172,6 @@ export async function reconcile(): Promise<boolean> {
   setOutput('score', strategy.health.score);
   setOutput('proceed', proceed);
   return proceed;
-}
-
-/**
- * A risk only counts as guarded if the guard names a spec file that exists. Anything else, a file that is not
- * there or a sentence instead of a test, is reported as unguarded rather than taken on trust.
- */
-export function checkedRisks(risks: Plan['regressionRisks'], fileExists: (file: string) => boolean): Plan['regressionRisks'] {
-  return risks.map((risk) => {
-    const file = /^([\w./-]+\.spec\.ts): \S/.exec(risk.guardedBy ?? '')?.[1];
-    return file && fileExists(file) ? risk : { ...risk, guardedBy: null };
-  });
 }
 
 /** Why the test half cannot start from what is in the run folder, or null when it can. */

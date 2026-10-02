@@ -1,8 +1,9 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline/promises';
 import { runAgent } from './lib/agent.ts';
-import { checkedDuplicates, readiness, ticketBody, ticketLabels, withAnswers } from './lib/draft.ts';
-import { config, LABELS, projectDoc } from './lib/paths.ts';
+import { checkedDuplicates, checkedTechnical, readiness, ticketBody, ticketLabels, withAnswers } from './lib/draft.ts';
+import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
 import { TicketDraft } from './lib/schemas.ts';
 import { prompt, save } from './lib/store.ts';
 import { sourceFor } from './sources/index.ts';
@@ -76,7 +77,11 @@ export async function draft(options: DraftOptions): Promise<void> {
     if (answers?.trim()) result = await write(withAnswers(wish, result.questions.map((q) => q.question), answers), open);
   }
 
-  result = { ...result, duplicates: checkedDuplicates(result, open) };
+  result = {
+    ...result,
+    duplicates: checkedDuplicates(result, open),
+    technical: checkedTechnical(result.technical, (file) => fs.existsSync(path.join(ROOT, file)), open.map((ticket) => ticket.ref)),
+  };
   const problems = readiness(result);
   const body = ticketBody(result);
   const labels = ticketLabels(result, problems);
