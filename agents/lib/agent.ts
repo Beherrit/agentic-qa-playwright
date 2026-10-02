@@ -62,7 +62,13 @@ const GROUND_RULES = `
 - Your final answer must match the required output format. Write it in plain, direct English, the way an experienced tester would write to a colleague.
 `;
 
-function browserServer(): NonNullable<Options['mcpServers']> {
+const BROWSER_NOTE = `
+# Using the browser
+
+The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. It lists every element with its role and accessible name, which is what you need for locators.
+`;
+
+function browserServer():NonNullable<Options['mcpServers']> {
   const require = createRequire(import.meta.url);
   const cli = path.join(path.dirname(require.resolve('@playwright/mcp/package.json')), 'cli.js');
   return {
@@ -86,7 +92,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
   const options: Options = {
     cwd: ROOT,
     model: process.env.QA_AGENT_MODEL || 'sonnet',
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}` },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
     tools,
     allowedTools: allowed,
     // "dontAsk": whatever is not on the allowlist is refused outright. There is no human to approve anything in CI.
