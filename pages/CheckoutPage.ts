@@ -21,7 +21,7 @@ export class CheckoutPage extends BasePage {
     super(page);
     this.firstName = page.getByPlaceholder('First Name');
     this.lastName = page.getByPlaceholder('Last Name');
-    this.postalCode = page.getByPlaceholder('Postcode');
+    this.postalCode = page.getByPlaceholder('Zip/Postal Code');
     this.continueButton = page.getByRole('button', { name: 'Continue' });
     this.cancelButton = page.getByRole('button', { name: 'Cancel' });
     this.finishButton = page.getByRole('button', { name: 'Finish' });
