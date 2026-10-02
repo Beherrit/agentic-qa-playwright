@@ -1,0 +1,387 @@
+name: QA tests
+
+# The second half. Once a person has read the analysis on the ticket, the `qa-generate` label (or a
+# repository_dispatch event `qa-generate` from Jira) has the tests written, gated, reviewed and opened
+# as a pull request. It works from the latest analysis of that ticket, so run QA analysis first.
+#
+# The ticket is read again here, because whether the feature is built may have changed since the
+# analysis: a story analysed before development can get its tests written test-first, or after.
+
+on:
+  issues:
+    types: [labeled]
+  repository_dispatch:
+    types: [qa-generate]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Where the requirement lives
+        type: choice
+        options: [github, jira]
+        default: github
+      ref:
+        description: Issue number (GitHub) or ticket key (Jira)
+        required: true
+        type: string
+
+concurrency:
+  group: >-
+    ${{ (github.event_name != 'issues' || github.event.label.name == 'qa-generate')
+    && format('qa-tests-{0}', github.event.issue.number || github.event.client_payload.ref || inputs.ref)
+    || format('qa-ignored-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event.client_payload.source || inputs.source }}
+  REF: ${{ github.event.issue.number || github.event.client_payload.ref || inputs.ref }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  prepare:
+    name: 0 Ticket and analysis
+    if: github.event_name != 'issues' || github.event.label.name == 'qa-generate'
+    runs-on: ubuntu-latest
+    environment: TRACKER
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - name: Read the ticket again
+        id: intake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          npm run pipeline -- intake --source "$SOURCE" --ref "$REF"
+          cp qa-run/request.json "$RUNNER_TEMP/request.json"
+
+      # Kept even if a later step fails, so the report job can tell the ticket why.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      # Any workflow run can upload an artifact with any name, including one started by a pull request
+      # from a fork. So the analysis is only taken from a run of qa-analysis.yml in this repository, on
+      # the default branch, started by a label, a dispatch or a person.
+      - name: Find the latest analysis of this ticket
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT: ${{ steps.intake.outputs.artifact }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          candidates=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT&per_page=50" --jq '
+            [.artifacts[]
+              | select((.expired | not)
+                and .workflow_run.head_repository_id == .workflow_run.repository_id
+                and .workflow_run.head_branch == env.DEFAULT_BRANCH)]
+            | sort_by(.created_at) | reverse | .[].workflow_run.id')
+          run_id=""
+          for id in $candidates; do
+            run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id" --jq '[.path, .event] | join(" ")')
+            case "$run" in
+              ".github/workflows/qa-analysis.yml issues" | \
+              ".github/workflows/qa-analysis.yml repository_dispatch" | \
+              ".github/workflows/qa-analysis.yml workflow_dispatch")
+                run_id=$id
+                break ;;
+            esac
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error title=No analysis::This ticket has no analysis yet. Add the qa-pipeline label first, read the analysis, then add qa-generate."
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.intake.outputs.artifact }}
+          path: qa-run
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      # The analysis is kept as it was; only the ticket itself (title, body, mode) is refreshed.
+      - name: Check the plan is good enough to write tests from
+        run: |
+          cp "$RUNNER_TEMP/request.json" qa-run/request.json
+          npm run pipeline -- check-plan
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  generate:
+    name: 1 Code generation + gates
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: POC
+    # The engineer can take a second pass when the gates fail, and the gates run the whole suite
+    # each time, plus the new tests against each known-broken target.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the tests and run the gates
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- generate
+
+      # Uploaded on failure too: the patch and the gate report are what you need to see why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: generate-playwright-output
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  review:
+    name: 2 Code review
+    needs: generate
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      verdict: ${{ steps.stage.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Review the change
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- review
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # One round only: the engineer answers the findings, the gates run again, and the reviewer has a
+  # second look. Whatever the second verdict is, a person decides next.
+  rework:
+    name: 2b Rework + re-review
+    needs: review
+    if: needs.review.outputs.verdict == 'request-changes'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Rework and review again
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- rework
+
+      # Uploaded on failure too, so the ticket gets the gate report of the reworked tests.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # The only job that can write to the repository. No agent runs here and no Claude or tracker
+  # credentials are present: it applies the patch, pushes a branch and opens the pull request.
+  # The patch passed through jobs where generated test code ran, so nothing in it is executed here:
+  # the description is written before it is applied, applying it refuses any path outside the
+  # writable folders, and only git and gh run afterwards. The write token is not left in .git/config
+  # and is handed to the push alone.
+  publish:
+    name: 3 Pull request
+    needs: [review, rework]
+    # Without a status function here, the skipped rework job would skip this job as well.
+    if: ${{ !cancelled() && needs.review.result == 'success' && (needs.rework.result == 'success' || needs.rework.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      url: ${{ steps.pr.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The report stage runs through tsx, so the dependencies are needed. The browser is not.
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the pull request description
+        id: report
+        run: npm run pipeline -- report
+
+      - name: Apply the generated change
+        run: npm run pipeline -- apply
+
+      - name: Push the branch
+        env:
+          BRANCH: ${{ steps.report.outputs.branch }}
+          TITLE: ${{ steps.report.outputs.title }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The branch is force-pushed, so make sure it is one of ours before going on.
+          if ! printf '%s' "$BRANCH" | grep -Eq '^qa/[a-z][a-z0-9_]*-[0-9]+$'; then
+            echo "::error::Unexpected branch name from the report stage: $BRANCH"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -- tests pages fixtures
+          if git diff --cached --quiet; then
+            echo "::error::The generated change is empty. Nothing to open a pull request for."
+            exit 1
+          fi
+          git commit -m "$TITLE"
+          # A second run for the same ticket replaces the first one's branch.
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$BRANCH"
+
+      - name: Open or update the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.report.outputs.branch }}
+          TITLE: ${{ steps.report.outputs.title }}
+          DRAFT: ${{ steps.report.outputs.draft }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$TITLE" --body-file qa-run/pull-request.md
+          else
+            args=(--body-file qa-run/pull-request.md --base "$BASE" --head "$BRANCH")
+            if [ "$DRAFT" != "true" ]; then
+              gh pr create --title "$TITLE" "${args[@]}"
+            else
+              # A draft when the reviewer still wanted changes after the rework round. Private
+              # repositories on the free plan have no drafts, so fall back to saying it in the title.
+              gh pr create --draft --title "$TITLE" "${args[@]}" ||
+                gh pr create --title "[open review findings] $TITLE" "${args[@]}"
+            fi
+          fi
+          echo "url=$(gh pr view "$BRANCH" --json url --jq .url)" >> "$GITHUB_OUTPUT"
+
+  # Tells the ticket how it went: the pull request, the failed gates, or that the run broke.
+  report:
+    name: 4 Report on the ticket
+    needs: [prepare, generate, review, rework, publish]
+    # Also when prepare failed: the ticket should hear that there was no analysis to work from.
+    if: ${{ always() && needs.prepare.result != 'skipped' && needs.prepare.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    environment: TRACKER
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Post the outcome
+        if: hashFiles('qa-run/request.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          PR_URL: ${{ needs.publish.outputs.url }}
+        run: npm run pipeline -- notify tests

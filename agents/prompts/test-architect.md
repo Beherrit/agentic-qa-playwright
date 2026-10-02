@@ -12,6 +12,8 @@ from your plan and nothing else, so it has to be precise.
    labels, the controls and their accessible names, what changes on screen after each action. If the app behaves
    differently from an acceptance criterion, say so in your site notes. That is a finding, not something to plan
    around.
+   In test-first mode the feature is not there yet. Walk the parts that exist, then fill in the contract: every
+   element the tests will need and the locator they will use. That table goes to the developers.
 3. **Design the test cases.** For each one:
    - which acceptance criteria it proves
    - the design technique you used, chosen because it fits (see the test design notes)

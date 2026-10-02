@@ -1,15 +1,28 @@
 import { z } from 'zod';
+import { KEY } from './keys.ts';
 
 /**
  * The contracts between stages. Each agent has to answer in one of these shapes,
  * and the next stage only ever reads the validated result.
  */
 
+/**
+ * built: the feature exists, so tests are written against it and must pass.
+ * test-first: the feature is not built yet. Tests are written from the requirement, must fail now for the right
+ * reason, and are marked so that they flag themselves the day the feature lands.
+ */
+export const Mode = z.enum(['built', 'test-first']);
+export type Mode = z.infer<typeof Mode>;
+
 export const Request = z.object({
-  key: z.string().describe('Requirement key, e.g. REQ-12. Used to tag the tests that come out of it.'),
-  issue: z.number().nullable(),
+  key: z.string().regex(KEY).describe('Requirement key, e.g. REQ-12 or SHOP-123. Used to tag the tests that come out of it.'),
+  source: z.enum(['github', 'jira', 'local']),
+  /** The issue number on GitHub, the ticket key on Jira. */
+  ref: z.string(),
+  url: z.string().nullable(),
   title: z.string(),
   body: z.string(),
+  mode: Mode,
 });
 export type Request = z.infer<typeof Request>;
 
@@ -73,6 +86,15 @@ export type TestCase = z.infer<typeof TestCase>;
 export const Plan = z.object({
   existingCoverage: z.array(z.object({ file: z.string(), test: z.string(), covers: z.string() })),
   siteNotes: z.string().describe('What you saw in the browser that the engineer will need: controls, labels, behaviour'),
+  contract: z
+    .array(
+      z.object({
+        element: z.string().describe('What the user sees or uses, e.g. "the sort dropdown"'),
+        locator: z.string().describe('How the tests will find it, e.g. getByRole(\'combobox\', { name: \'Sort\' }) or data-test="sort"'),
+        exists: z.boolean().describe('True if it is already on the page today'),
+      }),
+    )
+    .describe('Test-first only: what the developers have to build for the tests to find. Empty when the feature exists.'),
   cases: z.array(TestCase).min(1),
 });
 export type Plan = z.infer<typeof Plan>;

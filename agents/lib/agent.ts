@@ -99,7 +99,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
 
   const options: Options = {
     cwd: ROOT,
-    model: process.env.QA_AGENT_MODEL || 'sonnet',
+    // A model per role from qa.config.json, else the repository-wide choice, else sonnet.
+    model: config.models?.[spec.role] || process.env.QA_AGENT_MODEL || 'sonnet',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
     tools,
     allowedTools: allowed,

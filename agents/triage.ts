@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { runAgent } from './lib/agent.ts';
+import { fingerprint, LANDED } from './lib/fingerprint.ts';
 import { config, ROOT } from './lib/paths.ts';
 import { bugMd, triageMd } from './lib/render.ts';
 import { Triage } from './lib/schemas.ts';
@@ -17,6 +17,7 @@ type JsonSpec = { title: string; file: string; line: number; tests: { status: st
 type JsonSuite = { title: string; specs?: JsonSpec[]; suites?: JsonSuite[] };
 
 type Failure = { test: string; file: string; flaky: boolean; error: string; evidence: string[] };
+
 
 const stripAnsi = (text: string): string => text.replace(/\u001b\[[0-9;]*m/g, '');
 
@@ -48,9 +49,28 @@ if (!fs.existsSync(resultsFile)) {
   process.exit(1);
 }
 
-const failed = (JSON.parse(fs.readFileSync(resultsFile, 'utf8')).suites as JsonSuite[]).flatMap((suite) => failures(suite));
+const all = (JSON.parse(fs.readFileSync(resultsFile, 'utf8')).suites as JsonSuite[]).flatMap((suite) => failures(suite));
+const landed = all.filter((f) => LANDED.test(f.error));
+const failed = all.filter((f) => !LANDED.test(f.error));
+
+const landedMd = landed.length
+  ? `## Expected failures that now pass
+
+These tests were marked with \`test.fail()\`, for a known bug or for a feature that was not built yet, and now pass. The bug is fixed or the feature has landed: remove the marker so the test guards it from here on.
+
+${landed.map((f) => `- ${f.test} (\`${f.file}\`)`).join('\n')}
+`
+  : '';
+
 if (failed.length === 0) {
-  console.log('Nothing failed. Nothing to triage.');
+  if (landedMd) {
+    save('triage.md', landedMd);
+    jobSummary(landedMd);
+    console.log(landedMd);
+  } else {
+    console.log('Nothing failed. Nothing to triage.');
+  }
+  setOutput('bugs', 0);
   process.exit(0);
 }
 
@@ -70,14 +90,15 @@ The paths under "evidence" are files you can read. Start there.`,
   maxTurns: 50,
 });
 
-// A stable id per bug, built from the tests it breaks. The workflow uses it to avoid filing the same bug twice.
+// One fingerprint per test the bug breaks. The workflow matches a bug to an open issue that shares any of them,
+// so a bug that starts breaking one more test is still recognised as the same bug.
 const bugs = output.bugs.map((bug) => ({
   ...bug,
-  fingerprint: createHash('sha1').update([...bug.tests].sort().join('|')).digest('hex').slice(0, 12),
+  fingerprints: bug.tests.length ? [...new Set(bug.tests)].map(fingerprint) : [fingerprint(bug.title)],
   body: bugMd(bug),
 }));
 
-const markdown = triageMd(output);
+const markdown = `${triageMd(output)}${landedMd ? `\n${landedMd}` : ''}`;
 save('triage.json', { ...output, bugs });
 save('triage.md', markdown);
 jobSummary(markdown);

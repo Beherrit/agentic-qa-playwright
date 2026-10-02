@@ -1,5 +1,6 @@
 import type { GateReport } from '../gates.ts';
 import type { Generation, Request, Requirements, Review, Strategy, Triage } from './schemas.ts';
+import { config, LABELS } from './paths.ts';
 import type { RunRecord } from './store.ts';
 
 /** Turns each stage's structured output into the markdown people read on the issue, the job summary and the PR. */
@@ -7,6 +8,16 @@ import type { RunRecord } from './store.ts';
 const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\s*\n\s*/g, ' ');
 const list = (items: string[]): string => (items.length ? items.map((item) => `- ${item}`).join('\n') : '- None');
 const mark = (ok: boolean): string => (ok ? 'yes' : '**no**');
+
+/** How to point at the ticket in prose: #12 on GitHub, a link on Jira. */
+export function ticketRef(request: Request): string {
+  if (request.source === 'github') return `#${request.ref}`;
+  if (request.url) return `[${request.key}](${request.url})`;
+  return request.source === 'local' ? 'this run' : request.key;
+}
+
+const TEST_FIRST_NOTE =
+  'Written test-first: the feature is not built yet, so these tests are marked as expected failures. On the day it lands, Playwright reports them as "expected to fail, but passed". That is the signal to remove the markers.';
 
 export function requirementsMd(request: Request, req: Requirements): string {
   const blocking = req.openQuestions.filter((q) => q.blocking);
@@ -32,12 +43,12 @@ ${list(req.assumptions)}
 ${list(req.outOfScope)}
 ${
   blocking.length
-    ? `\n### Questions that block testing\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\nThe pipeline has stopped here. Answer these in the issue, then add the \`qa-pipeline\` label again.\n`
+    ? `\n### Questions that block testing\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\nThe pipeline has stopped here. Answer these on the ticket, then add the \`${LABELS.analyze}\` label again.\n`
     : ''
 }${other.length ? `\n### Open questions (not blocking)\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''}`;
 }
 
-export function strategyMd(request: Request, strategy: Strategy): string {
+export function strategyMd(request: Request, strategy: Strategy, compact = false): string {
   const { health } = strategy;
   const added = new Set(strategy.added);
   const byLayer = (layer: string): number => strategy.cases.filter((c) => c.layer === layer).length;
@@ -64,7 +75,7 @@ ${strategy.cases
   )
   .join('\n')}
 ${added.size ? '\n\\* added after the independent critic found a gap.\n' : ''}
-<details><summary>Steps and expected results</summary>
+${contractMd(strategy)}${compact ? '' : `<details><summary>Steps and expected results</summary>
 
 ${strategy.cases
   .map(
@@ -75,7 +86,7 @@ ${strategy.cases
 
 </details>
 
-${handOver(strategy)}### Independent critic's checklist
+`}${handOver(strategy)}### Independent critic's checklist
 
 | | Must cover | Weight | Covered by |
 |---|---|---|---|
@@ -90,12 +101,31 @@ ${strategy.checklist
 ### Already covered by the suite
 
 ${list(strategy.existingCoverage.map((e) => `\`${e.file}\` "${e.test}": ${e.covers}`))}
-
+${
+  compact
+    ? ''
+    : `
 <details><summary>What the architect saw in the app</summary>
 
 ${strategy.siteNotes}
 
 </details>
+`
+}`;
+}
+
+/** Test-first: what the developers build so the tests can find it. */
+function contractMd(strategy: Strategy): string {
+  const contract = strategy.contract ?? [];
+  if (contract.length === 0) return '';
+  return `### For the developers: what the tests will look for
+
+The tests are written before the feature. Build these so they can find it, or tell QA what to change.
+
+| Element | Locator | On the page today |
+|---|---|---|
+${contract.map((c) => `| ${cell(c.element)} | \`${cell(c.locator)}\` | ${c.exists ? 'yes' : 'no, to build'} |`).join('\n')}
+
 `;
 }
 
@@ -120,7 +150,7 @@ export function gatesMd(report: GateReport): string {
 
 | Gate | Passed | |
 |---|---|---|
-${report.results.map((g) => `| ${g.name} | ${mark(g.passed)} | ${cell(g.summary)} |`).join('\n')}
+${report.results.map((g) => `| ${g.name}${g.advisory ? ' (advisory)' : ''} | ${mark(g.passed)} | ${cell(g.summary)} |`).join('\n')}
 ${report.results
   .filter((g) => !g.passed && g.output)
   .map((g) => `\n<details><summary>${g.name} output</summary>\n\n\`\`\`\n${g.output}\n\`\`\`\n\n</details>`)
@@ -178,8 +208,9 @@ export function pullRequestMd(input: {
       .map((a) => `${a.caseId} \`${a.file}\``)
       .join('<br>') || 'not automated';
 
-  return `${request.issue ? `Closes #${request.issue}\n\n` : ''}Tests for **${req.title}**, written by the QA pipeline from the requirement in ${request.issue ? `#${request.issue}` : 'this run'}.
-
+  const origin = request.source === 'github' ? `Closes #${request.ref}\n\n` : '';
+  return `${origin}Tests for **${req.title}**, written by the QA pipeline from the requirement in ${ticketRef(request)}.
+${request.mode === 'test-first' ? `\n${TEST_FIRST_NOTE}\n` : ''}
 ${
   approved
     ? 'The automated review approved this change. It still needs a person to read it and merge it.'
@@ -265,4 +296,75 @@ ${bug.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')}
 **Failing tests**
 ${list(bug.tests)}
 `;
+}
+
+/** The report the analysis workflow posts on the ticket, whatever state the analysis ended in. */
+export function analysisMd(input: {
+  request: Request;
+  requirements: Requirements | null;
+  strategy: Strategy | null;
+  runUrl: string | null;
+  compact?: boolean;
+}): string {
+  const { request, requirements: req, strategy, runUrl, compact = false } = input;
+  const run = runUrl ? ` [See the run](${runUrl}).` : '';
+  const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
+
+  let status: string;
+  if (!req) status = `**The analysis did not finish.**${run}`;
+  else if (blocked) status = `**Not ready to test yet.** The questions below block testing. Answer them on this ticket, then add the \`${LABELS.analyze}\` label again.`;
+  else if (!strategy) status = `**The requirement was analysed, but the test plan did not finish.**${run}`;
+  else if (strategy.health.score < config.minPlanScore)
+    status = `**The test plan scored ${strategy.health.score}/100, below the pass mark of ${config.minPlanScore}.** No tests will be written from it. The breakdown below says what is missing; sharpen the requirement and add the \`${LABELS.analyze}\` label again.`;
+  else
+    status = `**Ready for tests.** Plan health ${strategy.health.score}/100. Add the \`${LABELS.generate}\` label to have the tests written and a pull request opened.${
+      request.mode === 'test-first' ? ' The feature is marked as not built yet, so the tests will be written first, against the contract below.' : ''
+    }`;
+
+  const body = `## QA analysis: ${request.title} (${request.key})
+
+${status}
+
+${req ? requirementsMd(request, req) : ''}
+${strategy ? strategyMd(request, strategy, compact) : ''}
+${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
+  return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
+}
+
+/** What the test workflow posts on the ticket when it finishes. */
+export function testsReadyMd(input: {
+  request: Request;
+  prUrl: string | null;
+  draft: boolean;
+  gates: GateReport | null;
+  runUrl: string | null;
+  /** Why the run could not start, when it did not get as far as the gates. */
+  problem?: string | null;
+}): string {
+  const { request, prUrl, draft, gates, runUrl, problem } = input;
+  const run = runUrl ? ` [See the run](${runUrl}).` : '';
+  if (prUrl) {
+    return `## Tests ready for review (${request.key})
+
+The tests are in a pull request: ${prUrl}
+
+${draft ? 'The automated review still had open findings after one round of rework, so it is a draft for a person to decide on.' : 'The automated review approved it. A person still reads and merges it.'}
+${request.mode === 'test-first' ? `\n${TEST_FIRST_NOTE}\n` : ''}`;
+  }
+  if (gates && !gates.passed) {
+    return `## No tests this time (${request.key})
+
+The generated tests did not pass the quality gates, so no pull request was opened.${run}
+
+${gatesMd(gates)}`;
+  }
+  if (problem) {
+    return `## No tests this time (${request.key})
+
+${problem}${run}
+`;
+  }
+  return `## The test run did not finish (${request.key})
+
+No pull request was opened.${run}`;
 }

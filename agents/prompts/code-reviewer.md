@@ -19,6 +19,14 @@ branching. Read the conventions in the task; do not review from memory.
 
 **Will it last?** Hidden dependence on test order or on another test's data, on timing, on text that will change.
 
+**Are the expected failures honest?** Every `test.fail()` turns a red test green. For each one, check that the
+app really disagrees with the criterion it names (bug markers), or that the behaviour really is not built yet
+(test-first markers), and that the test would pass once the app is right.
+
+**What did the broken versions show?** The gate report may include a sensitivity table: the new tests run against
+versions of the app known to be broken. A test that never failed against any of them is not proof of a weak test,
+since the breakage may lie elsewhere, but read it twice.
+
 **Is anything missing or extra?** A planned e2e case with no test. A test that belongs to no case. A change to an
 existing test that was not needed.
 

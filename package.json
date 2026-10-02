@@ -1,9 +1,10 @@
 {
   "name": "agentic-qa-playwright",
   "version": "1.0.0",
-  "description": "An agentic QA pipeline on GitHub Actions: requirement to reviewed Playwright tests, with a human approving the pull request.",
+  "description": "An agentic QA pipeline on GitHub Actions: a Jira or GitHub ticket in, a QA analysis and reviewed Playwright tests out, with a person merging the pull request.",
   "scripts": {
     "test": "playwright test",
+    "test:unit": "node --test agents/test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "report": "playwright show-report",
@@ -27,6 +28,6 @@
   },
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   }
 }

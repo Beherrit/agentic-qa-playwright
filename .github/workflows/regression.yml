@@ -43,6 +43,9 @@ jobs:
 
       - run: npx eslint .
 
+      # The pipeline's own rules: gates, plan score, tracker adapters, reports.
+      - run: npm run test:unit
+
       - name: Run the tests
         id: tests
         env:
@@ -146,8 +149,9 @@ jobs:
           name: triage
           path: qa-run
 
-      # Each bug carries a fingerprint built from the tests it breaks. An open issue with
-      # the same fingerprint gets a comment instead of a duplicate.
+      # Each bug carries one fingerprint per test it breaks. An open issue that shares any of
+      # them gets a comment instead of a duplicate, so a bug that starts breaking one more
+      # test is still recognised.
       # gh is called without a shell in between, so a title is only ever an argument.
       - name: File new bugs, update known ones
         env:
@@ -164,19 +168,20 @@ jobs:
           const runUrl = process.env.RUN_URL;
           const { bugs } = JSON.parse(fs.readFileSync('qa-run/triage.json', 'utf8'));
 
+          const known = (fingerprint) =>
+            JSON.parse(gh('issue', 'list', '--state', 'open', '--search', `${fingerprint} in:body`, '--json', 'number'))[0];
+
           for (const bug of bugs) {
-            const open = JSON.parse(
-              gh('issue', 'list', '--state', 'open', '--search', `${bug.fingerprint} in:body`, '--json', 'number'),
-            );
-            if (open.length > 0) {
-              gh('issue', 'comment', String(open[0].number), '--body', `Still failing in run ${runUrl}`);
-              console.log(`Known bug, commented on #${open[0].number}: ${bug.title}`);
+            const match = bug.fingerprints.map(known).find(Boolean);
+            if (match) {
+              gh('issue', 'comment', String(match.number), '--body', `Still failing in run ${runUrl}`);
+              console.log(`Known bug, commented on #${match.number}: ${bug.title}`);
               continue;
             }
-            const file = path.join(process.env.RUNNER_TEMP, `bug-${bug.fingerprint}.md`);
+            const file = path.join(process.env.RUNNER_TEMP, `bug-${bug.fingerprints[0]}.md`);
             fs.writeFileSync(
               file,
-              `${bug.body}\n\nFound by regression run ${runUrl}\n\nFingerprint: ${bug.fingerprint}\n`,
+              `${bug.body}\n\nFound by regression run ${runUrl}\n\nFingerprints: ${bug.fingerprints.join(' ')}\n`,
             );
             const url = gh('issue', 'create', '--title', `[bug] ${bug.title}`, '--label', 'bug', '--body-file', file);
             console.log(`Filed ${url.trim()}: ${bug.title}`);

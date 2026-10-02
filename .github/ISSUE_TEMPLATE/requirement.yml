@@ -1,5 +1,5 @@
 name: QA requirement
-description: Describe something a user should be able to do, so the QA pipeline can write tests for it.
+description: Describe something a user should be able to do, so the QA pipeline can analyse it and write tests for it.
 title: 'Requirement: '
 body:
   - type: markdown
@@ -7,7 +7,9 @@ body:
       value: |
         Write this the way you would explain it to a tester. Plain words are fine.
 
-        When it is ready for the pipeline, add the `qa-pipeline` label. The pipeline replies here with its questions, its test strategy and, at the end, a pull request with the tests.
+        When it is ready, add the `qa-pipeline` label. Within minutes the pipeline replies here with its
+        analysis: acceptance criteria, risks, questions and a scored test plan. If the plan is good, add the
+        `qa-generate` label to have the tests written and a pull request opened.
   - type: textarea
     id: what
     attributes:
@@ -21,8 +23,18 @@ body:
     attributes:
       label: Why does it matter?
       description: What goes wrong for the user or the business if this breaks. It helps decide how deep the tests go.
+  - type: dropdown
+    id: built
+    attributes:
+      label: Is the feature built yet?
+      description: If not, the tests are written first, against an agreed contract, and fail until the feature lands.
+      options:
+        - Yes, test what is there
+        - No, write the tests first
+    validations:
+      required: true
   - type: textarea
     id: known
     attributes:
       label: Anything already known
-      description: Optional. Rules, limits, edge cases.
+      description: Optional. Rules, limits, edge cases. For a feature not built yet, the labels, routes or test ids the developers will use.

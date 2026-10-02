@@ -47,6 +47,22 @@ changes and say nothing about what the user sees.
   order as well.
 - A negative test proves the bad thing did not happen, not only that an error appeared. After a rejected login,
   check the user is still on the login page.
+- Existing spec files only grow. New tests go in their own `describe` block; lines someone else wrote stay as they
+  are.
+
+## Expected failures
+
+`test.fail()` turns a failing test green, so it is used for exactly two reasons, written as the first line of the
+test and always with the reason:
+
+```ts
+test.fail(true, 'bug: AC-3 the total ignores tax');   // the app disagrees with a criterion; report it as a bug
+test.fail(true, 'not built yet: SHOP-12');           // test-first: written before the feature exists
+```
+
+Either way the test asserts the correct behaviour and must fail because of the app (an assertion that does not hold,
+an element that is not there), never because of a mistake in the test. When the bug is fixed or the feature lands,
+Playwright reports "expected to fail, but passed" and the marker comes off.
 
 ## Traceability
 
@@ -61,8 +77,8 @@ test.describe('Product sorting', { tag: '@REQ-12' }, () => {
 });
 ```
 
-`@REQ-<n>` is the requirement (the GitHub issue number). `@AC-<n>` is the acceptance criterion the test checks. A
-test may carry more than one `@AC` tag.
+`@REQ-<n>` is a GitHub issue (issue 12 is `@REQ-12`); a Jira ticket keeps its own key (`@SHOP-123`). `@AC-<n>` is
+the acceptance criterion the test checks. A test may carry more than one `@AC` tag.
 
 ## Before a change is done
 

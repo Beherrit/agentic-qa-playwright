@@ -18,9 +18,30 @@ type Config = {
   minPlanScore: number;
   /** How many times in a row new tests must pass before they count as stable. */
   stabilityRuns: number;
+  /**
+   * Known-broken versions of the app. New tests are run against each one: a test that passes against all of
+   * them may not be checking anything. Each target is a set of environment variables for the test run.
+   */
+  sensitivity?: { required: boolean; targets: { name: string; env: Record<string, string> }[] };
+  /** A model per agent role, e.g. { "plan-critic": "haiku" }. Falls back to QA_AGENT_MODEL, then sonnet. */
+  models?: Record<string, string>;
+  /** Jira only: custom fields to read along with the description, by display name, e.g. acceptance criteria. */
+  jira?: { fields?: Record<string, string> };
 };
 
 /** Everything specific to the project under test lives in qa.config.json. The agents themselves are generic. */
 export const config: Config = JSON.parse(fs.readFileSync(path.join(ROOT, 'qa.config.json'), 'utf8'));
 
 export const projectDoc = (file: string): string => fs.readFileSync(path.join(ROOT, file), 'utf8');
+
+/**
+ * The labels that drive the pipeline. The same names work on GitHub issues and Jira tickets.
+ * The workflows test for `analyze` and `generate` by name, so change them there too.
+ */
+export const LABELS = {
+  analyze: 'qa-pipeline',
+  generate: 'qa-generate',
+  testFirst: 'qa-test-first',
+  needsInfo: 'qa-needs-info',
+  analyzed: 'qa-analyzed',
+} as const;

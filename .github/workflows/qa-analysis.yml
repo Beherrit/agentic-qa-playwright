@@ -1,0 +1,332 @@
+name: QA analysis
+
+# A requirement in, a QA analysis out, posted back on the ticket within minutes: user story, acceptance
+# criteria, risk, open questions and a scored test plan. No test code is written here; that is
+# qa-tests.yml, started by a second label once a person has read this.
+#
+# Three ways in:
+# - a GitHub issue gets the `qa-pipeline` label
+# - a Jira ticket gets the `qa-pipeline` label, and a Jira Automation rule sends a repository_dispatch
+#   event `qa-analyze` with {"source": "jira", "ref": "<KEY>"} (the README has the rule)
+# - a manual run, naming the source and the ticket
+#
+# Only people with triage rights can label a GitHub issue, and only holders of a token with write
+# access can send repository_dispatch, so a stranger's text never reaches an agent on its own.
+
+on:
+  issues:
+    types: [labeled]
+  repository_dispatch:
+    types: [qa-analyze]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Where the requirement lives
+        type: choice
+        options: [github, jira]
+        default: github
+      ref:
+        description: Issue number (GitHub) or ticket key (Jira)
+        required: true
+        type: string
+
+# One run per ticket: labelling it again replaces the run in progress. Other labels on a GitHub
+# issue also start this workflow (and are then skipped); they get a group of their own.
+concurrency:
+  group: >-
+    ${{ (github.event_name != 'issues' || github.event.label.name == 'qa-pipeline')
+    && format('qa-analysis-{0}', github.event.issue.number || github.event.client_payload.ref || inputs.ref)
+    || format('qa-ignored-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+permissions: {}
+
+# Values from issues and payloads reach scripts as environment variables, never by ${{ }} inside a
+# script, and the intake stage checks the reference before using it.
+env:
+  SOURCE: ${{ github.event_name == 'issues' && 'github' || github.event.client_payload.source || inputs.source }}
+  REF: ${{ github.event.issue.number || github.event.client_payload.ref || inputs.ref }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+# Credentials, kept apart:
+# - The tracker credentials (Jira, and the GitHub token for issues) live on the `TRACKER` environment
+#   and are only given to the two jobs that read or write the ticket. No agent runs in those jobs.
+# - The Claude credentials live on the `POC` environment and are only given to the agent steps.
+#   Those jobs check out with persist-credentials: false and never get a tracker token.
+
+jobs:
+  intake:
+    name: 0 Read the ticket
+    if: github.event_name != 'issues' || github.event.label.name == 'qa-pipeline'
+    runs-on: ubuntu-latest
+    environment: TRACKER
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      artifact: ${{ steps.intake.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - name: Read the requirement
+        id: intake
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: npm run pipeline -- intake --source "$SOURCE" --ref "$REF"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  requirements:
+    name: 1 Requirements
+    needs: intake
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.stage.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check that Claude credentials are configured
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error title=No Claude credentials::Add the secret CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY to the POC environment under Settings > Environments."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Analyse the requirement
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- requirements
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # 2a and 2b run side by side and do not see each other's work. Each uploads only the file it
+  # produced, so neither can overwrite the shared qa-run artifact under the other.
+  plan:
+    name: '2a Strategy: architect'
+    needs: requirements
+    if: needs.requirements.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the test plan
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- plan
+
+      # Both parallel jobs append to qa-run/ledger.json. Each sends its copy under its own name and
+      # the reconcile job puts them back together.
+      - name: Keep this job's cost ledger
+        run: cp qa-run/ledger.json qa-run/ledger-plan.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-plan
+          path: |
+            qa-run/plan.json
+            qa-run/ledger-plan.json
+          if-no-files-found: error
+          overwrite: true
+
+  critic:
+    name: '2b Strategy: critic'
+    needs: requirements
+    if: needs.requirements.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Write the checklist
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- critic
+
+      - name: Keep this job's cost ledger
+        run: cp qa-run/ledger.json qa-run/ledger-critic.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qa-critic
+          path: |
+            qa-run/checklist.json
+            qa-run/ledger-critic.json
+          if-no-files-found: error
+          overwrite: true
+
+  reconcile:
+    name: '2c Strategy: reconcile'
+    needs: [plan, critic]
+    runs-on: ubuntu-latest
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-plan
+          path: qa-run
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-critic
+          path: qa-run
+
+      # ledger.json from the qa-run artifact is what both parallel jobs started with. Whatever each
+      # of them holds beyond that length is what it added.
+      - name: Merge the cost ledgers
+        run: |
+          node <<'EOF'
+          const fs = require('node:fs');
+          const read = (file) => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []);
+          const base = read('qa-run/ledger.json');
+          const merged = [...base];
+          for (const file of ['qa-run/ledger-plan.json', 'qa-run/ledger-critic.json']) {
+            merged.push(...read(file).slice(base.length));
+            fs.rmSync(file, { force: true });
+          }
+          fs.writeFileSync('qa-run/ledger.json', `${JSON.stringify(merged, null, 2)}\n`);
+          EOF
+
+      - name: Reconcile the plan with the checklist
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+        run: npm run pipeline -- reconcile
+
+      # The stage exits 1 when the plan scores too low. The strategy is still worth keeping and
+      # reporting then, because it says why.
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  # Runs however the analysis ended (ready, blocked by questions, low score, or failed) and says so
+  # on the ticket. It also keeps the analysis under a name per ticket for qa-tests.yml to pick up.
+  report:
+    name: 3 Report on the ticket
+    needs: [intake, requirements, plan, critic, reconcile]
+    if: ${{ always() && needs.intake.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: TRACKER
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Post the analysis
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: npm run pipeline -- notify analysis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.intake.outputs.artifact }}
+          path: qa-run/
+          overwrite: true
