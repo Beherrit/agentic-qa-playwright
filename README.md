@@ -6,6 +6,8 @@ I built this to show what I think QA looks like when agents take the repetitive 
 
 The demo target is [Swag Labs](https://www.saucedemo.com), a public practice shop. The baseline suite has 19 tests over login, cart and checkout.
 
+To see it without running anything, follow the [demo guide](docs/DEMO.md): ten minutes through real tickets, pull requests and runs in this repository.
+
 ## How it works
 
 ```mermaid
