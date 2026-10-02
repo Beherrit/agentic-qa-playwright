@@ -120,7 +120,9 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
   // Which tool each call belongs to, so a failed result can be traced back to it.
   const calls = new Map<string, string>();
   const browser = { calls: 0, worked: 0 };
-  // The shell commands the agent asked for, so a stage can tell whether it ran what it was told to run.
+  // The shell commands that were allowed to run, so a stage can tell whether the agent ran what it was told to.
+  // A command the allowlist refused is not counted: asking is not running.
+  const asked = new Map<string, string>();
   const commands: string[] = [];
 
   for await (const message of query({ prompt: spec.task, options })) {
@@ -129,7 +131,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
         if (block.type === 'text' && block.text.trim()) console.log(`  ${firstLine(block.text)}`);
         if (block.type === 'tool_use') {
           calls.set(block.id, block.name);
-          if (block.name === 'Bash') commands.push(String((block.input as { command?: unknown })?.command ?? ''));
+          if (block.name === 'Bash') asked.set(block.id, String((block.input as { command?: unknown })?.command ?? ''));
           console.log(`  > ${block.name} ${brief(block.input)}`);
         }
       }
@@ -140,6 +142,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
         const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__');
         if (isBrowser) browser.calls += 1;
         if (isBrowser && !result.failed) browser.worked += 1;
+        const command = asked.get(result.id);
+        if (command !== undefined && !/has been denied/.test(result.text)) commands.push(command);
         if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
       }
       continue;

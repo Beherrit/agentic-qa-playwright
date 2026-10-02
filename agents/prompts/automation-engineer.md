@@ -15,6 +15,10 @@ your job is to implement it well.
      conventions show.
 3. Run what you wrote: `npx playwright test <file> --reporter=line`. Fix failures until it passes. Then run
    `npx tsc --noEmit` and `npx eslint tests pages fixtures` and fix what they report.
+   The shell only accepts those three commands, each as its own call, starting with `npx` and with nothing in
+   front of it or chained after it: no `cd` (you are already in the repository root), no `sed`, no `python`, no
+   pipes. Anything else is refused, and a refused command has not run. Change files with the edit tools, not the
+   shell. Never report on tests you have not seen run.
 4. Close the browser if you opened it.
 
 ## Rules
