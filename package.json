@@ -5,6 +5,7 @@
   "scripts": {
     "test": "playwright test",
     "test:unit": "node --test agents/test/*.test.ts",
+    "check": "npm run -s typecheck && npm run -s lint && npm run -s test:unit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "report": "playwright show-report",

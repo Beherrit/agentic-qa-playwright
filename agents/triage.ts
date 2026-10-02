@@ -3,7 +3,7 @@ import path from 'node:path';
 import { runAgent } from './lib/agent.ts';
 import { canonicalTests, fingerprint, LANDED } from './lib/fingerprint.ts';
 import { config, ROOT } from './lib/paths.ts';
-import { bugMd, triageMd } from './lib/render.ts';
+import { bugMd, landedMd, triageMd } from './lib/render.ts';
 import { Triage } from './lib/schemas.ts';
 import { jobSummary, prompt, save, setOutput } from './lib/store.ts';
 
@@ -53,20 +53,13 @@ const all = (JSON.parse(fs.readFileSync(resultsFile, 'utf8')).suites as JsonSuit
 const landed = all.filter((f) => LANDED.test(f.error));
 const failed = all.filter((f) => !LANDED.test(f.error));
 
-const landedMd = landed.length
-  ? `## Expected failures that now pass
-
-These tests were marked with \`test.fail()\`, for a known bug or for a feature that was not built yet, and now pass. The bug is fixed or the feature has landed: remove the marker so the test guards it from here on.
-
-${landed.map((f) => `- ${f.test} (\`${f.file}\`)`).join('\n')}
-`
-  : '';
+const landedAlone = landedMd(landed);
 
 if (failed.length === 0) {
-  if (landedMd) {
-    save('triage.md', landedMd);
-    jobSummary(landedMd);
-    console.log(landedMd);
+  if (landedAlone) {
+    save('triage.md', landedAlone);
+    jobSummary(landedAlone);
+    console.log(landedAlone);
   } else {
     console.log('Nothing failed. Nothing to triage.');
   }
@@ -101,7 +94,7 @@ const bugs = output.bugs.map((bug) => ({
   body: bugMd(bug),
 }));
 
-const markdown = `${triageMd(output)}${landedMd ? `\n${landedMd}` : ''}`;
+const markdown = `${triageMd(output)}${landed.length ? `\n${landedMd(landed, 3)}` : ''}`;
 // `reported` is what Playwright said about each failure. The healer works from it.
 save('triage.json', { ...output, bugs, reported: failed });
 save('triage.md', markdown);

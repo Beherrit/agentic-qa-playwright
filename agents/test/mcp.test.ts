@@ -63,7 +63,7 @@ describe('MCP answers', () => {
     assert.equal(entries.length, 3);
     const md = historyMd(entries, 2);
     assert.match(md, /- Runs: 3 \(3 analysis, 0 tests\)/);
-    assert.match(md, /The table shows the newest 2 of 3 runs\./);
+    assert.match(md, /The newest 2 of 3 runs, newest first\./);
     assert.ok(md.includes('REQ-3') && md.includes('REQ-2') && !md.includes('REQ-1 '));
   });
 });

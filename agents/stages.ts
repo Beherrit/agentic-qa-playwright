@@ -517,10 +517,15 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
 
   // Say on the ticket when the requirements were taken from it as filed, so nobody looks for an analyst run.
   const fromWriter = requirementsFromTicket(req.title, req.body) !== null;
-  const markdown = analysisMd({ request: req, requirements: requirementsDoc, strategy, technical: technicalReview(), runUrl, compact: req.source === 'jira' }).replace(
-    '\n## Requirements:',
-    `${fromWriter ? '\n_Requirements taken from the ticket as the ticket writer filed them. No analyst run._\n' : ''}\n## Requirements:`,
-  );
+  const markdown = analysisMd({
+    request: req,
+    requirements: requirementsDoc,
+    strategy,
+    technical: technicalReview(),
+    runUrl,
+    compact: req.source === 'jira',
+    fromWriter,
+  });
   save('analysis.md', markdown);
   jobSummary(markdown);
   if (!options.post) return;

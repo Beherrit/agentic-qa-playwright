@@ -1,7 +1,7 @@
 import { runHealGates, savePatch } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
 import { config, projectDoc } from './lib/paths.ts';
-import { gatesMd } from './lib/render.ts';
+import { gatesMd, table } from './lib/render.ts';
 import { Healing, type Triage } from './lib/schemas.ts';
 import { exists, jobSummary, load, prompt, save, setOutput } from './lib/store.ts';
 
@@ -30,17 +30,25 @@ export function defects(triage: TriageFile): (Triage['failures'][number] & { err
 export const specFiles = (failures: { file: string }[]): string[] => [...new Set(failures.map((f) => f.file.replace(/:\d+$/, '')))];
 
 export function healMd(healing: Healing, gates: ReturnType<typeof runHealGates>, runUrl: string | null): string {
-  return `Regression failed, and triage found that these failures were the tests' fault rather than the app's. This pull request repairs them.${runUrl ? ` [The failing run](${runUrl}).` : ''}
+  const tried = healing.fixes.length + healing.notFixed.length;
+  return `## Self-healing: ${healing.fixes.length} of ${tried} test defect(s) repaired
+
+**Verdict: ${gates.passed ? 'repair ready, the gates passed' : 'repair rejected by the gates'}.** A person still reads the diff before merging.
+
+Regression failed, and triage found that these failures were the tests' fault rather than the app's.${runUrl ? ` [The failing run](${runUrl}).` : ''}
 
 ${healing.summary}
 
-| Test | What had changed in the app | What changed in the test |
-|---|---|---|
-${healing.fixes.map((fix) => `| ${fix.test}<br>\`${fix.file}\` | ${fix.cause} | ${fix.change} |`).join('\n')}
-${healing.notFixed.length ? `\n### Left alone\n\n${healing.notFixed.map((n) => `- ${n.test}: ${n.reason}`).join('\n')}\n` : ''}
-A repair may change how a test finds things, or a value that is now out of date. It may not change what the test checks. The gates below hold it to that, and a person still reads the diff before merging.
+### What changed
 
-${gatesMd(gates).replace(/^## /, '### ')}`;
+${table(
+  ['Test', 'What had changed in the app', 'What changed in the test'],
+  healing.fixes.map((fix) => [`${fix.test}<br>\`${fix.file}\``, fix.cause, fix.change]),
+)}
+${healing.notFixed.length ? `\n### Left alone\n\n${healing.notFixed.map((n) => `- ${n.test}: ${n.reason}`).join('\n')}\n` : ''}
+A repair may change how a test finds things, or a value that is now out of date. It may not change what the test checks. The gates below hold it to that.
+
+${gatesMd(gates, 3)}`;
 }
 
 async function main(): Promise<void> {
@@ -82,9 +90,11 @@ ${projectDoc(config.conventions)}
     const markdown = healMd(output, gates, process.env.RUN_URL || null);
     savePatch('heal.patch');
     save('heal.md', markdown);
-    jobSummary(`## Self-healing: ${healed ? 'repair ready' : 'repair rejected by the gates'}\n\n${markdown}`);
+    jobSummary(markdown);
   } else {
-    jobSummary(`## Self-healing: nothing repaired\n\n${output.summary}\n\n${output.notFixed.map((n) => `- ${n.test}: ${n.reason}`).join('\n')}`);
+    jobSummary(
+      `## Self-healing: nothing repaired\n\n**Verdict: no repair.** The healer changed no file.\n\n${output.summary}\n\n${output.notFixed.map((n) => `- ${n.test}: ${n.reason}`).join('\n')}`,
+    );
   }
   save('heal.json', { ...output, gates });
   setOutput('healed', healed);

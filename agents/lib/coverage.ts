@@ -82,7 +82,7 @@ export function coverageMd(map: CoverageMap): string {
     : '| Requirement | Criteria with a test | Tests |\n|---|---|---|';
 
   const rows = map.requirements.map((r) => `| ${r.key} | ${r.criteria.map((c) => c.id).join(', ') || 'none tagged'} | ${r.tests} |${results(r)}`);
-  if (map.untagged.tests) rows.push(`| (no requirement) | | ${map.untagged.tests} |${results(map.untagged)}`);
+  if (map.untagged.tests) rows.push(`| (no ticket) | | ${map.untagged.tests} |${results(map.untagged)}`);
 
   const expected = map.requirements.reduce((sum, r) => sum + r.expectedFailures, 0) + map.untagged.expectedFailures;
   const detail = map.requirements
@@ -94,9 +94,27 @@ export function coverageMd(map: CoverageMap): string {
     )
     .join('\n\n');
 
+  const tagged = map.requirements.reduce((sum, r) => sum + r.tests, 0);
+  const all: Tally = [...map.requirements, map.untagged].reduce(
+    (t, r) => ({
+      tests: t.tests + r.tests,
+      passing: t.passing + r.passing,
+      expectedFailures: t.expectedFailures + r.expectedFailures,
+      failing: t.failing + r.failing,
+      flaky: t.flaky + r.flaky,
+    }),
+    emptyTally(),
+  );
+  const verdict = map.ran
+    ? `**Last run: ${all.failing ? `${all.failing} failing` : 'nothing failing'}.** ${all.passing} passing, ${all.expectedFailures} expected failures, ${all.flaky} flaky, of ${all.tests} tests.`
+    : `**No results yet: these are the tests as listed.** Run the suite to see how they do.`;
   return `## Traceability map
 
-${header}
+${verdict}
+
+${map.requirements.length} ticket(s) with tests: ${tagged} tests claim ${map.requirements.reduce((sum, r) => sum + r.criteria.length, 0)} criteria; ${map.untagged.tests} tests belong to no ticket.
+
+${header.replace('| Requirement |', '| Ticket |')}
 ${rows.join('\n')}
 ${expected ? `\n${expected} expected failure(s): tests marked with \`test.fail()\` for a known bug or a feature not built yet. They are debts, not passes.\n` : ''}
 ${detail}
