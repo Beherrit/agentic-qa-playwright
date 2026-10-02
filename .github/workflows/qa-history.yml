@@ -1,0 +1,114 @@
+name: QA run history
+
+# Keeps a history of the pipeline. Whenever "QA analysis" or "QA tests" finishes, this reads the files the
+# run left in its `qa-run` artifact (the ticket, the plan score, the gate results, the review verdict, what
+# the agents cost) and adds one line to runs.jsonl on a branch of its own, `qa-history`. The same commit
+# rewrites README.md (a table, readable on GitHub) and index.html (one self-contained page with totals,
+# charts and a filter box).
+#
+# Nothing from the artifact is executed. It passed through jobs where generated test code ran, so only
+# agents/history.ts reads it, as JSON, and checks every value before using it. This workflow always runs
+# the code of the default branch, never the code of the run it reports on.
+#
+# To see the page, serve the `qa-history` branch with GitHub Pages once the repository is public (Pages is
+# not available for private repositories on the free plan). Until then, README.md on that branch is the
+# readable view.
+
+on:
+  workflow_run:
+    workflows: ['QA analysis', 'QA tests']
+    types: [completed]
+
+permissions: {}
+
+# One writer at a time, and none is dropped: a run that arrives while another is writing waits its turn.
+concurrency:
+  group: qa-history
+  cancel-in-progress: false
+
+jobs:
+  record:
+    name: Record the run
+    # A trigger that did nothing (another label, say) is not a run.
+    if: github.event.workflow_run.conclusion != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_URL: ${{ github.event.workflow_run.html_url }}
+      WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+      CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+      FINISHED_AT: ${{ github.event.workflow_run.updated_at }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+        with:
+          browser: 'false'
+
+      # The run may have stopped before it uploaded anything, so a missing artifact is not an error.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: qa-run
+          path: qa-run
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Read the run
+        id: record
+        run: |
+          mkdir -p "$RUNNER_TEMP/history"
+          npx tsx agents/history.ts record qa-run "$RUNNER_TEMP/history/entry.json"
+          if [ -f "$RUNNER_TEMP/history/entry.json" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The branch is checked out into its own folder. On the first run it does not exist yet, so an
+      # empty one is started with the same remote.
+      - name: Get the history branch
+        if: steps.record.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://github.com/${GITHUB_REPOSITORY}.git"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          mkdir history
+          cd history
+          git init --quiet
+          git remote add origin "$remote"
+          if git -c http.extraheader="$auth" fetch --quiet --depth 1 origin qa-history; then
+            git checkout --quiet -B qa-history FETCH_HEAD
+          else
+            echo "No qa-history branch yet. Starting it."
+            git checkout --quiet --orphan qa-history
+          fi
+
+      - name: Update the history
+        if: steps.record.outputs.found == 'true'
+        run: |
+          npx tsx agents/history.ts render history "$RUNNER_TEMP/history/entry.json"
+          # Keeps GitHub Pages from running the folder through Jekyll.
+          touch history/.nojekyll
+
+      - name: Push the history branch
+        if: steps.record.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd history
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- runs.jsonl README.md index.html .nojekyll
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit --quiet -m "History: run ${RUN_ID} (${WORKFLOW_NAME})"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" push origin HEAD:refs/heads/qa-history

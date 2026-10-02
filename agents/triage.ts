@@ -74,7 +74,9 @@ if (failed.length === 0) {
   process.exit(0);
 }
 
-const persona = process.env.SAUCE_USER || 'the default persona';
+const persona = process.env.SAUCE_USER
+  ? `${process.env.SAUCE_USER}. The run signed in as that account on purpose, to see how the app treats it. It is a real account of the app: where the app misbehaves for it, that is a product bug, not a problem with the environment or the run, whatever the product brief says about why the account exists`
+  : 'the default persona';
 const { output } = await runAgent({
   role: 'failure-triager',
   instructions: prompt('failure-triager'),
