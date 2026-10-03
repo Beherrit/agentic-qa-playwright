@@ -1,33 +1,34 @@
 ## QA run history
 
-**25 runs: 8 analysis, 9 tests, 8 regression.** Gates passed in 71% of tests runs; the review approved 22% at first review.
+**26 runs: 8 analysis, 10 tests, 8 regression.** Gates passed in 71% of tests runs; the review approved 20% at first review.
 
-Average plan score 98, estimated cost $0.55 per run, $13.86 in all.
+Average plan score 98, estimated cost $0.59 per run, $15.32 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 25 (8 analysis, 9 tests, 8 regression)
+- Runs: 26 (8 analysis, 10 tests, 8 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
-- Approved at first review: 22%
-- Approved after rework: 11%
-- Not approved: 67%
+- Approved at first review: 20%
+- Approved after rework: 10%
+- Not approved: 70%
 - Average plan score: 98
-- Total cost: $13.86
-- Average cost per run: $0.55
-- Average agent time: 4m 5s
+- Total cost: $15.32
+- Average cost per run: $0.59
+- Average agent time: 4m 21s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-25 runs, newest first.
+26 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-03 06:47 | REQ-22 | Requirement: Product details page | tests (failure) | 98 | - | - | 11m 16s | $1.46 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103610779) |
 | 2026-10-03 06:46 | REQ-31 | Requirement: Checkout overview and order confirmation | analysis | 98 | - | - | 2m 20s | $0.63 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103866063) |
 | 2026-10-03 06:44 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103869824) |
 | 2026-10-03 06:43 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103843369) |
