@@ -92,6 +92,17 @@ export async function analyse(req: Request, doubts: Skepticism | null = null): P
 
 const doubts = (): Skepticism | null => (exists('skeptic.json') ? load<Skepticism>('skeptic.json') : null);
 
+/**
+ * With the skeptic's list on the ticket, the analyst's open questions are blocking or nothing: a non-blocking one
+ * is a copy of a skeptic question, or belongs in the assumptions. Returns the requirements without them and how
+ * many were dropped.
+ */
+export function foldQuestions(req: Requirements, asked: Skepticism | null): { requirements: Requirements; dropped: number } {
+  if (!asked?.questions.length) return { requirements: req, dropped: 0 };
+  const kept = req.openQuestions.filter((q) => q.blocking);
+  return { requirements: { ...req, openQuestions: kept }, dropped: req.openQuestions.length - kept.length };
+}
+
 export async function requirements(): Promise<boolean> {
   const req = request();
   // The skeptic runs on every ticket, the ticket writer's included: the writer settles what it can, the skeptic
@@ -110,7 +121,8 @@ export async function requirements(): Promise<boolean> {
     console.log('Ticket written by the ticket writer: requirements taken from it, analyst skipped.');
     return ready;
   }
-  const output = await analyse(req, asked);
+  const { requirements: output, dropped } = foldQuestions(await analyse(req, asked), asked);
+  if (dropped) console.log(`${dropped} non-blocking open question(s) dropped: the skeptic's list is where they live.`);
   const ready = !output.openQuestions.some((question) => question.blocking);
   const markdown = requirementsMd(req, output, null, 2, asked);
   save('requirements.json', output);

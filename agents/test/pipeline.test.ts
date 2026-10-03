@@ -4,7 +4,7 @@ import { fingerprint, LANDED } from '../lib/fingerprint.ts';
 import { analysisMd, testsReadyMd } from '../lib/render.ts';
 import type { Request, Requirements, Review, Strategy } from '../lib/schemas.ts';
 import { planHealth } from '../lib/score.ts';
-import { enforceVerdict } from '../stages.ts';
+import { enforceVerdict, foldQuestions } from '../stages.ts';
 
 const criterion = (id: string, kind: 'happy' | 'negative' | 'edge') => ({ id, kind, given: 'g', when: 'w', then: 't' });
 
@@ -148,6 +148,22 @@ describe('ticket reports', () => {
     const md = analysisMd({ request, requirements: blocked, strategy: null, runUrl: null });
     assert.match(md, /Not ready to test yet/);
     assert.match(md, /Which currency\?/);
+  });
+
+  it('drops the analyst\'s non-blocking questions once the skeptic has asked, and keeps the blocking ones', () => {
+    const asked = { questions: [{ lens: 'guess' as const, question: 'Before tax or after?', assumed: 'Before tax.', answer: null }] };
+    const withBoth = {
+      ...requirements,
+      openQuestions: [
+        { question: 'Before tax or after?', blocking: false, why: 'copied from the skeptic' },
+        { question: 'Which currency?', blocking: true, why: 'w' },
+      ],
+    };
+    const folded = foldQuestions(withBoth, asked);
+    assert.equal(folded.dropped, 1);
+    assert.deepEqual(folded.requirements.openQuestions.map((q) => q.question), ['Which currency?']);
+    assert.equal(foldQuestions(withBoth, null).dropped, 0, 'without a skeptic the analyst keeps its questions');
+    assert.equal(foldQuestions(withBoth, { questions: [] }).dropped, 0);
   });
 
   it('lists the questions a developer would have to guess, numbered after the blocking ones, with the guess or the answer', () => {
