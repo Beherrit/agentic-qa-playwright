@@ -53,7 +53,9 @@
     "analysisWhenWriterFiles": true,
     "testsWhenPlanIsReady": true
   },
-  "models": {},
+  "models": {
+    "*": "haiku"
+  },
   "jira": {
     "fields": {}
   },

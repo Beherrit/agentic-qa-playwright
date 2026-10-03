@@ -175,6 +175,8 @@ ticket, run an analysis, see the coverage map, the run history or what is in fli
 stage is also a command, so another CI system runs it in one job.
 
 **What does a run cost?** The pull request and the run history record turns, time and estimated cost per agent.
+This demo runs every role on haiku (`models` in `qa.config.json`), which is why a run is cheap and why the plan is
+sometimes sent back for a second pass. A project puts the roles that write code on sonnet.
 
 ## Running one live
 

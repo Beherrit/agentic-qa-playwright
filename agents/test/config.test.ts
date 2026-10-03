@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { budgetLeft, providerEnv, providerName } from '../lib/agent.ts';
+import { budgetLeft, modelFor, providerEnv, providerName } from '../lib/agent.ts';
 import { ConfigSchema, findProjectRoot, loadConfig } from '../lib/paths.ts';
 import { suiteEnv } from '../lib/suite.ts';
 
@@ -97,6 +97,14 @@ describe('model providers and the budget', () => {
     assert.equal(providerName({ CLAUDE_CODE_USE_VERTEX: 'true' }), 'Google Vertex AI');
     assert.equal(providerName({ ANTHROPIC_API_KEY: 'k' }), 'Anthropic API key');
     assert.equal(providerName({ CLAUDE_CODE_OAUTH_TOKEN: 't' }), 'Claude subscription token');
+  });
+
+  it('picks the model per role, then the wildcard, then the repository variable, then sonnet', () => {
+    assert.equal(modelFor('plan-critic', {}, {}), 'sonnet');
+    assert.equal(modelFor('plan-critic', {}, { QA_AGENT_MODEL: 'opus' }), 'opus');
+    assert.equal(modelFor('plan-critic', { '*': 'haiku' }, { QA_AGENT_MODEL: 'opus' }), 'haiku');
+    assert.equal(modelFor('automation-engineer', { '*': 'haiku', 'automation-engineer': 'sonnet' }, {}), 'sonnet');
+    assert.equal(modelFor('plan-critic', { 'automation-engineer': 'sonnet' }, {}), 'sonnet');
     assert.equal(providerName({}), 'the signed-in Claude Code CLI');
   });
 
