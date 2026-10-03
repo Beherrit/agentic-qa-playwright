@@ -11,6 +11,7 @@ import {
   Reconciled,
   Requirements,
   Review,
+  Skepticism,
   TechnicalReview,
   type Request,
   type Strategy,
@@ -54,12 +55,34 @@ const BUILT_PLAN = `The feature is built. Leave the contract empty.`;
 
 // ── 1. Requirements ──────────────────────────────────────────────────────────
 
+/**
+ * Asks the skeptic: what the story leaves to a developer's guess, with the guess written down. Runs on the story
+ * alone, before the analyst, so the questions are not shaped by the criteria. Exported for the evaluation harness.
+ */
+export async function doubt(req: Request): Promise<Skepticism> {
+  const { output } = await runAgent({
+    role: 'skeptic',
+    instructions: prompt('skeptic'),
+    task: `List every question a developer would have to guess the answer to for this story for ${config.app.name}.\n\n${requirementText(req)}\n\n${brief()}`,
+    schema: Skepticism,
+    access: 'read',
+    maxTurns: 8,
+  });
+  return output;
+}
+
+/** The skeptic's questions as the analyst and the architect see them. */
+const doubtsText = (doubts: Skepticism): string =>
+  `<questions-a-developer-would-guess>\n${doubts.questions
+    .map((d, i) => `${i + 1}. ${d.question}\n   ${d.answer ? `Answered by the team: ${d.answer}` : `Assumed if nobody answers: ${d.assumed}`}`)
+    .join('\n')}\n</questions-a-developer-would-guess>`;
+
 /** Asks the requirements analyst. Exported so the evaluation harness can call it with a case of its own. */
-export async function analyse(req: Request): Promise<Requirements> {
+export async function analyse(req: Request, doubts: Skepticism | null = null): Promise<Requirements> {
   const { output } = await runAgent({
     role: 'requirements-analyst',
     instructions: prompt('requirements-analyst'),
-    task: `Analyse this requirement for ${config.app.name}.\n\n${requirementText(req)}\n\n${brief()}`,
+    task: `Analyse this requirement for ${config.app.name}.\n\n${requirementText(req)}\n\n${doubts ? `${doubtsText(doubts)}\n\n` : ''}${brief()}`,
     schema: Requirements,
     access: 'read',
     maxTurns: 20,
@@ -67,12 +90,18 @@ export async function analyse(req: Request): Promise<Requirements> {
   return output;
 }
 
+const doubts = (): Skepticism | null => (exists('skeptic.json') ? load<Skepticism>('skeptic.json') : null);
+
 export async function requirements(): Promise<boolean> {
   const req = request();
+  // The skeptic runs on every ticket, the ticket writer's included: the writer settles what it can, the skeptic
+  // lists what is left to a guess.
+  const asked = await doubt(req);
+  save('skeptic.json', asked);
   // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
   const filed = requirementsFromTicket(req.title, req.body);
   if (filed) {
-    const markdown = `_Taken from the ticket as the ticket writer filed it. No analyst run._\n\n${requirementsMd(req, filed)}`;
+    const markdown = `_Taken from the ticket as the ticket writer filed it. No analyst run._\n\n${requirementsMd(req, filed, null, 2, asked)}`;
     save('requirements.json', filed);
     save('requirements.md', markdown);
     jobSummary(markdown);
@@ -81,9 +110,9 @@ export async function requirements(): Promise<boolean> {
     console.log('Ticket written by the ticket writer: requirements taken from it, analyst skipped.');
     return ready;
   }
-  const output = await analyse(req);
+  const output = await analyse(req, asked);
   const ready = !output.openQuestions.some((question) => question.blocking);
-  const markdown = requirementsMd(req, output);
+  const markdown = requirementsMd(req, output, null, 2, asked);
   save('requirements.json', output);
   save('requirements.md', markdown);
   jobSummary(markdown);
@@ -572,6 +601,7 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
   const markdown = analysisMd({
     request: req,
     requirements: requirementsDoc,
+    doubts: doubts(),
     strategy,
     technical: technicalReview(),
     runUrl,

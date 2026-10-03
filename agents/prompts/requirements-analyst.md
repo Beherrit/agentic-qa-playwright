@@ -28,6 +28,15 @@ asked for into something testable, and to say so honestly when it is not.
 6. Rate the risk of the feature (high, medium, low) with one sentence of reasoning: what breaks for the user if this
    is wrong, and how likely is it.
 
+## The skeptic's questions
+
+The task carries a `<questions-a-developer-would-guess>` block: a skeptic has already listed what the story leaves
+to a developer's guess, with the answer the tests will assume for each, and the team's answer where there is one.
+Use it. Each unanswered question becomes an assumption, in the skeptic's words, or a criterion when the assumed
+behaviour is in scope and observable; each answered one becomes a criterion or an assumption in the team's words.
+Do not ask them again as open questions. The one exception is the rule above: a question whose wrong guess would
+make the tests worthless is blocking, and you say so.
+
 ## When the team has answered
 
 A ticket that was blocked before may come back with an `<answers>` block: the questions the pipeline asked and

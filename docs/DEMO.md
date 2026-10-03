@@ -141,6 +141,26 @@ person still has to settle.
 Then the same three things on a new project as here: an environment named `POC` with the credential, three labels,
 and a ticket labelled `qa-pipeline`.
 
+## 7. The annoying questions (2 minutes)
+
+[Issue #33, "Apply a discount code at checkout"](https://github.com/Beherrit/agentic-qa-playwright/issues/33).
+The shop has no discount codes, so this is a test-first ticket: the feature does not exist, nobody opened the
+app, and no test was run. Read the analysis comment and point at **Questions a developer would have to guess**:
+
+1. The list. Can two codes stack? Before tax or after? What if it expires between Apply and Finish? What if Apply
+   is pressed twice? A skeptic read the story alone, before the criteria were written, from three angles: what a
+   developer would guess, what a frustrated user would try, and what breaks if it happens twice.
+2. Under each question, the answer the tests are built on if nobody answers. The pipeline did not wait. Every one
+   of those is a guess that would otherwise have been made silently, by a developer, in code, and found by a
+   customer.
+3. The line at the end: answer any of them in a `/qa-answer` comment and the analysis runs again with the guess
+   replaced. On the day the feature lands, the product owner has answered what they could, and the rest is written
+   down.
+
+The three questions the skeptic is asked come from a tester's habit, not from a model: "list every question a
+developer would have to guess the answer to", "what would a frustrated user try", "what breaks if this happens
+twice". Asking them was always the tester's real job.
+
 ## Questions worth being ready for
 
 **How do you know the AI's tests are any good?** Four layers, in order of how much I trust them: the gates, which

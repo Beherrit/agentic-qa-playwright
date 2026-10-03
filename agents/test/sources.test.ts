@@ -166,6 +166,21 @@ describe('answers on the ticket', () => {
     assert.deepEqual(askedQuestions([chat]), []);
   });
 
+  it('reads the skeptic\'s questions after the blocking ones, and not the guesses under them', () => {
+    const both = {
+      ...bot,
+      body: `${bot.body}\n\n#### Questions a developer would have to guess\n\n2 questions the story does not answer.\n\n3. **Can two codes stack?**\n   A developer would have to guess. Assumed: one code per order.\n4. **What if Apply is pressed twice?**\n   It could happen twice. Assumed: nothing new happens.\n\nThe pipeline has not waited.\n\n#### Open questions (not blocking)\n\n- Which currency? w`,
+    };
+    assert.deepEqual(askedQuestions([both]), [
+      'What should be different? The ticket says better.',
+      'Which step? Three are named.',
+      'Can two codes stack?',
+      'What if Apply is pressed twice?',
+    ]);
+    const only = { ...bot, body: '## QA analysis\n\n**Ready for tests.**\n\n#### Questions a developer would have to guess\n\n1. **Before tax or after?**\n   A developer would have to guess. Assumed: before.\n' };
+    assert.deepEqual(askedQuestions([only]), ['Before tax or after?']);
+  });
+
   it('takes answers only from trusted authors and only with the command', () => {
     assert.deepEqual(answersFrom([bot, visitor, owner, chat]), [{ author: 'lawrence', text: '1. Three fields instead of five.\n2. The information step.' }]);
     assert.deepEqual(answersFrom([{ ...owner, body: 'Answering: /qa-answer no' }]), [], 'the command must open the comment');

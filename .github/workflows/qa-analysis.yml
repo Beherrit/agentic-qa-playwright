@@ -6,7 +6,7 @@ name: QA analysis
 #
 # Five ways in:
 # - a GitHub issue gets the `qa-pipeline` label
-# - a member answers the pipeline's questions on a blocked issue, in a comment starting with `/qa-answer`
+# - a member answers the pipeline's questions on an analysed issue, in a comment starting with `/qa-answer`
 # - a pull request from this repository gets the `qa-pipeline` label: the change itself is the requirement
 # - a Jira ticket gets the `qa-pipeline` label, and a Jira Automation rule sends a repository_dispatch
 #   event `qa-analyze` with {"source": "jira", "ref": "<KEY>"} (the README has the rule)
@@ -25,8 +25,9 @@ on:
   pull_request:
     types: [labeled]
   # Every new comment on every issue and pull request starts this and is skipped at once unless all four hold: it
-  # is an issue, the comment starts with /qa-answer, the author belongs to the repository, and the issue is
-  # waiting for answers (qa-needs-info). The intake checks the author again before reading any answer.
+  # is an issue, the comment starts with /qa-answer, the author belongs to the repository, and the issue has been
+  # analysed (qa-needs-info: waiting for answers; qa-analyzed: the skeptic's questions can still be answered). The
+  # intake checks the author again before reading any answer.
   issue_comment:
     types: [created]
   repository_dispatch:
@@ -66,7 +67,7 @@ concurrency:
     || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
     && startsWith(github.event.comment.body, '/qa-answer')
     && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
-    && contains(github.event.issue.labels.*.name, 'qa-needs-info')))
+    && (contains(github.event.issue.labels.*.name, 'qa-needs-info') || contains(github.event.issue.labels.*.name, 'qa-analyzed'))))
     && format('qa-analysis-{0}', github.event.issue.number || github.event.pull_request.number || github.event.client_payload.ref || inputs.ref)
     || format('qa-ignored-{0}', github.run_id) }}
   cancel-in-progress: true
@@ -98,7 +99,7 @@ jobs:
       || (github.event_name == 'issue_comment' && !github.event.issue.pull_request
       && startsWith(github.event.comment.body, '/qa-answer')
       && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
-      && contains(github.event.issue.labels.*.name, 'qa-needs-info')) }}
+      && (contains(github.event.issue.labels.*.name, 'qa-needs-info') || contains(github.event.issue.labels.*.name, 'qa-analyzed'))) }}
     runs-on: ubuntu-latest
     environment: TRACKER
     timeout-minutes: 10

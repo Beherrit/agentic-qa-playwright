@@ -150,6 +150,26 @@ describe('ticket reports', () => {
     assert.match(md, /Which currency\?/);
   });
 
+  it('lists the questions a developer would have to guess, numbered after the blocking ones, with the guess or the answer', () => {
+    const doubts = {
+      questions: [
+        { lens: 'guess' as const, question: 'Before tax or after?', assumed: 'Before tax.', answer: null },
+        { lens: 'twice' as const, question: 'Applied twice?', assumed: 'Nothing new happens.', answer: 'The second press is ignored.' },
+      ],
+    };
+    const md = analysisMd({ request, requirements, doubts, strategy: null, runUrl: null });
+    assert.match(md, /2 questions a developer would have to guess, 1 answered/);
+    assert.match(md, /#### Questions a developer would have to guess\n\n2 questions the story does not answer: 1 answered by the team, 1 resting on an assumption/);
+    assert.match(md, /\n1\. \*\*Before tax or after\?\*\*\n   A developer would have to guess\. Assumed: Before tax\./);
+    assert.match(md, /\n2\. \*\*Applied twice\?\*\*\n   It could happen twice\. Answered by the team: The second press is ignored\./);
+    assert.match(md, /has not waited.*starts with `\/qa-answer`/);
+
+    const blocked = { ...requirements, openQuestions: [{ question: 'Which currency?', blocking: true, why: 'w' }] };
+    const after = analysisMd({ request, requirements: blocked, doubts, strategy: null, runUrl: null });
+    assert.match(after, /\n2\. \*\*Before tax or after\?\*\*/, 'numbering continues after the blocking question');
+    assert.doesNotMatch(analysisMd({ request, requirements, strategy: null, runUrl: null }), /would have to guess/);
+  });
+
   it('points to the next label when the plan is good, and shows the contract in test-first mode', () => {
     const plan = strategy([testCase('TC-1', ['AC-1', 'AC-2']), testCase('TC-2', ['AC-3'])]);
     plan.health = planHealth(requirements, plan);

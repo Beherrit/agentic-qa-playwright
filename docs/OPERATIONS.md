@@ -11,7 +11,7 @@ The same names work on GitHub issues and Jira tickets. On GitHub only people wit
 |---|---|---|
 | `qa-pipeline` | A person, or the ticket writer when `autoRun.analysisWhenWriterFiles` is on and the ticket is ready | Starts the analysis. The analysis removes it when it finishes, so adding it again starts a fresh one |
 | `qa-needs-info` | The pipeline | The analysis stopped on a blocking question, or the ticket writer's draft was not ready. Answer on the ticket in a comment that starts with `/qa-answer` (see below), or add `qa-pipeline` again |
-| `qa-analyzed` | The pipeline | The plan passed the pass mark. The ticket is ready for tests |
+| `qa-analyzed` | The pipeline | The plan passed the pass mark. The ticket is ready for tests. A `/qa-answer` comment still re-runs the analysis, with the skeptic's guesses replaced by the answers |
 | `qa-generate` | A person, or the analysis when `autoRun.testsWhenPlanIsReady` is on | Starts the test half from the latest analysis of the ticket. Removed when the half finishes |
 | `qa-test-first` | A person, or the ticket writer when the feature is not built | Tests are written before the feature, against a contract. The issue form answer "No, write the tests first" does the same |
 
@@ -19,10 +19,14 @@ The pipeline creates `qa-needs-info` and `qa-analyzed` the first time it needs t
 
 ### Answering the pipeline's questions
 
-When the analysis stops on a blocking question, its comment ends with how to answer. A comment on the ticket that
-starts with `/qa-answer` on its own line, numbered like the questions, starts the analysis again by itself. The
-analyst gets the questions as they were asked and the answers with their authors, and is told not to ask again what
-has been answered.
+The analysis asks two kinds of question. The ones that stop it, under "Questions that block testing", and the
+skeptic's, under "Questions a developer would have to guess": everything the story leaves to a guess, each with the
+answer the tests are built on if nobody replies. The pipeline does not wait for the second kind. Either way, a
+comment on the ticket that starts with `/qa-answer` on its own line, numbered like the questions, starts the
+analysis again by itself, on a blocked ticket and on an analysed one alike. The skeptic and the analyst get the
+questions as they were asked and the answers with their authors, and are told not to ask again what has been
+answered. On an analysed ticket with `autoRun.testsWhenPlanIsReady` on, the re-analysis starts the test half again,
+and the pull request for the ticket is updated in place.
 
 Only a member of the project can answer. On GitHub that is an author GitHub reports as owner, member or
 collaborator; the workflow checks it before starting, and the intake checks it again before reading a single
@@ -50,7 +54,7 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `accessibility.required` | false | advisory | Whether the accessibility gate blocks |
 | `autoRun.analysisWhenWriterFiles` | true | off | A ready ticket from the ticket writer starts its own analysis |
 | `autoRun.testsWhenPlanIsReady` | true | off | A plan that passes starts the test half without a person adding `qa-generate` |
-| `models` | `{ "*": "sonnet" }` | `QA_AGENT_MODEL`, then `sonnet` | A model per role; `*` covers every role not named. Keep `sonnet` for the roles that write code (`automation-engineer`, `test-healer`) and the architect; the reading roles (critic, reconciler, triager) can go on `haiku` |
+| `models` | `{ "*": "sonnet" }` | `QA_AGENT_MODEL`, then `sonnet` | A model per role; `*` covers every role not named. Keep `sonnet` for the roles that write code (`automation-engineer`, `test-healer`) and the architect; the reading roles (skeptic, critic, reconciler, triager) can go on `haiku` |
 | `jira.fields` | `{}` | description only | Jira custom fields to read with the description, by display name |
 | `jira.project` | unset | | The Jira project for new tickets and open-ticket lists |
 | `app.previewUrl` | unset | tests run against `baseUrl` | Where a pull request's build answers, with `{number}` and `{branch}` filled in |

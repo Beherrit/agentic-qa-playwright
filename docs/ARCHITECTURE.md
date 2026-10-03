@@ -72,6 +72,7 @@ and file upload are not on the list.
 |---|---|---|---|---|
 | `suite-surveyor` | `npx agentic-qa survey` | read | Read | `Survey` |
 | `ticket-writer` | `npx agentic-qa draft`, `qa_draft_ticket` | read | Read, browser | `TicketDraft` |
+| `skeptic` | QA analysis, 1 | read | Read | `Skepticism` |
 | `requirements-analyst` | QA analysis, 1 | read | Read | `Requirements` |
 | `technical-reviewer` | QA analysis, 1b | read | Read, browser | `TechnicalReview` |
 | `test-architect` | QA analysis, 2a | read | Read, browser | `Plan` |
