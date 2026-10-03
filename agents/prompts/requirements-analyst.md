@@ -34,8 +34,10 @@ The task carries a `<questions-a-developer-would-guess>` block: a skeptic has al
 to a developer's guess, with the answer the tests will assume for each, and the team's answer where there is one.
 Use it. Each unanswered question becomes an assumption, in the skeptic's words, or a criterion when the assumed
 behaviour is in scope and observable; each answered one becomes a criterion or an assumption in the team's words.
-Do not ask them again as open questions. The one exception is the rule above: a question whose wrong guess would
-make the tests worthless is blocking, and you say so.
+Do not ask them again as open questions, not even the biggest ones, and not reworded: the skeptic's list is where
+they are answered, and a second copy under "open questions" is noise. With the skeptic's list in hand, your open
+questions are blocking or nothing. The one exception is the rule above: a question whose wrong guess would make the
+tests worthless is blocking, and you say so.
 
 ## When the team has answered
 

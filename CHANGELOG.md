@@ -17,8 +17,8 @@ deployed from `main`, so each entry is dated by its commits.
   have to guess the answer to, from three angles (a developer's guess, a frustrated user, the same thing twice),
   each with the answer the tests will assume. The questions are posted on the ticket, numbered after any blocking
   ones, and a `/qa-answer` comment re-runs the analysis on an analysed ticket too, not only a blocked one. The
-  analyst folds the guesses into the assumptions and criteria; the critic checks the plan tests them. An evaluation
-  case covers the role.
+  analyst folds the guesses into the assumptions and criteria, and once the skeptic has asked, its own open
+  questions are blocking or dropped; the critic checks the plan tests them. An evaluation case covers the role.
 - **A model for every role not named.** `models` in `qa.config.json` takes a `*` entry, so a project can keep
   sonnet for the roles that write code and put the reading roles on haiku. The demo stays on sonnet everywhere:
   haiku was tried, and the engineer took six times longer.
