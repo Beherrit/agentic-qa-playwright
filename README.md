@@ -1,33 +1,34 @@
 ## QA run history
 
-**24 runs: 7 analysis, 9 tests, 8 regression.** Gates passed in 71% of tests runs; the review approved 22% at first review.
+**25 runs: 8 analysis, 9 tests, 8 regression.** Gates passed in 71% of tests runs; the review approved 22% at first review.
 
-Average plan score 98, estimated cost $0.55 per run, $13.23 in all.
+Average plan score 98, estimated cost $0.55 per run, $13.86 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 24 (7 analysis, 9 tests, 8 regression)
+- Runs: 25 (8 analysis, 9 tests, 8 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
 - Approved at first review: 22%
 - Approved after rework: 11%
 - Not approved: 67%
 - Average plan score: 98
-- Total cost: $13.23
+- Total cost: $13.86
 - Average cost per run: $0.55
-- Average agent time: 4m 9s
+- Average agent time: 4m 5s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-24 runs, newest first.
+25 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-03 06:46 | REQ-31 | Requirement: Checkout overview and order confirmation | analysis | 98 | - | - | 2m 20s | $0.63 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103866063) |
 | 2026-10-03 06:44 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103869824) |
 | 2026-10-03 06:43 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103843369) |
 | 2026-10-03 06:41 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103736824) |
