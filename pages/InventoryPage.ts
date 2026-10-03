@@ -63,4 +63,20 @@ export class InventoryPage extends BasePage {
   async openProduct(name: string): Promise<void> {
     await this.itemNames.getByText(name, { exact: true }).click();
   }
+
+  async openProductByImage(name: string): Promise<void> {
+    await this.item(name).getByRole('img').click();
+  }
+
+  async imageSrc(name: string): Promise<string> {
+    return (await this.item(name).getByRole('img').getAttribute('src')) ?? '';
+  }
+
+  async description(name: string): Promise<string> {
+    return (await this.item(name).getByTestId('inventory-item-desc').textContent()) ?? '';
+  }
+
+  async price(name: string): Promise<string> {
+    return (await this.item(name).getByTestId('inventory-item-price').textContent()) ?? '';
+  }
 }
