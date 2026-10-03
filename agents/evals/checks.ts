@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VAGUE } from '../lib/draft.ts';
-import { Requirements, TechnicalReview, TicketDraft } from '../lib/schemas.ts';
+import { Lens, Requirements, Skepticism, TechnicalReview, TicketDraft } from '../lib/schemas.ts';
 import { hasTitle, type Repo } from '../lib/technical.ts';
 
 /**
@@ -9,12 +9,12 @@ import { hasTitle, type Repo } from '../lib/technical.ts';
  * and against recorded answers (npm run evals -- --dry, and the unit test).
  */
 
-export const Stage = z.enum(['draft', 'requirements', 'technical']);
+export const Stage = z.enum(['draft', 'skeptic', 'requirements', 'technical']);
 export type Stage = z.infer<typeof Stage>;
 
 /** The schema each stage answers in. */
-export const OUTPUT = { draft: TicketDraft, requirements: Requirements, technical: TechnicalReview } as const;
-export type Output = TicketDraft | Requirements | TechnicalReview;
+export const OUTPUT = { draft: TicketDraft, skeptic: Skepticism, requirements: Requirements, technical: TechnicalReview } as const;
+export type Output = TicketDraft | Skepticism | Requirements | TechnicalReview;
 
 const OpenTicket = z.object({ ref: z.string(), title: z.string(), url: z.string().nullable().default(null) });
 
@@ -46,6 +46,9 @@ export const Check = z.discriminatedUnion('check', [
   z.object({ check: z.literal('pages-include'), file: z.string() }),
   z.object({ check: z.literal('min-touches'), min: z.number().int().min(1) }),
   z.object({ check: z.literal('related-only-open') }),
+  z.object({ check: z.literal('min-questions'), min: z.number().int().min(1) }),
+  z.object({ check: z.literal('every-lens') }),
+  z.object({ check: z.literal('assumed-for-each') }),
 ]);
 export type Check = z.infer<typeof Check>;
 
@@ -54,6 +57,7 @@ const FOR: Record<Stage, Check['check'][]> = {
   draft: ['blocking-question', 'no-blocking-question', 'negative-criterion', 'min-criteria', 'no-vague-then', 'question-mentions', 'built', 'duplicate-of', 'no-duplicate'],
   requirements: ['blocking-question', 'no-blocking-question', 'negative-criterion', 'min-criteria', 'no-vague-then', 'question-mentions', 'keeps-criteria'],
   technical: ['covered-tests-exist', 'pages-include', 'min-touches', 'related-only-open'],
+  skeptic: ['min-questions', 'every-lens', 'assumed-for-each'],
 };
 
 export const Case = z
@@ -77,7 +81,8 @@ export type Case = z.infer<typeof Case>;
 export type CheckResult = { check: string; passed: boolean; detail: string };
 
 type Questions = { question: string; blocking: boolean }[];
-const questionsOf = (o: Output): Questions => ('questions' in o ? o.questions : 'openQuestions' in o ? o.openQuestions : []);
+const questionsOf = (o: Output): Questions => ('built' in o ? o.questions : 'openQuestions' in o ? o.openQuestions : []);
+const doubtsOf = (o: Output): Skepticism['questions'] => ('questions' in o && !('built' in o) ? o.questions : []);
 const criteriaOf = (o: Output): Requirements['criteria'] => ('criteria' in o ? o.criteria : []);
 const result = (check: Check, passed: boolean, detail: string): CheckResult => ({ check: check.check, passed, detail });
 
@@ -136,6 +141,19 @@ export function runCheck(check: Check, output: Output, repo: Repo, open: string[
     case 'min-touches': {
       const n = 'touches' in output ? output.touches.length : 0;
       return result(check, n >= check.min, `${n} nearby behaviour(s), at least ${check.min} wanted`);
+    }
+    case 'min-questions': {
+      const n = doubtsOf(output).length;
+      return result(check, n >= check.min, `${n} question(s), ${check.min} needed`);
+    }
+    case 'every-lens': {
+      const seen = new Set(doubtsOf(output).map((d) => d.lens));
+      const missing = Lens.options.filter((lens) => !seen.has(lens));
+      return result(check, missing.length === 0, missing.length ? `no question from: ${missing.join(', ')}` : 'all three lenses used');
+    }
+    case 'assumed-for-each': {
+      const weak = doubtsOf(output).filter((d) => d.assumed.trim().length < 12 || /to be (confirmed|decided)|tbd|unknown|depends/i.test(d.assumed));
+      return result(check, weak.length === 0, weak.length ? `no real assumption for: ${weak[0].question}` : 'every question has a decision behind it');
     }
     case 'related-only-open': {
       const refs = new Set(open.map((r) => r.replace(/^#/, '')));

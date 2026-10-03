@@ -51,23 +51,38 @@ export function modeOf(ticket: Pick<Ticket, 'labels' | 'body'>): Mode {
 /** The first line of a comment that answers the pipeline's questions. */
 export const ANSWER_COMMAND = '/qa-answer';
 
-const QUESTIONS_HEADING = /questions that block testing/i;
+/** The headings the pipeline puts its questions under: the ones that stopped it, then the skeptic's. */
+const QUESTION_HEADINGS = [/questions that block testing/i, /questions a developer would have to guess/i];
+const isQuestionHeading = (line: string): boolean => /^#{1,6}\s/.test(line) && QUESTION_HEADINGS.some((h) => h.test(line));
 
 /**
- * The questions the pipeline asked in its latest needs-info comment: the list under its "Questions that block
- * testing" heading, with the markdown taken off. Empty when it never asked.
+ * The questions the pipeline asked in its latest analysis comment, in the order they are numbered there: the list
+ * under "Questions that block testing", then the list under "Questions a developer would have to guess", with the
+ * markdown taken off. An item's indented second line (the guess) is not a question. Empty when it never asked.
  */
 export function askedQuestions(comments: TicketComment[] = []): string[] {
-  const asked = [...comments].reverse().find((c) => QUESTIONS_HEADING.test(c.body));
+  const asked = [...comments].reverse().find((c) => c.body.split(/\r?\n/).some(isQuestionHeading));
   if (!asked) return [];
-  const lines = asked.body.split(/\r?\n/);
-  const start = lines.findIndex((line) => QUESTIONS_HEADING.test(line));
   const questions: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^#{1,6}\s/.test(line) && questions.length) break;
-    const item = /^\s*(?:[-*]|\d+\.)\s+(.*)$/.exec(line);
-    if (item) questions.push(item[1].replace(/\*\*/g, '').trim());
-    else if (questions.length && line.trim() && !line.startsWith(' ')) break;
+  // Inside a questions section: a line of prose before its list is the summary; one after it ends the section.
+  let inSection = false;
+  let itemsHere = 0;
+  for (const line of asked.body.split(/\r?\n/)) {
+    if (isQuestionHeading(line)) {
+      inSection = true;
+      itemsHere = 0;
+      continue;
+    }
+    if (!inSection) continue;
+    if (/^#{1,6}\s/.test(line)) {
+      inSection = false;
+      continue;
+    }
+    const item = /^(?:[-*]|\d+\.)\s+(.*)$/.exec(line);
+    if (item) {
+      questions.push(item[1].replace(/\*\*/g, '').trim());
+      itemsHere += 1;
+    } else if (itemsHere && line.trim() && !line.startsWith(' ')) inSection = false;
   }
   return questions;
 }

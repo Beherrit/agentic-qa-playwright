@@ -60,6 +60,7 @@ async function ask(c: Case): Promise<unknown> {
   const open = c.input.openTickets.map((t) => ({ ref: t.ref, title: t.title, url: t.url }));
   if (c.stage === 'draft') return (await import('../draft.ts')).writeTicket(c.input.wish ?? '', open);
   const stages = await import('../stages.ts');
+  if (c.stage === 'skeptic') return stages.doubt(requestFor(c));
   if (c.stage === 'requirements') return stages.analyse(requestFor(c));
   return stages.reviewTechnically(requestFor(c), c.input.requirements ?? '', open);
 }

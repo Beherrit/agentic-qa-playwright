@@ -19,9 +19,9 @@ const changed = (id: string, change: (answer: Record<string, unknown>) => void):
 const fails = (id: string, answer: unknown): boolean => !casePassed(evaluate(byId(id), answer, repo));
 
 describe('evaluation cases', () => {
-  it('has 8 to 10 cases over the writer, the analyst and the technical reviewer', () => {
-    assert.ok(cases.length >= 8 && cases.length <= 10, `${cases.length} cases`);
-    assert.deepEqual([...new Set(cases.map((c) => c.stage))].sort(), ['draft', 'requirements', 'technical']);
+  it('has 9 to 12 cases over the writer, the skeptic, the analyst and the technical reviewer', () => {
+    assert.ok(cases.length >= 9 && cases.length <= 12, `${cases.length} cases`);
+    assert.deepEqual([...new Set(cases.map((c) => c.stage))].sort(), ['draft', 'requirements', 'skeptic', 'technical']);
     for (const id of ['clear-wish', 'vague-wish', 'duplicate-wish', 'already-built', 'not-built', 'contradictory-criteria', 'ticket-with-criteria']) {
       assert.ok(byId(id), id);
     }
@@ -62,6 +62,13 @@ describe('the checks catch a wrong answer', () => {
     assert.ok(fails('technical-sort', changed('technical-sort', (a) => ((a.covered as { test: string }[])[0].test = 'a title from memory'))));
     assert.ok(fails('technical-sort', changed('technical-sort', (a) => ((a.related as { ref: string }[])[0].ref = '99'))));
     assert.ok(fails('technical-sort', changed('technical-sort', (a) => (a.touches = []))));
+  });
+
+  it('a skeptic that skips a lens or hedges instead of deciding', () => {
+    assert.equal(fails('skeptic-discount-code', loadFixture('skeptic-discount-code')), false);
+    assert.ok(fails('skeptic-discount-code', changed('skeptic-discount-code', (a) => ((a.questions as { lens: string }[]).forEach((q) => (q.lens = 'guess'))))));
+    assert.ok(fails('skeptic-discount-code', changed('skeptic-discount-code', (a) => ((a.questions as { assumed: string }[])[0].assumed = 'To be confirmed.'))));
+    assert.ok(fails('skeptic-discount-code', changed('skeptic-discount-code', (a) => ((a.questions as unknown[]).length = 3))));
   });
 
   it('an answer in the wrong shape', () => {

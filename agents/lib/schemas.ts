@@ -97,6 +97,22 @@ export const Requirements = z.object({
 });
 export type Requirements = z.infer<typeof Requirements>;
 
+/** How the skeptic found a question: what a developer would guess, what a frustrated user would try, what happens twice. */
+export const Lens = z.enum(['guess', 'frustrated', 'twice']);
+export type Lens = z.infer<typeof Lens>;
+
+export const Doubt = z.object({
+  lens: Lens,
+  question: z.string().describe('A question the ticket does not answer, as a developer would have to ask it'),
+  assumed: z.string().describe('The answer the tests will be built on if nobody answers: one sentence, a decision, not a hedge'),
+  answer: z.string().nullable().describe('What the team answered, copied from the answers, or null when nobody has'),
+});
+export type Doubt = z.infer<typeof Doubt>;
+
+/** The skeptic's questions: everything a developer would have to guess, with the guess written down. */
+export const Skepticism = z.object({ questions: z.array(Doubt).min(1).max(20) });
+export type Skepticism = z.infer<typeof Skepticism>;
+
 // ── Technical notes: the ticket writer's, or the technical review's ─────────
 
 export const Technical = z

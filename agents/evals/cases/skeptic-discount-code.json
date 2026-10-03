@@ -1,0 +1,22 @@
+{
+  "id": "skeptic-discount-code",
+  "description": "A story with every rule left unsaid. The skeptic asks the questions a developer would guess at, from all three lenses, and writes a decision for each.",
+  "stage": "skeptic",
+  "input": {
+    "title": "Apply a discount code at checkout",
+    "body": "As a shopper, I want to apply a discount code at checkout, so that I pay less when I have one. On the checkout information step there is a Discount code field with an Apply button. A valid code shows a discount line on the overview and lowers the total. An invalid code shows a message and changes nothing.",
+    "mode": "test-first"
+  },
+  "checks": [
+    {
+      "check": "min-questions",
+      "min": 6
+    },
+    {
+      "check": "every-lens"
+    },
+    {
+      "check": "assumed-for-each"
+    }
+  ]
+}

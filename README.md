@@ -51,10 +51,16 @@ Two workflows, so the cheap, fast half is not held hostage by the slow one.
 **QA analysis** (`qa-analysis.yml`) starts when a ticket gets the `qa-pipeline` label. No test code is written.
 What comes back on the ticket is what a QA lead would want to say about a story before anyone builds or tests it.
 
-1. **Requirements.** An analyst turns the ticket into a user story and Given / When / Then acceptance criteria, each
-   marked happy, negative or edge, with assumptions, what is out of scope, a risk rating and open questions. If a
-   question is blocking, the ticket gets the questions and the `qa-needs-info` label, and the run stops. A ticket
-   filed by the ticket writer already carries criteria, so they are taken as filed and no analyst runs.
+1. **Requirements.** First a skeptic reads the story alone and lists every question a developer would have to
+   guess the answer to, from three angles: what a developer would guess, what a frustrated user would try, and what
+   breaks if it happens twice. Each question comes with the answer the tests will assume if nobody answers. Then an
+   analyst turns the ticket into a user story and Given / When / Then acceptance criteria, each marked happy,
+   negative or edge, with assumptions (the skeptic's guesses among them), what is out of scope, a risk rating and
+   open questions. The pipeline does not wait for the skeptic's questions: they are posted on the ticket as a
+   numbered list with the guess under each, and an answer in a `/qa-answer` comment re-runs the analysis with the
+   guess replaced. If a question is blocking, the ticket gets the questions and the `qa-needs-info` label, and the
+   run stops. A ticket filed by the ticket writer already carries criteria, so they are taken as filed and no
+   analyst runs; the skeptic runs all the same.
 2. **Technical review.** Every ticket, hand-written ones included, gets technical notes: the existing tests that
    already cover part of it, the page objects and locators its tests will use and which are missing, the nearby
    behaviour it could break and whether a test would notice, related open tickets, and a technical risk rating. A

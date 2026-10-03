@@ -12,6 +12,9 @@ criteria and the product brief.
 2. List what any acceptable plan has to cover. Think about:
    - each acceptance criterion, especially the negative and edge ones
    - boundaries: first, last, none, one, many, the same thing twice
+   - what a frustrated user would try: the button again, back, reload, a second tab, leaving halfway
+   - the questions a developer would have to guess, listed in the requirements: a plan that tests the assumed
+     answer records the guess; a plan that ignores it hides it
    - state: what was true before the action, and does it still hold after a reload, navigation or logout
    - personas named in the product brief that this feature touches
    - neighbouring behaviour the feature could break

@@ -1,7 +1,7 @@
 import type { GateReport } from '../gates.ts';
 import { technicalSection } from './draft.ts';
 import { config, LABELS } from './paths.ts';
-import type { Generation, Request, Requirements, Review, Strategy, Triage } from './schemas.ts';
+import type { Doubt, Generation, Request, Requirements, Review, Skepticism, Strategy, Triage } from './schemas.ts';
 import type { RunRecord } from './store.ts';
 import type { TechnicalResult } from './technical.ts';
 
@@ -78,17 +78,53 @@ ${technicalSection(review)}${dropped}
 }
 
 /** What a blocked ticket says next: how to answer so the analysis runs again by itself. Worded per tracker. */
-export function howToAnswer(request: Pick<Request, 'source'>): string {
+/**
+ * How to answer the pipeline's questions. Stopped: the analysis waits for the answers. Not stopped: it went on
+ * with its assumptions, and an answer re-runs it with the guess replaced.
+ */
+export function howToAnswer(request: Pick<Request, 'source'>, stopped = true): string {
   const again =
     request.source === 'jira'
       ? 'The analysis runs again when the comment is added, through the Jira automation rule for `/qa-answer` (see the README), or when the `qa-pipeline` label is added again.'
       : request.source === 'github' || request.source === 'pr'
         ? `The analysis runs again by itself; adding the \`${LABELS.analyze}\` label again also works.`
         : `Then add the \`${LABELS.analyze}\` label again.`;
-  return `The pipeline has stopped here. Answer on this ticket in a comment that starts with \`/qa-answer\` on its own line, one answer per question, numbered like the questions. Only a member of the project can answer. ${again}`;
+  const opening = stopped
+    ? 'The pipeline has stopped here. Answer on this ticket'
+    : 'The pipeline has not waited: the tests are built on the assumptions above. Replace any guess with the real answer';
+  return `${opening} in a comment that starts with \`/qa-answer\` on its own line, one answer per question, numbered like the questions. Only a member of the project can answer. ${again}`;
 }
 
-export function requirementsMd(request: Request, req: Requirements, technical: TechnicalResult | null = null, level = 2): string {
+const LENS: Record<Doubt['lens'], string> = {
+  guess: 'A developer would have to guess.',
+  frustrated: 'A frustrated user would try it.',
+  twice: 'It could happen twice.',
+};
+
+/** The heading the answer reader looks for. Changing it means changing `askedQuestions` too. */
+export const DOUBTS_HEADING = 'Questions a developer would have to guess';
+
+/**
+ * The skeptic's questions, numbered on from `start` so an answer can name them, each with the team's answer or the
+ * guess the tests rest on. The question is the first line of each item; the second, indented, is not read back.
+ */
+export function doubtsMd(request: Pick<Request, 'source'>, doubts: Skepticism, start = 1, level = 3): string {
+  const answered = doubts.questions.filter((d) => d.answer).length;
+  const assumed = doubts.questions.length - answered;
+  const summary = `${plural(doubts.questions.length, 'question')} the story does not answer: ${answered} answered by the team, ${assumed} resting on an assumption. Every unanswered one is a guess the tests are built on.`;
+  const items = doubts.questions
+    .map((d, i) => `${start + i}. **${cell(d.question)}**\n   ${LENS[d.lens]} ${d.answer ? `Answered by the team: ${cell(d.answer)}` : `Assumed: ${cell(d.assumed)}`}`)
+    .join('\n');
+  return `${heading(level, DOUBTS_HEADING)}\n\n${summary}\n\n${items}\n\n${howToAnswer(request, false)}`;
+}
+
+export function requirementsMd(
+  request: Request,
+  req: Requirements,
+  technical: TechnicalResult | null = null,
+  level = 2,
+  doubts: Skepticism | null = null,
+): string {
   const blocking = req.openQuestions.filter((q) => q.blocking);
   const other = req.openQuestions.filter((q) => !q.blocking);
   const rows = req.criteria.map((c) => [c.id, c.kind, cell(c.given), cell(c.when), cell(c.then)]);
@@ -115,7 +151,9 @@ ${
   blocking.length
     ? `\n${sub('Questions that block testing')}\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\n${howToAnswer(request)}\n`
     : ''
-}${other.length ? `\n${sub('Open questions (not blocking)')}\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''}${technical ? `\n${technicalMd(technical, level + 1)}` : ''}`;
+}${doubts?.questions.length ? `\n${doubtsMd(request, doubts, blocking.length + 1, level + 1)}\n` : ''}${
+    other.length ? `\n${sub('Open questions (not blocking)')}\n\n${list(other.map((q) => `${q.question} ${q.why}`))}\n` : ''
+  }${technical ? `\n${technicalMd(technical, level + 1)}` : ''}`;
 }
 
 // ── The test plan ────────────────────────────────────────────────────────────
@@ -451,6 +489,8 @@ ${list(landed.map((f) => `${f.test} (\`${f.file}\`)`))}
 export function analysisMd(input: {
   request: Request;
   requirements: Requirements | null;
+  /** The skeptic's questions, when it ran. */
+  doubts?: Skepticism | null;
   strategy: Strategy | null;
   technical?: TechnicalResult | null;
   runUrl: string | null;
@@ -458,7 +498,7 @@ export function analysisMd(input: {
   /** The requirements were taken from a ticket the ticket writer filed, with no analyst run. */
   fromWriter?: boolean;
 }): string {
-  const { request, requirements: req, strategy, technical = null, runUrl, compact = false, fromWriter = false } = input;
+  const { request, requirements: req, doubts = null, strategy, technical = null, runUrl, compact = false, fromWriter = false } = input;
   const run = runUrl ? ` [See the run](${runUrl}).` : '';
   const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
 
@@ -476,6 +516,8 @@ export function analysisMd(input: {
   const facts = req
     ? [
         `${plural(req.criteria.length, 'criterion', 'criteria')} (${kinds(req)}), ticket risk ${req.risk}`,
+        doubts?.questions.length &&
+          `${plural(doubts.questions.length, 'question')} a developer would have to guess, ${doubts.questions.filter((d) => d.answer).length} answered`,
         technical && `technical risk ${technical.risk}`,
         strategy && `${plural(strategy.cases.length, 'test case')} (${strategy.cases.filter((c) => c.layer === 'e2e').length} e2e)`,
         strategy?.regressionRisks?.length &&
@@ -491,7 +533,7 @@ ${status}
 
 ${facts ? `${facts}.` : ''}
 ${fromWriter ? '\n_Requirements taken from the ticket as the ticket writer filed them. No analyst run._\n' : ''}
-${req ? requirementsMd(request, req, technical, 3) : ''}
+${req ? requirementsMd(request, req, technical, 3, doubts) : ''}
 ${strategy ? strategyMd(request, strategy, compact, 3) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
   return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;

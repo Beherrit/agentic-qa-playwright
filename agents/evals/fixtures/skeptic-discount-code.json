@@ -1,0 +1,70 @@
+{
+  "questions": [
+    {
+      "lens": "guess",
+      "question": "Can two discount codes be applied to one order, and if so do they stack?",
+      "assumed": "One code per order; applying a second replaces the first.",
+      "answer": null
+    },
+    {
+      "lens": "guess",
+      "question": "Is the discount taken off before tax or after it?",
+      "assumed": "Before tax: the discount reduces the item total, and tax is worked out on the reduced amount.",
+      "answer": null
+    },
+    {
+      "lens": "guess",
+      "question": "What happens when a code expires between Apply and Finish?",
+      "assumed": "The code is checked again at Finish; an expired code is removed and the shopper is told before the order is placed.",
+      "answer": null
+    },
+    {
+      "lens": "guess",
+      "question": "Can a code bring the total below zero, or below the tax amount?",
+      "assumed": "The discount is capped at the item total, so the total is never below the tax on zero.",
+      "answer": null
+    },
+    {
+      "lens": "guess",
+      "question": "Is the code case-sensitive, and are spaces around it ignored?",
+      "assumed": "Codes are matched ignoring case and surrounding spaces.",
+      "answer": null
+    },
+    {
+      "lens": "frustrated",
+      "question": "What does the shopper see if they press Apply with the field empty?",
+      "assumed": "A message says a code is needed and nothing else changes.",
+      "answer": null
+    },
+    {
+      "lens": "frustrated",
+      "question": "If the shopper goes back to the cart and then returns to checkout, is the code still applied?",
+      "assumed": "Yes: the applied code is kept with the cart until the order is placed or the cart is emptied.",
+      "answer": null
+    },
+    {
+      "lens": "frustrated",
+      "question": "Does an applied code survive a reload of the overview page?",
+      "assumed": "Yes, the discount line and the lowered total are still shown after a reload.",
+      "answer": null
+    },
+    {
+      "lens": "twice",
+      "question": "What happens when the same valid code is applied twice?",
+      "assumed": "The second Apply does nothing new: one discount line, the same total, no error.",
+      "answer": null
+    },
+    {
+      "lens": "twice",
+      "question": "Can the same shopper use a single-use code on a second order?",
+      "assumed": "No: a single-use code is rejected on the second order with the invalid-code message.",
+      "answer": null
+    },
+    {
+      "lens": "twice",
+      "question": "After an order with a code, does a new cart start without a code applied?",
+      "assumed": "Yes: the code is cleared with the cart once the order is placed.",
+      "answer": null
+    }
+  ]
+}
