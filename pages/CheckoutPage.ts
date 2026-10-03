@@ -16,9 +16,19 @@ export class CheckoutPage extends BasePage {
   readonly tax: Locator;
   readonly total: Locator;
   readonly confirmation: Locator;
+  readonly backHomeButton: Locator;
+  readonly discountCode: Locator;
+  readonly applyDiscountButton: Locator;
+  readonly discountError: Locator;
+  readonly discountLabel: Locator;
 
   constructor(page: Page) {
     super(page);
+    this.backHomeButton = page.getByRole('button', { name: 'Back Home' });
+    this.discountCode = page.getByTestId('discount-code');
+    this.applyDiscountButton = page.getByTestId('apply-discount');
+    this.discountError = page.getByTestId('discount-error');
+    this.discountLabel = page.getByTestId('discount-label');
     this.firstName = page.getByPlaceholder('First Name');
     this.lastName = page.getByPlaceholder('Last Name');
     this.postalCode = page.getByPlaceholder('Zip/Postal Code');
@@ -36,6 +46,11 @@ export class CheckoutPage extends BasePage {
     await this.firstName.fill(shopper.firstName);
     await this.lastName.fill(shopper.lastName);
     await this.postalCode.fill(shopper.postalCode);
+  }
+
+  async applyDiscount(code: string): Promise<void> {
+    await this.discountCode.fill(code);
+    await this.applyDiscountButton.click();
   }
 
   async continue(): Promise<void> {
