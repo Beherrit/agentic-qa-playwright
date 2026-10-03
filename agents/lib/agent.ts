@@ -105,6 +105,15 @@ export function budgetLeft(cap: number = config.budget.maxUsdPerRun, used: numbe
   return left;
 }
 
+/**
+ * The model a role runs on: its own entry in `models`, else the `*` entry, else the repository variable
+ * QA_AGENT_MODEL, else sonnet. A proof of concept puts `{ "*": "haiku" }` in qa.config.json and runs on a
+ * fraction of the tokens; a project keeps sonnet for the roles that write code and haiku for the rest.
+ */
+export function modelFor(role: string, models: Record<string, string> = config.models, env: NodeJS.ProcessEnv = process.env): string {
+  return models[role] || models['*'] || env.QA_AGENT_MODEL || 'sonnet';
+}
+
 function browserServer(): NonNullable<Options['mcpServers']> {
   const require = createRequire(import.meta.url);
   const cli = path.join(path.dirname(require.resolve('@playwright/mcp/package.json')), 'cli.js');
@@ -145,8 +154,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
     // The provider's settings (Bedrock, Vertex) travel in one variable and are unpacked here, for the SDK alone.
     env: { ...process.env, ...providerEnv() },
     ...(left === null ? {} : { maxBudgetUsd: left }),
-    // A model per role from qa.config.json, else the repository-wide choice, else sonnet.
-    model: config.models?.[spec.role] || process.env.QA_AGENT_MODEL || 'sonnet',
+    model: modelFor(spec.role),
     systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
     tools,
     allowedTools: allowed,

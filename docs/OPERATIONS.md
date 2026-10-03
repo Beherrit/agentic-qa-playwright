@@ -50,7 +50,7 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `accessibility.required` | false | advisory | Whether the accessibility gate blocks |
 | `autoRun.analysisWhenWriterFiles` | true | off | A ready ticket from the ticket writer starts its own analysis |
 | `autoRun.testsWhenPlanIsReady` | true | off | A plan that passes starts the test half without a person adding `qa-generate` |
-| `models` | `{}` | `QA_AGENT_MODEL`, then `sonnet` | A model per role, for example `{ "plan-critic": "haiku" }` |
+| `models` | `{ "*": "haiku" }` | `QA_AGENT_MODEL`, then `sonnet` | A model per role; `*` covers every role not named. The demo runs everything on haiku because it is a proof of concept that runs rarely; a project keeps `sonnet` for the roles that write code (`automation-engineer`, `test-healer`) and the architect, and puts the rest on `haiku` |
 | `jira.fields` | `{}` | description only | Jira custom fields to read with the description, by display name |
 | `jira.project` | unset | | The Jira project for new tickets and open-ticket lists |
 | `app.previewUrl` | unset | tests run against `baseUrl` | Where a pull request's build answers, with `{number}` and `{branch}` filled in |
@@ -176,7 +176,9 @@ artifact, in the "Agent runs" table of every pull request, and in the totals on 
 per run, total cost, average agent time). Read the numbers there rather than estimating them; they vary with the
 size of the ticket.
 
-What moves them: the model per role (`models`), how often a run goes back for a second pass (the gate report and the
+What moves them most: the model per role (`models`). Haiku costs a fraction of sonnet per token and counts for a
+fraction of a Claude subscription's usage, at the price of a weaker test plan and more second passes; sonnet is the
+default for that reason. Then how often a run goes back for a second pass (the gate report and the
 review say why), and whether the halves start by themselves (`autoRun`). A ticket stopped by a blocking question
 costs one analyst run.
 

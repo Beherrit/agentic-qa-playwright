@@ -274,7 +274,9 @@ new app.
 - (b) An API key, saved as `ANTHROPIC_API_KEY`.
 
 The optional repository variable `QA_AGENT_MODEL` picks the model for every role; `models` in `qa.config.json`
-picks one per role (for example `{ "plan-critic": "haiku" }`). The default is `sonnet`.
+picks one per role, and its `*` entry covers the rest (for example `{ "*": "haiku", "automation-engineer": "sonnet" }`).
+The default is `sonnet`. This repository's demo runs every role on `haiku`: a subscription token has a usage
+allowance, and a proof of concept that runs now and then should not spend it.
 
 **Repository settings.**
 

@@ -120,7 +120,7 @@ export const ConfigSchema = z.object({
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
   /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0) }).prefault({}),
-  /** A model per agent role, e.g. { "plan-critic": "haiku" }. Falls back to QA_AGENT_MODEL, then sonnet. */
+  /** A model per agent role, e.g. { "plan-critic": "haiku" }; "*" is every role not named. Falls back to QA_AGENT_MODEL, then sonnet. */
   models: z.record(z.string(), z.string()).default({}),
   jira: z
     .object({
