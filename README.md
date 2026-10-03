@@ -1,14 +1,14 @@
 ## QA run history
 
-**16 runs: 7 analysis, 7 tests, 2 regression.** Gates passed in 71% of tests runs; the review approved 29% at first review.
+**17 runs: 7 analysis, 7 tests, 3 regression.** Gates passed in 71% of tests runs; the review approved 29% at first review.
 
-Average plan score 98, estimated cost $0.67 per run, $10.80 in all.
+Average plan score 98, estimated cost $0.64 per run, $10.80 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 16 (7 analysis, 7 tests, 2 regression)
+- Runs: 17 (7 analysis, 7 tests, 3 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
 - Approved at first review: 29%
@@ -16,18 +16,19 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 - Not approved: 57%
 - Average plan score: 98
 - Total cost: $10.80
-- Average cost per run: $0.67
-- Average agent time: 4m 57s
+- Average cost per run: $0.64
+- Average agent time: 4m 40s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-16 runs, newest first.
+17 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-03 00:33 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37082376650) |
 | 2026-10-03 00:13 | REQ-21 | Requirement: Make the cart better | analysis | 96 | - | - | 2m 22s | $0.40 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37080699912) |
 | 2026-10-03 00:00 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079972646) |
 | 2026-10-02 23:59 | REQ-22 | Requirement: Product details page | analysis | 98 | - | - | 2m 12s | $0.59 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37079684113) |
