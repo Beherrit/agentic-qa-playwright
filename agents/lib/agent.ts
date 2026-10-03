@@ -1,4 +1,4 @@
-import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Options, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import { chromium } from '@playwright/test';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -138,7 +138,16 @@ function browserServer(): NonNullable<Options['mcpServers']> {
   };
 }
 
-export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise<AgentResult<z.infer<S>>> {
+/** The SDK's query, replaceable in tests. */
+export type QueryFn = typeof query;
+
+/** What an agent that wrote a summary instead of calling the answer tool is told, with its session resumed. */
+export const ANSWER_NUDGE =
+  'You have not handed in your answer. Do no more work: call the StructuredOutput tool now, once, with your complete answer in the required shape, covering everything you did.';
+/** How many turns the nudge may take. The answer is one tool call. */
+const NUDGE_TURNS = 3;
+
+export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: QueryFn = query): Promise<AgentResult<z.infer<S>>> {
   // An agent with a browser starts from the same signed-in state as the tests, when the project has one.
   if (spec.browser) prepareAuth();
   const tools = spec.access === 'write' ? [...READ_TOOLS, 'Write', 'Edit', 'Bash'] : READ_TOOLS;
@@ -181,61 +190,77 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>): Promise
   const asked = new Map<string, string>();
   const commands: string[] = [];
 
-  for await (const message of query({ prompt: spec.task, options })) {
-    if (message.type === 'assistant') {
-      for (const block of message.message.content) {
-        if (block.type === 'text' && block.text.trim()) console.log(`  ${firstLine(block.text)}`);
-        if (block.type === 'tool_use') {
-          calls.set(block.id, block.name);
-          if (block.name === 'Bash') asked.set(block.id, String((block.input as { command?: unknown })?.command ?? ''));
-          console.log(`  > ${block.name} ${brief(block.input)}`);
+  /** One conversation with the agent, logged as it goes. Resolves with the result message. */
+  async function converse(prompt: string, resume?: string): Promise<SDKResultMessage> {
+    const turn: Options = resume ? { ...options, resume, maxTurns: NUDGE_TURNS } : options;
+    for await (const message of run({ prompt, options: turn })) {
+      if (message.type === 'assistant') {
+        for (const block of message.message.content) {
+          if (block.type === 'text' && block.text.trim()) console.log(`  ${firstLine(block.text)}`);
+          if (block.type === 'tool_use') {
+            calls.set(block.id, block.name);
+            if (block.name === 'Bash') asked.set(block.id, String((block.input as { command?: unknown })?.command ?? ''));
+            console.log(`  > ${block.name} ${brief(block.input)}`);
+          }
         }
+        continue;
       }
-      continue;
-    }
-    if (message.type === 'user') {
-      for (const result of toolResults(message.message.content)) {
-        // A call the allowlist refused says nothing about whether the browser works, or whether a command ran.
-        const refused = /has been denied/.test(result.text);
-        const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__') && !refused;
-        if (isBrowser) browser.calls += 1;
-        if (isBrowser && !result.failed) browser.worked += 1;
-        const command = asked.get(result.id);
-        if (command !== undefined && !refused) commands.push(command);
-        if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
+      if (message.type === 'user') {
+        for (const result of toolResults(message.message.content)) {
+          // A call the allowlist refused says nothing about whether the browser works, or whether a command ran.
+          const refused = /has been denied/.test(result.text);
+          const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__') && !refused;
+          if (isBrowser) browser.calls += 1;
+          if (isBrowser && !result.failed) browser.worked += 1;
+          const command = asked.get(result.id);
+          if (command !== undefined && !refused) commands.push(command);
+          if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
+        }
+        continue;
       }
-      continue;
+      if (message.type === 'result') return message;
     }
-    if (message.type !== 'result') continue;
-
-    const seconds = Math.round((Date.now() - started) / 1000);
-    const run = { role: spec.role, turns: message.num_turns, seconds, costUsd: message.total_cost_usd };
-    const total = recordRun(run);
-    const cap = config.budget.maxUsdPerRun;
-    if (cap && total > cap) {
-      throw new Error(`${spec.role} took the run over its budget: $${total.toFixed(2)} of $${cap.toFixed(2)}. Raise budget.maxUsdPerRun in qa.config.json to go on.`);
-    }
-
-    if (spec.browser && browser.calls > 0 && browser.worked === 0) {
-      // An agent that could not see the app will still hand in confident work. Stop it here instead.
-      throw new Error(`${spec.role} could not use the browser: every browser call failed. See the log above.`);
-    }
-
-    if (message.subtype !== 'success') {
-      throw new Error(`${spec.role} did not finish (${message.subtype}): ${message.errors.join('; ')}`);
-    }
-    if (message.is_error) {
-      // Covers a missing or expired login: the CLI reports it as a "successful" turn whose text is the error.
-      throw new Error(`${spec.role} failed: ${message.result}`);
-    }
-    const parsed = spec.schema.safeParse(message.structured_output);
-    if (!parsed.success) {
-      throw new Error(`${spec.role} answered in the wrong shape:\n${z.prettifyError(parsed.error)}`);
-    }
-    console.log(`=== ${spec.role} done: ${run.turns} turns, ${seconds}s ===`);
-    return { output: parsed.data, ...run, commands };
+    throw new Error(`${spec.role} ended without a result`);
   }
-  throw new Error(`${spec.role} ended without a result`);
+
+  let message = await converse(spec.task);
+  let turns = message.num_turns;
+  if (message.subtype === 'success' && !message.is_error && message.structured_output === undefined) {
+    // The agent did its work and wrote a summary instead of calling the answer tool. Smaller models do this. The
+    // session is resumed with everything it did in context, and asked for the answer alone: a turn or two, not a
+    // second run.
+    console.log(`  ${spec.role} finished without handing in its answer. Asking for it.`);
+    message = await converse(ANSWER_NUDGE, message.session_id);
+    turns += message.num_turns;
+  }
+
+  const seconds = Math.round((Date.now() - started) / 1000);
+  // A resumed session's result carries the cost of the whole session, so the latest result is the total.
+  const run_ = { role: spec.role, turns, seconds, costUsd: message.total_cost_usd };
+  const total = recordRun(run_);
+  const cap = config.budget.maxUsdPerRun;
+  if (cap && total > cap) {
+    throw new Error(`${spec.role} took the run over its budget: $${total.toFixed(2)} of $${cap.toFixed(2)}. Raise budget.maxUsdPerRun in qa.config.json to go on.`);
+  }
+
+  if (spec.browser && browser.calls > 0 && browser.worked === 0) {
+    // An agent that could not see the app will still hand in confident work. Stop it here instead.
+    throw new Error(`${spec.role} could not use the browser: every browser call failed. See the log above.`);
+  }
+
+  if (message.subtype !== 'success') {
+    throw new Error(`${spec.role} did not finish (${message.subtype}): ${message.errors.join('; ')}`);
+  }
+  if (message.is_error) {
+    // Covers a missing or expired login: the CLI reports it as a "successful" turn whose text is the error.
+    throw new Error(`${spec.role} failed: ${message.result}`);
+  }
+  const parsed = spec.schema.safeParse(message.structured_output);
+  if (!parsed.success) {
+    throw new Error(`${spec.role} answered in the wrong shape:\n${z.prettifyError(parsed.error)}`);
+  }
+  console.log(`=== ${spec.role} done: ${turns} turns, ${seconds}s ===`);
+  return { output: parsed.data, ...run_, commands };
 }
 
 function jsonSchema(schema: z.ZodType): Record<string, unknown> {

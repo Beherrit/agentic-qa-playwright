@@ -5,6 +5,12 @@ deployed from `main`, so each entry is dated by its commits.
 
 ## Unreleased
 
+### Fixed
+
+- **An agent that writes a summary instead of handing in its answer** (haiku did, after thirteen minutes of
+  passing tests) is no longer a failed run. Its session is resumed with everything it did in context and asked for
+  the answer alone, once, in three turns at most. The cost ledger records the whole session.
+
 ### Added
 
 - **A model for every role not named.** `models` in `qa.config.json` takes a `*` entry; the demo runs on

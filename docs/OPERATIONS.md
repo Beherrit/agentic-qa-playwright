@@ -178,7 +178,9 @@ size of the ticket.
 
 What moves them most: the model per role (`models`). Haiku costs a fraction of sonnet per token and counts for a
 fraction of a Claude subscription's usage, at the price of a weaker test plan and more second passes; sonnet is the
-default for that reason. Then how often a run goes back for a second pass (the gate report and the
+default for that reason. A smaller model sometimes ends with a written summary instead of the answer tool; the
+engine resumes its session and asks for the answer alone, which shows in the log as "finished without handing in
+its answer" and costs a turn or two. Then how often a run goes back for a second pass (the gate report and the
 review say why), and whether the halves start by themselves (`autoRun`). A ticket stopped by a blocking question
 costs one analyst run.
 
