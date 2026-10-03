@@ -464,7 +464,7 @@ export function analysisMd(input: {
 
   let status: string;
   if (!req) status = `**The analysis did not finish.**${run}`;
-  else if (blocked) status = `**Not ready to test yet.** The questions below block testing. Answer them on this ticket, then add the \`${LABELS.analyze}\` label again.`;
+  else if (blocked) status = `**Not ready to test yet.** The questions below block testing. Answer them on this ticket in a comment that starts with \`/qa-answer\`, and the analysis runs again.`;
   else if (!strategy) status = `**The requirement was analysed, but the test plan did not finish.**${run}`;
   else if (strategy.health.score < config.minPlanScore)
     status = `**The test plan scored ${strategy.health.score}/100, below the pass mark of ${config.minPlanScore}.** No tests will be written from it. The breakdown below says what is missing; sharpen the requirement and add the \`${LABELS.analyze}\` label again.`;
