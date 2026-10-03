@@ -16,6 +16,9 @@ export class CheckoutPage extends BasePage {
   readonly tax: Locator;
   readonly total: Locator;
   readonly confirmation: Locator;
+  readonly backHomeButton: Locator;
+  readonly paymentInfo: Locator;
+  readonly shippingInfo: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -30,6 +33,9 @@ export class CheckoutPage extends BasePage {
     this.tax = page.getByTestId('tax-label');
     this.total = page.getByTestId('total-label');
     this.confirmation = page.getByTestId('complete-header');
+    this.backHomeButton = page.getByRole('button', { name: 'Back Home' });
+    this.paymentInfo = page.getByTestId('payment-info-value');
+    this.shippingInfo = page.getByTestId('shipping-info-value');
   }
 
   async fillShopper(shopper: Shopper): Promise<void> {
