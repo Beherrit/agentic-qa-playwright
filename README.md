@@ -1,33 +1,34 @@
 ## QA run history
 
-**28 runs: 8 analysis, 10 tests, 10 regression.** Gates passed in 71% of tests runs; the review approved 20% at first review.
+**29 runs: 9 analysis, 10 tests, 10 regression.** Gates passed in 71% of tests runs; the review approved 20% at first review.
 
-Average plan score 98, estimated cost $0.55 per run, $15.32 in all.
+Average plan score 98, estimated cost $0.55 per run, $16.01 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 28 (8 analysis, 10 tests, 10 regression)
+- Runs: 29 (9 analysis, 10 tests, 10 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
 - Approved at first review: 20%
 - Approved after rework: 10%
 - Not approved: 70%
 - Average plan score: 98
-- Total cost: $15.32
+- Total cost: $16.01
 - Average cost per run: $0.55
-- Average agent time: 4m 3s
+- Average agent time: 3m 59s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-28 runs, newest first.
+29 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-03 13:55 | REQ-33 | Requirement: Apply a discount code at checkout | analysis | 98 | - | - | 2m 26s | $0.69 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37127514048) |
 | 2026-10-03 13:52 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37127501951) |
 | 2026-10-03 10:50 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37117558521) |
 | 2026-10-03 06:47 | REQ-22 | Requirement: Product details page | tests (failure) | 98 | - | - | 11m 16s | $1.46 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37103610779) |
