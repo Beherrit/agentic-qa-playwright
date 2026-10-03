@@ -28,9 +28,14 @@ went through both halves of the pipeline on a clean repository, with nothing pre
      the cart page, independently. The plan says to write the tests to the requirement and not soften them
    - the test cases, each with a technique, a level and a priority, and the critic's checklist. The critic wrote
      it without seeing the plan; the three cases marked `*` were added because of it
-3. **The pull request.** The ticket's last comment links to it. Point at:
+3. **The pull request:** [#25](https://github.com/Beherrit/agentic-qa-playwright/pull/25), 19 tests for the ten
+   criteria, every one verified by the reviewer, gates 8 of 8, about two dollars of agent time. Point at:
+   - the verdict line: it is a **draft**, because after one round of rework the reviewer still had one major
+     finding, a retry helper the engineer put inside a page object against the conventions. The pipeline did not
+     hide that; it handed the decision to a person, which is the design
    - **Suspected product bugs**, the defect above, now as tests that assert the right behaviour and are marked as
-     expected failures with the criterion they disagree with
+     expected failures with the criterion they disagree with. The engineer also reported a third thing it could
+     not pin to a criterion: the side menu sometimes opens and shuts on its own
    - the **traceability table**: criterion, tests, and whether the reviewer verified it
    - the **quality gates**, and the sensitivity table: the new tests were run against accounts the shop breaks on
      purpose, to see which tests catch a broken app. That is the reviewer's question, "would this test fail if the
@@ -46,15 +51,31 @@ reviewer asked for changes, the rework failed the full-suite gate on a test else
 and the engineer's workaround changed an existing line in a page object, which the scope gate refused. A pipeline
 that only ever shows green has not been tested. Section 3 is what happened to that flaky test.
 
-## 2. It knows when to stop (1 minute)
+## 2. It knows when to stop, and what to do with an answer (2 minutes)
 
-[Issue #3, "Make checkout better"](https://github.com/Beherrit/agentic-qa-playwright/issues/3). The ticket says
-checkout should be "better and faster" and nothing else. The pipeline did not invent tests for it. It asked what
-should be different when the work is done, labelled the ticket `qa-needs-info`, and stopped.
+[Issue #21, "Make the cart better"](https://github.com/Beherrit/agentic-qa-playwright/issues/21). The ticket says
+the cart should be better and shoppers complain, and nothing else. Read the comments in order:
 
-The first time this ran, the analyst rescued the ticket by writing criteria for how checkout already works. Those
-tests would have passed and proved nothing. The instruction was tightened and the run repeated. Both comments are
-on the ticket.
+1. **The pipeline stopped.** Three placeholder criteria marked blocked, no tests invented for how the cart already
+   works, two sharp questions, the `qa-needs-info` label, and a line saying how to answer.
+2. **The owner answered** in a comment starting with `/qa-answer`. That comment alone started the analysis again.
+   Nobody touched a label. A visitor's comment would have been ignored: the workflow checks the author, and the
+   intake checks again before reading.
+3. **The second analysis** used the answers: the title became "Remove an item from the cart page", eight criteria,
+   plan health 96. The technical reviewer opened the shop as the broken account the complaint hinted at and reported
+   that the defect did not reproduce, so the plan says to assert the behaviour and treat any failure as the bug.
+4. **[Pull request #26](https://github.com/Beherrit/agentic-qa-playwright/pull/26)** came out of the test half by
+   itself: 12 tests, gates 7 of 7, approved by the reviewer at the first review, under a dollar of agent time. The
+   whole thing, from the vague ticket to the approved pull request, with the only human act being the answer.
+
+The older version of this story is [issue #3](https://github.com/Beherrit/agentic-qa-playwright/issues/3), from
+before answers could be read: the pipeline stopped the same way, and the first time it ran, the analyst rescued
+the ticket with criteria for how checkout already worked. The instruction was tightened and the run repeated.
+
+And one more stop worth showing: [issue #22, "Product details page"](https://github.com/Beherrit/agentic-qa-playwright/issues/22)
+got a 98-point plan, and its test half was stopped by the stability gate because two of the generated tests did
+not give the same result three times in a row. No pull request was opened, and the ticket says exactly which
+tests and why. The gates do not negotiate.
 
 ## 3. When the suite fails (2 minutes)
 
