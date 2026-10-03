@@ -28,9 +28,14 @@ went through both halves of the pipeline on a clean repository, with nothing pre
      the cart page, independently. The plan says to write the tests to the requirement and not soften them
    - the test cases, each with a technique, a level and a priority, and the critic's checklist. The critic wrote
      it without seeing the plan; the three cases marked `*` were added because of it
-3. **The pull request.** The ticket's last comment links to it. Point at:
+3. **The pull request:** [#25](https://github.com/Beherrit/agentic-qa-playwright/pull/25), 19 tests for the ten
+   criteria, every one verified by the reviewer, gates 8 of 8, about two dollars of agent time. Point at:
+   - the verdict line: it is a **draft**, because after one round of rework the reviewer still had one major
+     finding, a retry helper the engineer put inside a page object against the conventions. The pipeline did not
+     hide that; it handed the decision to a person, which is the design
    - **Suspected product bugs**, the defect above, now as tests that assert the right behaviour and are marked as
-     expected failures with the criterion they disagree with
+     expected failures with the criterion they disagree with. The engineer also reported a third thing it could
+     not pin to a criterion: the side menu sometimes opens and shuts on its own
    - the **traceability table**: criterion, tests, and whether the reviewer verified it
    - the **quality gates**, and the sensitivity table: the new tests were run against accounts the shop breaks on
      purpose, to see which tests catch a broken app. That is the reviewer's question, "would this test fail if the
