@@ -275,8 +275,8 @@ new app.
 
 The optional repository variable `QA_AGENT_MODEL` picks the model for every role; `models` in `qa.config.json`
 picks one per role, and its `*` entry covers the rest (for example `{ "*": "haiku", "automation-engineer": "sonnet" }`).
-The default is `sonnet`. This repository's demo runs every role on `haiku`: a subscription token has a usage
-allowance, and a proof of concept that runs now and then should not spend it.
+The default is `sonnet`, and this repository's demo says so explicitly. Haiku is cheaper per token, but on the
+role that writes code it took six times longer and many more edit-and-run loops, so it is not cheaper per run.
 
 **Repository settings.**
 

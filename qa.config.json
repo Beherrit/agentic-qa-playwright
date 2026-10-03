@@ -54,7 +54,7 @@
     "testsWhenPlanIsReady": true
   },
   "models": {
-    "*": "haiku"
+    "*": "sonnet"
   },
   "jira": {
     "fields": {}
