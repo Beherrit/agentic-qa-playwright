@@ -13,8 +13,9 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
-- **A model for every role not named.** `models` in `qa.config.json` takes a `*` entry; the demo runs on
-  `{ "*": "haiku" }` so a proof of concept does not spend a subscription's usage allowance.
+- **A model for every role not named.** `models` in `qa.config.json` takes a `*` entry, so a project can keep
+  sonnet for the roles that write code and put the reading roles on haiku. The demo stays on sonnet everywhere:
+  haiku was tried, and the engineer took six times longer.
 - **Answer and requeue.** A `/qa-answer` comment from a member of the project re-runs the analysis on a blocked
   ticket, with the questions and the answers in front of the analyst. The trigger and the intake both check the
   author. Jira gets an automation rule for it.
