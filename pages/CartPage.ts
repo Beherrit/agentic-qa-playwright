@@ -19,6 +19,18 @@ export class CartPage extends BasePage {
     return this.items.filter({ has: this.page.getByText(name, { exact: true }) });
   }
 
+  removeButton(name: string): Locator {
+    return this.item(name).getByRole('button', { name: 'Remove' });
+  }
+
+  itemDescription(name: string): Locator {
+    return this.item(name).getByTestId('inventory-item-desc');
+  }
+
+  itemPrice(name: string): Locator {
+    return this.item(name).getByTestId('inventory-item-price');
+  }
+
   async remove(name: string): Promise<void> {
     await this.item(name).getByRole('button', { name: 'Remove' }).click();
   }
