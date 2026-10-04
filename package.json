@@ -42,7 +42,7 @@
     "evals": "tsx agents/evals/run.ts"
   },
   "author": "Lawrence Moran",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "engines": {
     "node": ">=22.18"

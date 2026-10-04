@@ -508,6 +508,9 @@ and the pull request with tests that fail, for the right reason, until someone b
 
 ## Install it in your project
 
+> This section documents how the engine is designed to be reused. The code is not licensed for use: ask me first
+> (see [License](#license)).
+
 The engine is a package. A project that has a Playwright suite installs it, runs `init`, and from then on its own
 workflows call the engine's with `uses:`. Nothing about Swag Labs comes along: the prompts, the gates and the
 workflows are generic, and the project's config says the rest.
@@ -547,6 +550,7 @@ JUnit, Xray and TestRail exports of it, work in any project that keeps the conve
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Copyright (c) 2026 Lawrence Moran. All rights reserved. The source is public so it can be read and evaluated;
+using, copying or redistributing it needs my written permission. See [LICENSE](LICENSE).
 
 Lawrence Moran, QA engineer.
