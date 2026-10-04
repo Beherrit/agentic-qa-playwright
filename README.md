@@ -1,14 +1,14 @@
 ## QA run history
 
-**31 runs: 10 analysis, 10 tests, 11 regression.** Gates passed in 71% of tests runs; the review approved 20% at first review.
+**32 runs: 10 analysis, 10 tests, 12 regression.** Gates passed in 71% of tests runs; the review approved 20% at first review.
 
-Average plan score 98, estimated cost $0.54 per run, $16.72 in all.
+Average plan score 98, estimated cost $0.52 per run, $16.72 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 31 (10 analysis, 10 tests, 11 regression)
+- Runs: 32 (10 analysis, 10 tests, 12 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 71%
 - Approved at first review: 20%
@@ -16,18 +16,19 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 - Not approved: 70%
 - Average plan score: 98
 - Total cost: $16.72
-- Average cost per run: $0.54
-- Average agent time: 3m 49s
+- Average cost per run: $0.52
+- Average agent time: 3m 42s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-31 runs, newest first.
+32 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-04 11:31 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37198909304) |
 | 2026-10-03 17:36 | REQ-37 | Requirement: Open a product's details page from the list | analysis | 98 | - | - | 2m 30s | $0.71 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37140784773) |
 | 2026-10-03 14:14 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37128762295) |
 | 2026-10-03 13:55 | REQ-33 | Requirement: Apply a discount code at checkout | analysis | 98 | - | - | 2m 26s | $0.69 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37127514048) |
