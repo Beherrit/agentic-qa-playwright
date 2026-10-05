@@ -40,6 +40,7 @@ export const TargetSchema = z.object({
   name: z.string().min(1),
   env: z.record(z.string(), z.string()).default({}),
   initScript: z.string().optional().describe('A JavaScript file, relative to the project root, added to every page'),
+  probe: z.string().optional().describe('A JavaScript expression, evaluated in the page, that is true when the fault has taken effect'),
   routes: z
     .array(
       z.object({
@@ -111,6 +112,13 @@ export const ConfigSchema = z.object({
     })
     .prefault({}),
   sensitivity: z.object({ required: z.boolean().default(false), targets: z.array(TargetSchema).default([]) }).prefault({}),
+  /**
+   * The saboteur: a critic that breaks the feature under test on purpose, one criterion at a time, and runs the new
+   * tests against each break. A criterion whose tests all stay green has tests that prove nothing.
+   */
+  sabotage: z
+    .object({ enabled: z.boolean(), required: z.boolean(), maxFaults: z.number().int().min(1).max(12) })
+    .prefault({ enabled: true, required: true, maxFaults: 8 }),
   accessibility: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false) }).prefault({}),
   /**
    * The full-suite gate. New tests must pass first time. An existing test that fails gets one retry when this is
