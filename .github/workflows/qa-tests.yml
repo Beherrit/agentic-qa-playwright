@@ -154,9 +154,9 @@ jobs:
           path: qa-run/
           overwrite: true
 
-  # The engineer writes, with the credentials. The gates run in the next job, which has none: the whole
-  # suite, the stability runs, the known-broken targets and the accessibility scan all execute generated
-  # test code, and that code never sees a model token. The engineer still runs the tests it writes as it
+  # The engineer writes, with the credentials. The gates run in a later job, which has none: the whole
+  # suite, the stability runs, the known-broken targets, the saboteur's faults and the accessibility scan all execute generated
+  # test code, and that code never sees a model token. The saboteur between them runs no test. The engineer still runs the tests it writes as it
   # goes, so the token is exposed to generated code for that long; see SECURITY.md.
   write:
     name: 1 Code generation
@@ -194,11 +194,55 @@ jobs:
           path: qa-run/
           overwrite: true
 
-  gates:
-    name: 1b Quality gates
+  # The saboteur breaks the feature on purpose, one criterion at a time, and writes each break as a file in
+  # qa-run/faults/. It holds the credentials and runs no test: the gates job runs the new tests against the
+  # faults, without credentials. It is read-only. If it fails, the gates still run and say there were no faults.
+  sabotage:
+    name: 1a Saboteur
     needs: write
     runs-on: ubuntu-latest
-    # The gates run the whole suite each time, plus the new tests against each known-broken target.
+    environment: POC
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: qa-run
+          path: qa-run
+
+      - name: Apply the generated change
+        run: npx agentic-qa apply
+
+      - name: Break the feature on purpose
+        id: stage
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_AGENT_MODEL: ${{ vars.QA_AGENT_MODEL }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa sabotage
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.stage.outcome != 'skipped'
+        with:
+          name: qa-run
+          path: qa-run/
+          overwrite: true
+
+  gates:
+    name: 1b Quality gates
+    needs: [write, sabotage]
+    # Without a status function here, a failed saboteur would skip the gates.
+    if: ${{ !cancelled() && needs.write.result == 'success' }}
+    runs-on: ubuntu-latest
+    # The gates run the whole suite each time, plus the new tests against each known-broken target and each fault.
     timeout-minutes: 45
     permissions:
       contents: read

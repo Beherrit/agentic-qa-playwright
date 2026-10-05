@@ -281,6 +281,35 @@ export const Generation = z.object({
 });
 export type Generation = z.infer<typeof Generation>;
 
+// ── Stage 3b: the saboteur ───────────────────────────────────────────────────
+
+export const Sabotage = z.object({
+  faults: z
+    .array(
+      z.object({
+        name: z.string().regex(/^[a-z][a-z0-9-]{2,39}$/).describe('What the fault does, as a kebab-case slug of 3 to 40 characters: sort-ignores-choice'),
+        criterion: z.string().describe('The acceptance criterion it breaks, e.g. AC-3'),
+        what: z.string().describe('One sentence: what the app does wrong under this fault'),
+        script: z.string().describe('The JavaScript of an init script, run on every page before the app\'s own scripts'),
+        probe: z.string().describe('A JavaScript expression that is true only when the fault has taken effect on the page'),
+        routes: z
+          .array(
+            z.object({
+              url: z.string().min(1).describe('A glob the request URL must match, as page.route takes it'),
+              abort: z.boolean(),
+              status: z.number().int().optional(),
+              body: z.string().optional(),
+              contentType: z.string().optional(),
+            }),
+          )
+          .describe('Requests to answer or drop. Usually empty'),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+export type Sabotage = z.infer<typeof Sabotage>;
+
 // ── Stage 4: code review ─────────────────────────────────────────────────────
 
 export const Review = z.object({

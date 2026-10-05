@@ -27,6 +27,11 @@ app really disagrees with the criterion it names (bug markers), or that the beha
 versions of the app known to be broken. A test that never failed against any of them is not proof of a weak test,
 since the breakage may lie elsewhere, but read it twice.
 
+**What did the saboteur show?** The gate report may include a Sabotage table: a critic broke the feature on
+purpose, one criterion at a time, and the new tests ran against each break. A `missed` row is a test that cannot tell
+a working feature from a broken one, so say which criterion and ask for an assertion that fails under that break. A
+`dud` row says nothing about the test: the break never showed on a page the tests reach.
+
 **Is anything missing or extra?** A planned e2e case with no test. A test that belongs to no case. A change to an
 existing test that was not needed.
 

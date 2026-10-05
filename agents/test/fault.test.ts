@@ -28,6 +28,14 @@ describe('fault injection', () => {
     });
   });
 
+  it('a probe travels with the fault, and an empty one is dropped', () => {
+    const withProbe = TargetSchema.parse({ name: 'x', initScript: 'faults/x.js', probe: 'document.title === "x"' });
+    assert.deepEqual(faultFromEnv(targetEnv(withProbe).QA_FAULT), { initScript: 'faults/x.js', routes: [], probe: 'document.title === "x"' });
+    assert.deepEqual(faultFromEnv('{"initScript":"a.js","probe":""}'), { initScript: 'a.js', routes: [] });
+    assert.deepEqual(faultFromEnv('{"initScript":"a.js","probe":5}'), { initScript: 'a.js', routes: [] });
+    assert.equal(faultFromEnv('{"probe":"true"}'), null, 'a probe alone is not a fault');
+  });
+
   it('the fixture ignores anything that is not a fault', () => {
     assert.equal(faultFromEnv(undefined), null);
     assert.equal(faultFromEnv(''), null);

@@ -1,4 +1,6 @@
-import { applyPatch, runGates, savePatch, type GateReport } from './gates.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { applyPatch, currentPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
 import { checkedRisks } from './lib/draft.ts';
 import { branchFor } from './lib/keys.ts';
@@ -11,11 +13,13 @@ import {
   Reconciled,
   Requirements,
   Review,
+  Sabotage,
   Skepticism,
   TechnicalReview,
   type Request,
   type Strategy,
 } from './lib/schemas.ts';
+import { checkedFaults, faultFiles } from './lib/sabotage.ts';
 import { planHealth } from './lib/score.ts';
 import { repoAt } from './lib/repo.ts';
 import { checkTechnical, mergeRisks, technicalFromTicket, type TechnicalResult } from './lib/technical.ts';
@@ -395,7 +399,7 @@ ${conventions()}`;
  * before the engineer started. These files are also written back afterwards, so nothing a test does to them
  * reaches the reviewer or the pull request in a later job.
  */
-const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md'];
+const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md', 'sabotage.json'];
 
 async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   const saved = PROTECTED.filter(exists).map((name) => [name, loadText(name)] as const);
@@ -437,6 +441,7 @@ export async function generate(): Promise<boolean> {
   const brief = readBrief();
   return protectingRunFiles(async () => {
     const first = await engineer(WRITE_TASK(brief));
+    await sabotage();
     return (await gated(first, brief)).gates.passed;
   });
 }
@@ -457,6 +462,67 @@ export async function write(): Promise<void> {
     save('generation.json', generation);
     jobSummary(`## Code generation\n\n${generation.summary}`);
   });
+}
+
+/**
+ * 3a'. The saboteur, a critic that breaks the feature on purpose, one criterion at a time. It reads the tests the
+ * engineer wrote (the working tree has them) and writes the faults the sabotage gate runs them against. It runs
+ * once: the fix round reuses the faults, so the engineer cannot be sent after a moving target. Read-only, so the
+ * run files need no protection.
+ */
+export async function sabotage(): Promise<void> {
+  const { request: req, strategy } = readBrief();
+  if (req.mode !== 'built') return void console.log('Saboteur skipped: the feature is not built yet, so there is nothing to break.');
+  if (!config.sabotage.enabled) return void console.log('Saboteur skipped: sabotage.enabled is false in qa.config.json.');
+  if (exists('sabotage.json')) return void console.log('Saboteur skipped: qa-run/sabotage.json exists, so its faults are reused.');
+
+  const criterionIds = [...new Set(load<Requirements>('requirements.json').criteria.map((c) => c.id))];
+  const exampleFile = path.join(ROOT, 'fixtures/faults/cart-badge-never-shows.js');
+  const example = fs.existsSync(exampleFile) ? fs.readFileSync(exampleFile, 'utf8') : '// This project has no example fault. Use the pattern in your instructions.\n';
+  const { output } = await runAgent({
+    role: 'saboteur',
+    instructions: prompt('saboteur'),
+    task: `Break the feature under test, one acceptance criterion at a time. The app is ${config.app.name} at ${appUrl(req)}. The requirement key is ${req.key}. Write at most ${config.sabotage.maxFaults} faults.
+
+Criteria you may name: ${criterionIds.join(', ')}
+
+${criteriaText()}
+
+<site-notes>
+${strategy.siteNotes}
+</site-notes>
+
+<example-fault file="fixtures/faults/cart-badge-never-shows.js">
+${example}</example-fault>
+
+<diff>
+${currentPatch()}
+</diff>`,
+    schema: Sabotage,
+    access: 'read',
+    browser: true,
+    maxTurns: 40,
+  });
+
+  const { kept, dropped } = checkedFaults(output.faults, criterionIds, config.sabotage.maxFaults);
+  for (const file of faultFiles(kept)) {
+    fs.mkdirSync(path.dirname(path.join(ROOT, file.path)), { recursive: true });
+    fs.writeFileSync(path.join(ROOT, file.path), file.content);
+  }
+  const list = (items: string[]): string => items.map((item) => `- ${item}`).join('\n');
+  const markdown = [
+    '## Saboteur',
+    `${kept.length} fault(s) written.`,
+    list(kept.map((f) => `\`${f.name}\` breaks ${f.criterion}: ${f.what}`)),
+    ...(dropped.length ? ['Dropped:', list(dropped)] : []),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  save('sabotage.json', { faults: kept, dropped });
+  save('sabotage.md', markdown);
+  jobSummary(markdown);
+  setOutput('faults', kept.length);
+  console.log(`Saboteur wrote ${kept.length} fault(s), dropped ${dropped.length}.`);
 }
 
 /** 3b. The gates over the change already applied to the working tree. Never throws on a failed gate: the workflow decides. */

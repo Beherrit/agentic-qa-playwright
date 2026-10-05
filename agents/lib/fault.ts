@@ -11,12 +11,14 @@ export type Fault = {
   initScript?: string;
   /** Requests answered or dropped before they reach the server. */
   routes: { url: string; abort: boolean; status?: number; body?: string; contentType?: string }[];
+  /** A JavaScript expression, evaluated in the page, that is true when the breakage is visible. Only the saboteur sets it. */
+  probe?: string;
 };
 
 /** The fault a target carries, or null when it is only a set of environment variables. */
-export function faultOf(target: Pick<Target, 'initScript' | 'routes'>): Fault | null {
+export function faultOf(target: Pick<Target, 'initScript' | 'routes' | 'probe'>): Fault | null {
   if (!target.initScript && target.routes.length === 0) return null;
-  return { ...(target.initScript ? { initScript: target.initScript } : {}), routes: target.routes };
+  return { ...(target.initScript ? { initScript: target.initScript } : {}), routes: target.routes, ...(target.probe ? { probe: target.probe } : {}) };
 }
 
 /** The environment a target's run gets: its own variables, plus the fault as JSON when it has one. */
@@ -33,7 +35,8 @@ export function faultFromEnv(value: string | undefined): Fault | null {
     const routes = Array.isArray(parsed.routes) ? parsed.routes.filter((r) => r && typeof r.url === 'string') : [];
     const initScript = typeof parsed.initScript === 'string' && parsed.initScript ? parsed.initScript : undefined;
     if (!initScript && routes.length === 0) return null;
-    return { ...(initScript ? { initScript } : {}), routes: routes.map((r) => ({ ...r, abort: r.abort === true })) };
+    const probe = typeof parsed.probe === 'string' && parsed.probe ? parsed.probe : undefined;
+    return { ...(initScript ? { initScript } : {}), routes: routes.map((r) => ({ ...r, abort: r.abort === true })), ...(probe ? { probe } : {}) };
   } catch {
     return null;
   }

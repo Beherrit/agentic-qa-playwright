@@ -79,6 +79,7 @@ and file upload are not on the list.
 | `plan-critic` | QA analysis, 2b | read | Read | `Checklist` |
 | `plan-reconciler` | QA analysis, 2c | read | Read | `Reconciled` |
 | `automation-engineer` | QA tests, 1, 1c and 2b | write | Read, browser, Write and Edit in the writable folders, Bash for the suite's test, typecheck and lint commands only | `Generation` |
+| `saboteur` | QA tests, 1a | read | Read, browser | `Sabotage` |
 | `code-reviewer` | QA tests, 2 and 2b | read | Read | `Review` |
 | `failure-triager` | Regression, triage | read | Read | `Triage` |
 | `test-healer` | Regression, heal | write | as the engineer | `Healing` |
@@ -103,6 +104,7 @@ Nothing here asks a model. Blocking means the run stops (or, for the gates, goes
 | Stability | The new tests give the same result `stabilityRuns` times in a row | yes |
 | Fails for the right reason | Each expected failure failed on an assertion or a missing element, not a crash | yes, when there are expected failures |
 | Sensitivity | The new tests are run against `sensitivity.targets` (broken accounts, old builds, or a fault injected into every page); at least one must catch something | only with `sensitivity.required` |
+| Sabotage | The new tests are run against each fault the saboteur wrote (`qa-run/faults/`), one per criterion; no fault may be `missed`. A `dud` (the breakage never showed) and an `untested` criterion do not block | unless `sabotage.required` is false |
 | Accessibility | axe scan of the pages the new tests end on | only with `accessibility.required` |
 
 **Gates on a repair** (`runHealGates`): Scope, Nothing weakened (no skips, no markers, no assertions lost), Types,

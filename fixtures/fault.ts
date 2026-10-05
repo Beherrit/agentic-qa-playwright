@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 
 /**
  * Fault injection for the sensitivity gate. When the pipeline runs the new tests against a target that carries a
@@ -16,6 +16,8 @@ const env = (): Record<string, string | undefined> => (globalThis as { process?:
 export type Fault = {
   initScript?: string;
   routes: { url: string; abort: boolean; status?: number; body?: string; contentType?: string }[];
+  /** A JavaScript expression, evaluated in the page, that is true when the breakage is visible. */
+  probe?: string;
 };
 
 export function faultFromEnv(value: string | undefined = env().QA_FAULT): Fault | null {
@@ -25,7 +27,8 @@ export function faultFromEnv(value: string | undefined = env().QA_FAULT): Fault 
     const routes = Array.isArray(parsed.routes) ? parsed.routes.filter((r) => r && typeof r.url === 'string') : [];
     const initScript = typeof parsed.initScript === 'string' && parsed.initScript ? parsed.initScript : undefined;
     if (!initScript && routes.length === 0) return null;
-    return { ...(initScript ? { initScript } : {}), routes: routes.map((r) => ({ ...r, abort: r.abort === true })) };
+    const probe = typeof parsed.probe === 'string' && parsed.probe ? parsed.probe : undefined;
+    return { ...(initScript ? { initScript } : {}), routes: routes.map((r) => ({ ...r, abort: r.abort === true })), ...(probe ? { probe } : {}) };
   } catch {
     return null;
   }
@@ -39,4 +42,20 @@ export async function applyFault(page: Page, fault: Fault): Promise<void> {
       route.abort ? r.abort() : r.fulfill({ status: route.status ?? 200, body: route.body ?? '', contentType: route.contentType ?? 'application/json' }),
     );
   }
+}
+
+/**
+ * Once the test is done, asks the page whether the breakage was there to see, and attaches the answer. The saboteur
+ * gate needs it to tell a test that missed a fault from a fault the test never reached. A throwing probe counts as
+ * false. Nothing happens without a probe, so outside that gate this is a no-op.
+ */
+export async function attachProbe(page: Page, testInfo: TestInfo, fault: Fault | null): Promise<void> {
+  if (!fault?.probe || page.isClosed() || !page.url().startsWith('http')) return;
+  let visible = false;
+  try {
+    visible = (await page.evaluate(fault.probe)) === true;
+  } catch {
+    // A probe that throws did not see the breakage.
+  }
+  await testInfo.attach('fault-probe', { contentType: 'application/json', body: JSON.stringify({ visible }) });
 }

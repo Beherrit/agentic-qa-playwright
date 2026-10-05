@@ -127,10 +127,12 @@ The ticket says which: the `qa-test-first` label, or "No, write the tests first"
 | Stability | The new tests give the same result `stabilityRuns` times in a row (3 here) |
 | Fails for the right reason | Every expected failure failed on an assertion or a missing element, not on a `TypeError` or a network error. A crashing test also "fails as expected", and would otherwise sail through |
 | Sensitivity | The new tests are run against versions of the app known to be broken (`sensitivity.targets`) |
+| Sabotage | A critic breaks the feature on purpose, one criterion at a time, and the new tests are run against each break. No fault may be missed: a criterion whose tests all stay green while its behaviour is broken has tests that prove nothing |
 | Accessibility | An axe scan of every page the new tests end on |
 
-The last six run only if the first four pass. Sensitivity and accessibility are advisory unless
-`sensitivity.required` or `accessibility.required` is set; the rest always block.
+The last seven run only if the first four pass. Sensitivity and accessibility are advisory unless
+`sensitivity.required` or `accessibility.required` is set; sabotage blocks unless `sabotage.required` is false. The
+rest always block.
 
 **Sensitivity** is the gate I would most want to be asked about. The reviewer's main question, would this test fail
 if the behaviour broke, is otherwise answered by a model reading code. Here it is answered by running it. Swag Labs
@@ -138,6 +140,15 @@ ships accounts that break the shop on purpose, so the new tests run once as each
 tests each one caught and which never failed against any. In your own app a target is any set of environment
 variables that points the suite at something known to be wrong: an old build, a feature flag, a stubbed backend. It
 is advisory by default, because a breakage elsewhere in the app proves nothing about your feature.
+
+**Sabotage** is the same question asked about this feature in particular. Tests written by a model tend to be written
+so that they never fail, and a fixed list of broken versions of the app may never touch the feature at all. So a
+critic, the saboteur, reads the criteria and the new tests and writes a fault per criterion: a script that makes the
+app do one thing wrong, with a probe that says whether the breakage showed on the page. The gate runs the new tests
+against each fault, and each fault gets one of four verdicts. `caught`: a test for that criterion failed. `missed`:
+none failed although the breakage was on the page. `dud`: none failed, but the breakage never showed, so the fault
+says nothing about the tests. `untested`: no test carries that criterion. A miss blocks by default and goes back to
+the engineer in the fix round, whose job is to make the test fail under that break.
 
 **Accessibility** does not scan a list of URLs. With `QA_A11Y` set, the shared fixture attaches an axe scan to every
 passing test, taken on the page the test ended on, so pages are scanned in the states the tests reach: signed in,
@@ -492,7 +503,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/triage.ts`, `agents/heal.ts` | Failure triage and self-healing for a regression run |
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
-| `agents/prompts/` | One instruction file per role |
+| `agents/prompts/` | One instruction file per role, the saboteur's (`saboteur.md`) among them |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, the technical checks, keys and labels, markdown rendering, the run folder |
 | `agents/test/` | Unit tests for the pipeline itself (`npm run test:unit`) |
 | `agents/evals/` | The agent evaluations: canned cases, their checks, and recorded answers for the dry run (`npm run evals`) |
@@ -503,6 +514,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `templates/host/` | What `npx agentic-qa init` writes into a project: the config, the documents, the caller workflows |
 | `agents/init.ts`, `agents/survey.ts` | Setting a project up, and the surveyor that reads an existing suite |
 | `agents/lib/suite.ts`, `agents/lib/fault.ts`, `agents/lib/export.ts` | Running the suite as configured, fault injection, exports for test management tools |
+| `agents/lib/sabotage.ts` | Checking the saboteur's faults, and the verdict per fault and per criterion |
 | `fixtures/fault.ts` | The fixture that applies a fault from the sensitivity gate to every page |
 | `.github/ISSUE_TEMPLATE/requirement.yml` | The "QA requirement" issue template |
 

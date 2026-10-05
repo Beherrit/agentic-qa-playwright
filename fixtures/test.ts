@@ -5,7 +5,7 @@ import { CheckoutPage } from '../pages/CheckoutPage.ts';
 import { InventoryPage } from '../pages/InventoryPage.ts';
 import { ProductPage } from '../pages/ProductPage.ts';
 import { LoginPage } from '../pages/LoginPage.ts';
-import { applyFault, faultFromEnv } from './fault.ts';
+import { applyFault, attachProbe, faultFromEnv } from './fault.ts';
 import { defaultUser, PASSWORD } from './personas.ts';
 
 type Fixtures = {
@@ -27,10 +27,12 @@ const brief = (results: AxeResult[]) =>
 
 export const test = base.extend<Fixtures>({
   // The sensitivity gate can hand every test a broken version of the app (QA_FAULT). Nothing happens otherwise.
-  page: async ({ page }, use) => {
+  // With a probe in the fault, the page is asked afterwards whether the breakage was visible (see attachProbe).
+  page: async ({ page }, use, testInfo) => {
     const fault = faultFromEnv();
     if (fault) await applyFault(page, fault);
     await use(page);
+    await attachProbe(page, testInfo, fault);
   },
 
   loginPage: async ({ page }, use) => use(new LoginPage(page)),

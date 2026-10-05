@@ -196,6 +196,26 @@ describe('the outcome of a Playwright JSON report', () => {
     assert.equal(third.expectedToFail, false);
   });
 
+  it('reads the fault-probe attachment, and says nothing when there is none', () => {
+    const attach = (visible: unknown) => ({ name: 'fault-probe', body: Buffer.from(JSON.stringify({ visible })).toString('base64') });
+    const test = (attachments: unknown[]) => ({ expectedStatus: 'passed', status: 'expected', results: [{ status: 'passed', attachments }] });
+    const [seen, notSeen, repeats, none, junk] = outcomes({
+      suites: [
+        {
+          title: 'cart.spec.ts',
+          specs: [
+            { title: 'a', tests: [test([attach(true)])] },
+            { title: 'b', tests: [test([attach(false)])] },
+            { title: 'c', tests: [{ expectedStatus: 'passed', status: 'expected', results: [{ status: 'passed', attachments: [attach(false)] }, { status: 'passed', attachments: [attach(true)] }] }] },
+            { title: 'd', tests: [test([{ name: 'a11y', body: 'e30=' }])] },
+            { title: 'e', tests: [test([{ name: 'fault-probe', body: Buffer.from('not json').toString('base64') }])] },
+          ],
+        },
+      ],
+    } as Parameters<typeof outcomes>[0]);
+    assert.deepEqual([seen, notSeen, repeats, none, junk].map((o) => o.probeVisible), [true, false, true, null, null]);
+  });
+
   it('accepts an expected failure caused by the app, rejects one caused by the test', () => {
     const problems = wrongReasons(outcomes(report));
     assert.equal(problems.length, 1);
@@ -211,6 +231,7 @@ describe('the outcome of a Playwright JSON report', () => {
       expectedToFail: true,
       reasons: ['not built yet: SHOP-12'],
       errors: ['Error: expect(received).toBe(expected)\n\nExpected: 2\nReceived: 1'],
+      probeVisible: null,
     };
     assert.match(wrongReasons([outcome]).join(), /nothing to do with the page/);
     const onThePage = { ...outcome, errors: ["Error: locator.fill: Test timeout of 30000ms exceeded.\nCall log:\n  - waiting for getByRole('searchbox')"] };
@@ -270,7 +291,7 @@ describe('sensitivity', () => {
 });
 
 describe('the full-suite gate', () => {
-  const outcome = (title: string, tags: string[], status = 'unexpected') => ({ file: 'f.spec.ts', title, tags, status, expectedToFail: false, reasons: [], errors: [] });
+  const outcome = (title: string, tags: string[], status = 'unexpected') => ({ file: 'f.spec.ts', title, tags, status, expectedToFail: false, reasons: [], errors: [], probeVisible: null });
 
   it('tells this requirement\'s failures from everyone else\'s by the tag', () => {
     const report = [outcome('Cart > new', ['REQ-17', 'AC-1']), outcome('Sort > old', ['REQ-1']), outcome('Login > fine', ['REQ-1'], 'expected')];
