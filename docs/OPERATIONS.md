@@ -50,6 +50,9 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `stabilityRuns` | 3 | doctor fails | How many times in a row new tests (and repairs) must give the same result |
 | `sensitivity.targets` | `problem_user`, `error_user` | gate skipped | Known-broken versions of the app, each a set of environment variables |
 | `sensitivity.required` | false | advisory | Whether the sensitivity gate blocks |
+| `sabotage.enabled` | true | on | The saboteur runs after the engineer, and the sabotage gate runs the new tests against what it wrote. Built mode only |
+| `sabotage.required` | true | blocking | Whether a missed fault blocks. Set it to false to make the gate advisory |
+| `sabotage.maxFaults` | 8 | 8 | The most faults one run keeps (1 to 12) |
 | `accessibility.enabled` | true | gate off | Scan the pages the new tests end on with axe |
 | `accessibility.required` | false | advisory | Whether the accessibility gate blocks |
 | `autoRun.analysisWhenWriterFiles` | true | off | A ready ticket from the ticket writer starts its own analysis |
@@ -128,7 +131,23 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 
 Sensitivity and accessibility are the two advisory gates. Set `sensitivity.required` or `accessibility.required` to
 `true` in `qa.config.json`. A failing advisory gate is still shown in the gate report and the pull request; once it
-is required it also sends the change back to the engineer, and then stops the run. Every other gate always blocks.
+is required it also sends the change back to the engineer, and then stops the run. Sabotage is the other way round: it
+blocks, and `sabotage.required: false` makes it advisory. Every other gate always blocks.
+
+## Reading the sabotage table
+
+The saboteur writes its faults once, to `qa-run/faults/`, with `qa-run/sabotage.json` listing them; the fix round and
+the second gate run reuse them. The gate's table has one row per fault, missed rows first.
+
+- `caught`: a test for that criterion failed under the fault. Nothing to do.
+- `missed`: the breakage was on the page and every test for the criterion stayed green. The engineer is told to
+  strengthen those tests until they fail under that break.
+- `dud`: no test failed, and the fault's probe says the breakage never showed on a page the tests reach (or no probe
+  ran). It says nothing about the tests. Open the fault file in `qa-run/faults/`, check that the script still
+  matches the app and that the probe is true on a broken page. A dud usually means a bad fault: fix the file, or run
+  the saboteur again by deleting `qa-run/sabotage.json`. A dud that keeps coming back for one criterion may mean its
+  tests never reach the behaviour, which is worth a look.
+- `untested`: no test carries the criterion's tag. The traceability gate normally catches this first.
 
 ## Adding a sensitivity target
 
