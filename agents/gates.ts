@@ -4,8 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { targetEnv } from './lib/fault.ts';
 import { tagGrep } from './lib/keys.ts';
-import { config, ROOT, RUN_DIR } from './lib/paths.ts';
-import type { Generation, Request, Strategy } from './lib/schemas.ts';
+import { config, ROOT, RUN_DIR, type Target } from './lib/paths.ts';
+import { anyVisible, sabotageSummary, verdicts, type FaultRun } from './lib/sabotage.ts';
+import type { Generation, Request, Sabotage, Strategy } from './lib/schemas.ts';
+import { exists, load } from './lib/store.ts';
 import { commands, lintCommand, prepareAuth, suiteEnv, testCommand } from './lib/suite.ts';
 
 /**
@@ -264,13 +266,37 @@ function markerGate(patch: string, request: Request, generation: Generation): Ga
 
 // ── Running the new tests ────────────────────────────────────────────────────
 
-type JsonResult = { status: string; error?: { message?: string }; errors?: { message?: string }[]; annotations?: { type: string; description?: string }[] };
+type JsonResult = {
+  status: string;
+  error?: { message?: string };
+  errors?: { message?: string }[];
+  annotations?: { type: string; description?: string }[];
+  attachments?: { name: string; body?: string }[];
+};
 type JsonTest = { expectedStatus: string; status: string; annotations?: { type: string; description?: string }[]; results: JsonResult[] };
 type JsonSuite = { title: string; specs?: { title: string; file?: string; tags?: string[]; tests: JsonTest[] }[]; suites?: JsonSuite[] };
 
-export type TestOutcome = { file: string; title: string; tags: string[]; status: string; expectedToFail: boolean; reasons: string[]; errors: string[] };
+export type TestOutcome = { file: string; title: string; tags: string[]; status: string; expectedToFail: boolean; reasons: string[]; errors: string[]; probeVisible: boolean | null };
 
 const stripAnsi = (text: string): string => text.replace(/\u001b\[[0-9;]*m/g, '');
+
+/**
+ * What the fault-probe attachments of a test said (see fixtures/fault.ts): true if any repeat saw the breakage,
+ * false if some were attached and none did, null when the test attached none.
+ */
+function probeVisible(results: JsonResult[]): boolean | null {
+  const seen: boolean[] = [];
+  for (const result of results)
+    for (const attachment of result.attachments ?? []) {
+      if (attachment.name !== 'fault-probe' || !attachment.body) continue;
+      try {
+        seen.push((JSON.parse(Buffer.from(attachment.body, 'base64').toString('utf8')) as { visible?: unknown }).visible === true);
+      } catch {
+        // An attachment that is not valid JSON says nothing.
+      }
+    }
+  return seen.length === 0 ? null : seen.some(Boolean);
+}
 
 /** Flattens a Playwright JSON report into one outcome per test (all repeats of it together). */
 export function outcomes(report: { suites?: JsonSuite[] }): TestOutcome[] {
@@ -287,6 +313,7 @@ export function outcomes(report: { suites?: JsonSuite[] }): TestOutcome[] {
           expectedToFail: test.expectedStatus === 'failed' || annotations.some((a) => a.type === 'fail'),
           reasons: annotations.filter((a) => a.type === 'fail').map((a) => a.description ?? ''),
           errors: test.results.flatMap((r) => [...(r.errors ?? []), ...(r.error ? [r.error] : [])]).map((e) => stripAnsi(e.message ?? '')),
+          probeVisible: probeVisible(test.results),
         };
       }),
     );
@@ -480,6 +507,32 @@ function sensitivityGate(request: Request): Gate | null {
     summary: caughtAny ? short : `the new tests passed against every known-broken target; ${short}`,
     table,
   };
+}
+
+// ── Saboteur ─────────────────────────────────────────────────────────────────
+
+/**
+ * Runs the new tests against each fault the saboteur wrote (qa-run/sabotage.json), one run per fault. A fault that
+ * was visible on the page while every test for its criterion stayed green is a test that cannot tell a working
+ * feature from a broken one. The fault's own probe, attached by the tests' page fixture, says whether it was visible.
+ */
+function sabotageGate(request: Request): Gate | null {
+  if (request.mode !== 'built' || !config.sabotage.enabled) return null;
+  const advisory = !config.sabotage.required;
+  const faults = exists('sabotage.json') ? load<{ faults: Sabotage['faults'] }>('sabotage.json').faults : [];
+  if (faults.length === 0) return { name: 'Sabotage', passed: true, advisory: true, summary: 'the saboteur wrote no usable faults, so nothing was broken on purpose' };
+
+  const runs: Record<string, FaultRun> = {};
+  for (const fault of faults) {
+    const target: Target = { name: fault.name, env: {}, initScript: `qa-run/faults/${fault.name}.js`, routes: fault.routes.map((r) => ({ ...r })), probe: fault.probe };
+    const run = runJson(`--grep "${tagGrep(request.key)}"`, targetEnv(target));
+    runs[fault.name] = { outcomes: run.report, visible: anyVisible(run.report) };
+  }
+  const all = verdicts(faults, runs);
+  const { passed, short, table } = sabotageSummary(all);
+  fs.mkdirSync(RUN_DIR, { recursive: true });
+  fs.writeFileSync(path.join(RUN_DIR, 'sabotage-results.json'), `${JSON.stringify(all, null, 2)}\n`);
+  return { name: 'Sabotage', passed, advisory, summary: short, table };
 }
 
 // ── Accessibility ────────────────────────────────────────────────────────────
@@ -678,6 +731,9 @@ export function runGates(request: Request, strategy: Strategy, generation: Gener
 
     const sensitivity = stability.ok ? sensitivityGate(request) : null;
     if (sensitivity) results.push(sensitivity);
+
+    const sabotage = stability.ok ? sabotageGate(request) : null;
+    if (sabotage) results.push(sabotage);
 
     const accessibility = stability.ok ? accessibilityGate(request) : null;
     if (accessibility) results.push(accessibility);

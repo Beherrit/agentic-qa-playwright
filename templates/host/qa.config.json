@@ -30,6 +30,11 @@
     "required": false,
     "targets": []
   },
+  "sabotage": {
+    "enabled": true,
+    "required": true,
+    "maxFaults": 8
+  },
   "accessibility": {
     "enabled": true,
     "required": false
