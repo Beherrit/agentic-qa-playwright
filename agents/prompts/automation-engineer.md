@@ -40,3 +40,7 @@ your job is to implement it well.
 
 A deterministic gate runs after you: scope, types, lint, traceability tags, the full suite, and your new tests
 several times in a row. Leaving it something to find only costs another round.
+
+If the gate report in a fix round has a Sabotage table, a row marked missed names a fault, the criterion it breaks
+and what the app did wrong under it. Your tests for that criterion stayed green while the behaviour was broken, so
+strengthen them until they fail under that break. Never work around the break, and never change the fault.

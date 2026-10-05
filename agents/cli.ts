@@ -31,7 +31,7 @@ On your machine
 
 One stage at a time, as the CI jobs run them
   intake, requirements, technical, plan, critic, reconcile, check-plan,
-  generate (or write, gates, fix as three jobs), apply [heal.patch], review, rework, report, notify <analysis|tests>,
+  generate (or write, sabotage, gates, fix as four jobs), apply [heal.patch], review, rework, report, notify <analysis|tests>,
   history record <qa-run dir> <out file> | render <history dir> [entry file]
 
 Options
@@ -179,6 +179,7 @@ const commands: Record<string, () => Promise<unknown>> = {
     if (!(await (await stages()).generate())) stop('The generated tests did not pass the quality gates.');
   },
   write: async () => (await stages()).write(),
+  sabotage: async () => (await stages()).sabotage(),
   gates: async () => (await stages()).gates(),
   fix: async () => (await stages()).fix(),
   // `apply` takes the generated tests; `apply heal.patch` takes a repair from the healer.
