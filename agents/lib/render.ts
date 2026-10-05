@@ -382,7 +382,7 @@ export function pullRequestMd(input: {
 ${
   approved
     ? '**Verdict: approved by the automated review.** It still needs a person to read it and merge it.'
-    : '**Verdict: draft. The automated review still has open findings after one round of rework.** They are listed below for a person to decide on.'
+    : `**Verdict: draft. The automated review still has open findings${round > 1 ? ' after a round of rework' : ''}.** They are listed below for a person to decide on.`
 }
 
 ${plural(generation.automated.length, 'test')} for ${plural(req.criteria.length, 'criterion', 'criteria')}, ${verified} verified by the reviewer. Gates: ${
@@ -556,7 +556,7 @@ export function testsReadyMd(input: {
 
 **The tests are in a pull request: ${prUrl}**
 
-${draft ? 'The automated review still had open findings after one round of rework, so it is a draft for a person to decide on.' : 'The automated review approved it. A person still reads and merges it.'}
+${draft ? 'The automated review still had open findings, so it is a draft for a person to decide on.' : 'The automated review approved it. A person still reads and merges it.'}
 ${request.mode === 'test-first' ? `\n${TEST_FIRST_NOTE}\n` : ''}`;
   }
   if (gates && !gates.passed) {

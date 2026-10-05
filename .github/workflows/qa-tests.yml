@@ -427,7 +427,9 @@ jobs:
   rework:
     name: 2b Rework + re-review
     needs: review
-    if: needs.review.outputs.verdict == 'request-changes'
+    # A status function, or this job is skipped whenever the fix round before it was skipped: a job that
+    # depends on a skipped job is skipped too, even through a job that ran.
+    if: ${{ !cancelled() && needs.review.result == 'success' && needs.review.outputs.verdict == 'request-changes' }}
     runs-on: ubuntu-latest
     environment: POC
     timeout-minutes: 60
