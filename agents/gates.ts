@@ -516,7 +516,7 @@ function sensitivityGate(request: Request): Gate | null {
  * was visible on the page while every test for its criterion stayed green is a test that cannot tell a working
  * feature from a broken one. The fault's own probe, attached by the tests' page fixture, says whether it was visible.
  */
-function sabotageGate(request: Request): Gate | null {
+export function sabotageGate(request: Request): Gate | null {
   if (request.mode !== 'built' || !config.sabotage.enabled) return null;
   const advisory = !config.sabotage.required;
   const faults = exists('sabotage.json') ? load<{ faults: Sabotage['faults'] }>('sabotage.json').faults : [];
