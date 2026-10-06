@@ -54,6 +54,13 @@
     "enabled": true,
     "required": false
   },
+  "safety": {
+    "enabled": true,
+    "screener": true
+  },
+  "intake": {
+    "maxRounds": 3
+  },
   "autoRun": {
     "analysisWhenWriterFiles": true,
     "testsWhenPlanIsReady": true

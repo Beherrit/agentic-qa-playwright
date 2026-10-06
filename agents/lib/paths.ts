@@ -125,6 +125,13 @@ export const ConfigSchema = z.object({
    * on; passing then counts as flaky and is reported, not blocked. Off, any failure in the suite blocks.
    */
   gates: z.object({ retryExistingOnce: z.boolean().default(true) }).prefault({}),
+  /**
+   * The safety screen every requirement passes before an agent acts on it: fixed rules first, then (with `screener`)
+   * a read-only agent that judges what the rules cannot. Turn `enabled` off only on a project that trusts every author.
+   */
+  safety: z.object({ enabled: z.boolean().default(true), screener: z.boolean().default(true) }).prefault({}),
+  /** The conversation that turns a wish into a ticket (`npx agentic-qa intake`): how many rounds of questions at most. */
+  intake: z.object({ maxRounds: z.number().int().min(1).max(6).default(3) }).prefault({}),
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
   /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0) }).prefault({}),
@@ -171,4 +178,5 @@ export const LABELS = {
   testFirst: 'qa-test-first',
   needsInfo: 'qa-needs-info',
   analyzed: 'qa-analyzed',
+  refused: 'qa-refused',
 } as const;

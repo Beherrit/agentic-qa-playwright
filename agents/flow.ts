@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
 import { Request } from './lib/schemas.ts';
-import { exists, reset, save, setOutput } from './lib/store.ts';
+import { exists, load, reset, save, setOutput } from './lib/store.ts';
 import { intakeTicket, sourceFor } from './sources/index.ts';
+import { screen } from './screen.ts';
 import * as stages from './stages.ts';
 
 /**
@@ -65,7 +66,11 @@ export async function intake(input: RequirementInput): Promise<Request> {
  */
 export async function analyze(input: RequirementInput, options: { post: boolean; runUrl: string | null }): Promise<boolean> {
   if (!exists('request.json') || namesRequirement(input)) await intake(input);
-  let ok = await stages.requirements();
+  // The safety screen comes first. A refusal or a question skips every stage and goes straight to the report, which
+  // posts it on the ticket and sets the labels.
+  const screened = await screen(load<Request>('request.json'));
+  if (screened.verdict !== 'proceed') console.log(`Safety screen: ${screened.verdict} (${screened.category}). ${screened.reasons[0]}`);
+  let ok = screened.verdict === 'proceed' && (await stages.requirements());
   if (ok) {
     await stages.technical();
     await Promise.all([stages.plan(), stages.critic()]);

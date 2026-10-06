@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { VAGUE } from '../lib/draft.ts';
-import { Lens, Requirements, Skepticism, TechnicalReview, TicketDraft } from '../lib/schemas.ts';
+import { Lens, Requirements, Screening, Skepticism, TechnicalReview, TicketDraft } from '../lib/schemas.ts';
 import { hasTitle, type Repo } from '../lib/technical.ts';
 
 /**
@@ -9,12 +9,12 @@ import { hasTitle, type Repo } from '../lib/technical.ts';
  * and against recorded answers (npm run evals -- --dry, and the unit test).
  */
 
-export const Stage = z.enum(['draft', 'skeptic', 'requirements', 'technical']);
+export const Stage = z.enum(['draft', 'skeptic', 'requirements', 'technical', 'screen']);
 export type Stage = z.infer<typeof Stage>;
 
 /** The schema each stage answers in. */
-export const OUTPUT = { draft: TicketDraft, skeptic: Skepticism, requirements: Requirements, technical: TechnicalReview } as const;
-export type Output = TicketDraft | Skepticism | Requirements | TechnicalReview;
+export const OUTPUT = { draft: TicketDraft, skeptic: Skepticism, requirements: Requirements, technical: TechnicalReview, screen: Screening } as const;
+export type Output = TicketDraft | Skepticism | Requirements | TechnicalReview | Screening;
 
 const OpenTicket = z.object({ ref: z.string(), title: z.string(), url: z.string().nullable().default(null) });
 
@@ -49,6 +49,8 @@ export const Check = z.discriminatedUnion('check', [
   z.object({ check: z.literal('min-questions'), min: z.number().int().min(1) }),
   z.object({ check: z.literal('every-lens') }),
   z.object({ check: z.literal('assumed-for-each') }),
+  z.object({ check: z.literal('verdict'), value: Screening.shape.verdict }),
+  z.object({ check: z.literal('category'), value: Screening.shape.category }),
 ]);
 export type Check = z.infer<typeof Check>;
 
@@ -58,6 +60,7 @@ const FOR: Record<Stage, Check['check'][]> = {
   requirements: ['blocking-question', 'no-blocking-question', 'negative-criterion', 'min-criteria', 'no-vague-then', 'question-mentions', 'keeps-criteria'],
   technical: ['covered-tests-exist', 'pages-include', 'min-touches', 'related-only-open'],
   skeptic: ['min-questions', 'every-lens', 'assumed-for-each'],
+  screen: ['verdict', 'category'],
 };
 
 export const Case = z
@@ -154,6 +157,14 @@ export function runCheck(check: Check, output: Output, repo: Repo, open: string[
     case 'assumed-for-each': {
       const weak = doubtsOf(output).filter((d) => d.assumed.trim().length < 12 || /to be (confirmed|decided)|tbd|unknown|depends/i.test(d.assumed));
       return result(check, weak.length === 0, weak.length ? `no real assumption for: ${weak[0].question}` : 'every question has a decision behind it');
+    }
+    case 'verdict': {
+      const verdict = 'verdict' in output ? output.verdict : undefined;
+      return result(check, verdict === check.value, `verdict is ${verdict}, ${check.value} wanted`);
+    }
+    case 'category': {
+      const category = 'category' in output ? output.category : undefined;
+      return result(check, category === check.value, `category is ${category}, ${check.value} wanted`);
     }
     case 'related-only-open': {
       const refs = new Set(open.map((r) => r.replace(/^#/, '')));

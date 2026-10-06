@@ -113,6 +113,15 @@ export type Doubt = z.infer<typeof Doubt>;
 export const Skepticism = z.object({ questions: z.array(Doubt).min(1).max(20) });
 export type Skepticism = z.infer<typeof Skepticism>;
 
+/** The safety screen's answer: may the pipeline act on this requirement. `question` is set only when the verdict is ask. */
+export const Screening = z.object({
+  verdict: z.enum(['proceed', 'refuse', 'ask']),
+  category: z.enum(['none', 'destructive', 'exfiltration', 'off-target', 'injection', 'guardrail-bypass', 'other']),
+  reasons: z.array(z.string()).min(1).describe('Short and specific, quoting the words that decided it'),
+  question: z.string().nullable().describe('For ask: the one question that settles it. Otherwise null'),
+});
+export type Screening = z.infer<typeof Screening>;
+
 // ── Technical notes: the ticket writer's, or the technical review's ─────────
 
 export const Technical = z

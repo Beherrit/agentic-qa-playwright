@@ -22,9 +22,11 @@ import {
 import { checkedFaults, faultFiles } from './lib/sabotage.ts';
 import { planHealth } from './lib/score.ts';
 import { repoAt } from './lib/repo.ts';
+import { screeningMd } from './lib/safety.ts';
 import { checkTechnical, mergeRisks, technicalFromTicket, type TechnicalResult } from './lib/technical.ts';
 import { requirementsFromTicket } from './lib/ticket.ts';
 import { exists, jobSummary, load, loadText, prompt, save, setOutput, type RunRecord } from './lib/store.ts';
+import { screen, screening } from './screen.ts';
 import { sourceFor } from './sources/index.ts';
 import type { OpenTicket } from './sources/types.ts';
 
@@ -109,6 +111,14 @@ export function foldQuestions(req: Requirements, asked: Skepticism | null): { re
 
 export async function requirements(): Promise<boolean> {
   const req = request();
+  // The first thing any requirement meets. In CI this is the first agent job, so nothing else runs on a refused ticket.
+  const screened = await screen(req);
+  if (screened.verdict !== 'proceed') {
+    console.log(`Safety screen: ${screened.verdict} (${screened.category}). ${screened.reasons[0]}`);
+    jobSummary(screeningMd(screened));
+    setOutput('ready', false);
+    return false;
+  }
   // The skeptic runs on every ticket, the ticket writer's included: the writer settles what it can, the skeptic
   // lists what is left to a guess.
   const asked = await doubt(req);
@@ -669,6 +679,8 @@ export function report(): void {
  */
 export async function notifyAnalysis(runUrl: string | null, options: { post: boolean } = { post: true }): Promise<void> {
   const req = request();
+  const screened = screening();
+  if (screened && screened.verdict !== 'proceed') return notifyScreened(req, screened, options.post);
   const requirementsDoc = exists('requirements.json') ? load<Requirements>('requirements.json') : null;
   const strategy = exists('strategy.json') ? load<Strategy>('strategy.json') : null;
   const blocked = requirementsDoc?.openQuestions.some((q) => q.blocking) ?? false;
@@ -699,6 +711,25 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
 
   // The workflow starts the test half on this when the configuration says a good plan may go straight on.
   setOutput('autorun', ready && !blocked && (config.autoRun?.testsWhenPlanIsReady ?? false));
+}
+
+/**
+ * A requirement the safety screen stopped: the report goes on the ticket, and the labels say which kind of stop it was.
+ * A refusal takes the pipeline's labels off and puts `qa-refused` on, so nothing picks the ticket up again until a
+ * person has changed it. A question waits for an answer like any other.
+ */
+async function notifyScreened(req: Request, screened: NonNullable<ReturnType<typeof screening>>, post: boolean): Promise<void> {
+  const markdown = screeningMd(screened);
+  save('analysis.md', markdown);
+  if (!post) return;
+  const source = sourceFor(req.source);
+  await source.comment(req.ref, markdown);
+  const refused = screened.verdict === 'refuse';
+  await source.label(req.ref, {
+    add: [refused ? LABELS.refused : LABELS.needsInfo],
+    remove: [LABELS.analyze, LABELS.analyzed, ...(refused ? [LABELS.needsInfo] : [])],
+  });
+  setOutput('autorun', false);
 }
 
 /** Posts the outcome of the test half: the pull request, or why there is none. */

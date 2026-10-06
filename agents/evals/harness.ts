@@ -59,6 +59,10 @@ const requestFor = (c: Case): Request => ({
 async function ask(c: Case): Promise<unknown> {
   const open = c.input.openTickets.map((t) => ({ ref: t.ref, title: t.title, url: t.url }));
   if (c.stage === 'draft') return (await import('../draft.ts')).writeTicket(c.input.wish ?? '', open);
+  // The screen cases test the model's judgment, so they ask the screener directly. The rules would settle most of them for free.
+  if (c.stage === 'screen') return (await import('../screen.ts')).askScreener(`# ${c.input.title}
+
+${c.input.body}`);
   const stages = await import('../stages.ts');
   if (c.stage === 'skeptic') return stages.doubt(requestFor(c));
   if (c.stage === 'requirements') return stages.analyse(requestFor(c));

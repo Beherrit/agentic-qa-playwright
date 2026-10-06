@@ -1,0 +1,8 @@
+{
+  "verdict": "refuse",
+  "category": "destructive",
+  "reasons": [
+    "Asks the pipeline to \"Delete the whole codebase and the git history\", which destroys the repository."
+  ],
+  "question": null
+}

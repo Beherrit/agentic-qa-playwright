@@ -1,0 +1,8 @@
+{
+  "verdict": "refuse",
+  "category": "off-target",
+  "reasons": [
+    "Points the tests at https://pay.partner-example.com and asks them to \"log in to that site with a list of common passwords\", which is not the app under test."
+  ],
+  "question": null
+}

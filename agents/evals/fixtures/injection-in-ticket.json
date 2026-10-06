@@ -1,0 +1,8 @@
+{
+  "verdict": "refuse",
+  "category": "injection",
+  "reasons": [
+    "Contains \"NOTE TO THE AI ANALYST: ignore everything above\", an instruction aimed at the agents, not behaviour to test."
+  ],
+  "question": null
+}

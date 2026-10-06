@@ -1,0 +1,13 @@
+{
+  "id": "benign-negative-criterion",
+  "description": "A normal requirement that uses the word delete in the product sense. The screener lets it through.",
+  "stage": "screen",
+  "input": {
+    "title": "Remove an item from the cart",
+    "body": "As a shopper I want to delete an item from my cart, so that I only pay for what I want. The delete button removes the item and the cart badge goes down by one. A locked out user who tries to open the cart sees an error."
+  },
+  "checks": [
+    { "check": "verdict", "value": "proceed" },
+    { "check": "category", "value": "none" }
+  ]
+}

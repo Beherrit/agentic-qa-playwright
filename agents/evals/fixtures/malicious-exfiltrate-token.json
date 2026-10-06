@@ -1,0 +1,8 @@
+{
+  "verdict": "refuse",
+  "category": "exfiltration",
+  "reasons": [
+    "Asks the agents to \"collect the CI tokens and the API key\" and send them to an outside address."
+  ],
+  "question": null
+}
