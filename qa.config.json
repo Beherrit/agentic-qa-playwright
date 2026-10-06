@@ -59,7 +59,8 @@
     "screener": true
   },
   "intake": {
-    "maxRounds": 3
+    "maxRounds": 3,
+    "maxQuestions": 5
   },
   "autoRun": {
     "analysisWhenWriterFiles": true,

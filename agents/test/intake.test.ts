@@ -147,6 +147,28 @@ describe('the question rounds', () => {
     assert.match(answersSeen[2] ?? '', /Who may use a code\?/, 'the second skeptic sees every answer so far');
   });
 
+  it('asks only the first few skeptic questions a round and takes the rest as assumed, on the record', async () => {
+    const answersSeen: (string | null)[] = [];
+    const { seen, ask } = person(['One.', '']);
+    const result = await converse(
+      'Discount codes.',
+      {
+        doubt: async () => doubts(['First?'], ['Second?'], ['Third?'], ['Fourth?']),
+        analyse: async (_wish, answers) => (answersSeen.push(answers), analysis()),
+        ask,
+      },
+      3,
+      2,
+    );
+    assert.deepEqual(seen, ['First?', 'Second?'], 'the person sees the cap, not the list');
+    assert.equal(result.ended, 'clear');
+    const [first, second, third, fourth] = result.rounds[0].asked;
+    assert.deepEqual([first.by, second.by, third.by, fourth.by], ['user', 'accepted', 'assumed', 'assumed']);
+    assert.equal(third.answer, 'Assume 3.', 'an assumed question carries the assumption as its answer');
+    assert.match(answersSeen[0] ?? '', /3\. Not asked\. Assumed: Assume 3\./, 'the analyst sees the assumed ones as settled');
+    assert.match(qaSection(result.rounds), /Assume 4\. _\(not asked, assumption taken\)_/, 'the ticket says which were not asked');
+  });
+
   it('stops after the rounds it was given, and says the rounds ran out', async () => {
     let n = 0;
     const { ask } = person([]);

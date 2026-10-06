@@ -131,7 +131,13 @@ export const ConfigSchema = z.object({
    */
   safety: z.object({ enabled: z.boolean().default(true), screener: z.boolean().default(true) }).prefault({}),
   /** The conversation that turns a wish into a ticket (`npx agentic-qa intake`): how many rounds of questions at most. */
-  intake: z.object({ maxRounds: z.number().int().min(1).max(6).default(3) }).prefault({}),
+  intake: z
+    .object({
+      maxRounds: z.number().int().min(1).max(6).default(3),
+      /** The most skeptic questions put to the person per round; the rest are taken as assumed and listed on the ticket. */
+      maxQuestions: z.number().int().min(1).max(20).default(5),
+    })
+    .prefault({}),
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
   /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0) }).prefault({}),

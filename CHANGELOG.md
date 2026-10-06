@@ -20,7 +20,7 @@ deployed from `main`, so each entry is dated by its commits.
   ticket `qa-refused` and stops. `safety.enabled` and `safety.screener` in `qa.config.json` switch it. Five evaluation
   cases cover it.
 - **`npx agentic-qa intake`**: a conversation that turns a wish into a ticket. It screens the wish, asks the skeptic's
-  and the analyst's questions in up to `intake.maxRounds` rounds, writes the ticket with the answers under "Questions
+  and the analyst's questions, at most `intake.maxQuestions` a round, in up to `intake.maxRounds` rounds, writes the ticket with the answers under "Questions
   and answers", and files it only on a yes. `--dry` files nothing, `--yes` never skips the screen. The MCP server has
   `qa_intake_start`, `qa_intake_answer` and `qa_intake_file`. With `--ref`, `intake` is still the CI stage that reads
   a ticket in.

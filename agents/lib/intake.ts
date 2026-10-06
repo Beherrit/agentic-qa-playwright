@@ -8,8 +8,11 @@ import type { Screened } from './safety.ts';
  * so none of it needs a model or a terminal. agents/intake.ts holds the input and output.
  */
 
-/** Who settled a question: the person, the person by accepting what would be assumed, or nobody yet. */
-export type By = 'user' | 'accepted' | 'skipped';
+/**
+ * Who settled a question: the person, the person by accepting what would be assumed, nobody yet, or the round's cap
+ * (the skeptic asked more than `maxQuestions`, so the rest were taken as assumed without being put to the person).
+ */
+export type By = 'user' | 'accepted' | 'skipped' | 'assumed';
 
 export type Candidate = { question: string; lens: string | null; assumed: string | null };
 
@@ -60,10 +63,16 @@ export function readYesNo(raw: string): boolean | null {
   return null;
 }
 
-const how: Record<By, string> = { user: 'answered', accepted: 'accepted the assumption', skipped: 'left open' };
+const how: Record<By, string> = { user: 'answered', accepted: 'accepted the assumption', skipped: 'left open', assumed: 'not asked, assumption taken' };
 
 const reply = (a: Asked): string =>
-  a.by === 'user' ? (a.answer ?? '') : a.by === 'accepted' ? `Accepted the assumption: ${a.answer}` : 'Not answered. Left open.';
+  a.by === 'user'
+    ? (a.answer ?? '')
+    : a.by === 'accepted'
+      ? `Accepted the assumption: ${a.answer}`
+      : a.by === 'assumed'
+        ? `Not asked. Assumed: ${a.answer}`
+        : 'Not answered. Left open.';
 
 /** The questions and answers so far, in the shape the ticket writer's second pass reads: `withAnswers` without the wish. Null when nothing was asked. */
 export function answersText(rounds: Round[]): string | null {
@@ -86,7 +95,14 @@ export function qaSection(rounds: Round[]): string {
   const asked = rounds.flatMap((round) => round.asked);
   if (asked.length === 0) return '';
   const items = asked.map((a) => {
-    const reply = a.by === 'skipped' ? '_Left open._' : a.by === 'accepted' ? `${a.answer} _(accepted the assumption)_` : a.answer;
+    const reply =
+      a.by === 'skipped'
+        ? '_Left open._'
+        : a.by === 'accepted'
+          ? `${a.answer} _(accepted the assumption)_`
+          : a.by === 'assumed'
+            ? `${a.answer} _(not asked, assumption taken)_`
+            : a.answer;
     return `- **${a.question.trim()}**\n  ${reply}`;
   });
   return `### ${QA_HEADING}\n\nAnswered by the person who asked for it, before the ticket was filed. Use these as given and do not ask them again.\n\n${items.join('\n')}\n`;
@@ -112,18 +128,35 @@ export type Agents = Pick<Participants, 'doubt' | 'analyse'>;
 export type Session = {
   wish: string;
   maxRounds: number;
+  /** The most skeptic questions put to the person per round. The rest are taken as assumed, and the ticket says so. */
+  maxQuestions: number;
   rounds: Round[];
   /** The round in progress, which is also the last of `rounds`. */
   round: Round | null;
   /** What the person has not answered yet. */
   pending: Candidate[];
+  /** What was past the cap this round, recorded after the person's answers so the round reads in the order asked. */
+  taken: Asked[];
   /** Which agent runs next. */
   next: 'skeptic' | 'analyst';
   doubts: Skepticism | null;
   ended: Resolved['ended'] | null;
 };
 
-export const startSession = (wish: string, maxRounds: number): Session => ({ wish, maxRounds, rounds: [], round: null, pending: [], next: 'skeptic', doubts: null, ended: null });
+export const DEFAULT_MAX_QUESTIONS = 5;
+
+export const startSession = (wish: string, maxRounds: number, maxQuestions = DEFAULT_MAX_QUESTIONS): Session => ({
+  wish,
+  maxRounds,
+  maxQuestions,
+  rounds: [],
+  round: null,
+  pending: [],
+  taken: [],
+  next: 'skeptic',
+  doubts: null,
+  ended: null,
+});
 
 /** Runs the agents until there is something to ask the person, or the rounds are over. */
 export async function advance(s: Session, who: Agents): Promise<void> {
@@ -136,10 +169,14 @@ export async function advance(s: Session, who: Agents): Promise<void> {
       s.round = { number: s.rounds.length + 1, asked: [] };
       s.rounds.push(s.round);
       s.doubts = await who.doubt(s.wish, answersText(s.rounds));
-      s.pending = unasked(
+      const fresh = unasked(
         s.doubts.questions.map((d) => ({ question: d.question, lens: d.lens, assumed: d.assumed, answered: d.answer !== null })),
         s.rounds,
       );
+      // The skeptic lists everything it would guess; a person gets the first few. The rest go on the record as
+      // assumed, so the analyst and the ticket treat them as settled and the person can see what was not asked.
+      s.pending = fresh.slice(0, s.maxQuestions);
+      s.taken = fresh.slice(s.maxQuestions).map((q) => ({ ...q, answer: q.assumed, by: 'assumed', round: s.round?.number ?? 0 }));
       s.next = 'analyst';
     } else {
       const requirements = await who.analyse(s.wish, answersText(s.rounds), s.doubts as Skepticism);
@@ -163,12 +200,14 @@ export function answer(s: Session, replies: string[]): void {
     const { answer: text, by } = readReply(replies[i], question.assumed);
     s.round?.asked.push({ ...question, answer: text, by, round: s.round.number });
   }
+  s.round?.asked.push(...s.taken);
   s.pending = [];
+  s.taken = [];
 }
 
 /** The rounds, run at a terminal: every pending question goes to `ask`. */
-export async function converse(wish: string, who: Participants, maxRounds: number): Promise<Resolved> {
-  const s = startSession(wish, maxRounds);
+export async function converse(wish: string, who: Participants, maxRounds: number, maxQuestions = DEFAULT_MAX_QUESTIONS): Promise<Resolved> {
+  const s = startSession(wish, maxRounds, maxQuestions);
   for (;;) {
     const before = s.rounds.length;
     await advance(s, who);

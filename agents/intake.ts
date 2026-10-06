@@ -43,6 +43,7 @@ export type Deps = {
   save: (name: string, text: string) => void;
   ledger: () => RunRecord[];
   maxRounds: number;
+  maxQuestions: number;
   autoRun: boolean;
 };
 
@@ -81,6 +82,7 @@ async function defaults(): Promise<Deps> {
     save,
     ledger: () => (exists('ledger.json') ? load<RunRecord[]>('ledger.json') : []),
     maxRounds: config.intake.maxRounds,
+    maxQuestions: config.intake.maxQuestions,
     autoRun: config.autoRun?.analysisWhenWriterFiles ?? false,
   };
 }
@@ -171,8 +173,8 @@ export async function intake(options: IntakeOptions, given?: Partial<Deps>): Pro
     // 3. The question rounds.
     const open = await deps.source(options.source ?? 'local').list();
     const rounds = options.rounds ?? deps.maxRounds;
-    say(`\nI will ask what the skeptic and the analyst would otherwise guess, in up to ${rounds} round${rounds === 1 ? '' : 's'}.`);
-    say('Enter takes the assumption shown. Type skip to leave a question open.');
+    say(`\nI will ask what the skeptic and the analyst would otherwise guess, up to ${deps.maxQuestions} a round and in up to ${rounds} round${rounds === 1 ? '' : 's'}.`);
+    say('Enter takes the assumption shown. Type skip to leave a question open. Anything past the cap is taken as assumed and listed on the ticket.');
     const resolved = await converse(
       wish,
       {
@@ -187,8 +189,14 @@ export async function intake(options: IntakeOptions, given?: Partial<Deps>): Pro
         },
       },
       rounds,
+      deps.maxQuestions,
     );
     transcript.rounds = resolved.rounds;
+    const assumed = resolved.rounds.flatMap((r: Round) => r.asked).filter((a) => a.by === 'assumed');
+    if (assumed.length > 0) {
+      say(`\nTaken as assumed without asking (${assumed.length}):`);
+      for (const a of assumed) say(`- ${a.question.trim()}\n  ${a.answer}`);
+    }
     transcript.ended = resolved.ended;
     if (resolved.ended === 'rounds') say('\nThe rounds are used up. What is still open goes on the ticket as a question.');
 

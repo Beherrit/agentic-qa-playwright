@@ -408,8 +408,10 @@ Without a terminal it stops after the preview; `--yes` files it. Jira tickets ca
 
 `draft` writes the ticket from a sentence and asks only what it cannot settle. `intake` is the longer version, for
 a wish that is still fuzzy. It runs the safety screen on the wish, then the skeptic and the analyst ask what they
-would otherwise guess, a few at a time and in at most `intake.maxRounds` rounds (3 by default). Press Enter to
-accept the assumption shown under a question, type an answer, or type `skip` to leave it open. Then the ticket
+would otherwise guess, at most `intake.maxQuestions` a round (5 by default) and in at most `intake.maxRounds` rounds
+(3 by default). Press Enter to accept the assumption shown under a question, type an answer, or type `skip` to leave
+it open. The skeptic usually lists more than the cap; the rest are taken as assumed, shown to you, and marked as
+"not asked" on the ticket, so nothing is settled silently. Then the ticket
 writer produces the ticket from the wish and everything you said, and it goes on the ticket under "Questions and
 answers", so the analysis in CI finds the answers and does not ask them again.
 

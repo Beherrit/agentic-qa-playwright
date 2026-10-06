@@ -101,7 +101,7 @@ const handlers: { [K in ToolName]: (args: never) => Promise<ToolAnswer> } = {
         const { sourceFor } = await import('./sources/index.ts');
         const id = crypto.randomUUID().slice(0, 8);
         const state: Held = {
-          session: startSession(input.wish, input.rounds ?? config.intake.maxRounds),
+          session: startSession(input.wish, input.rounds ?? config.intake.maxRounds, config.intake.maxQuestions),
           source: input.source,
           open: await sourceFor(input.source).list(),
           ticket: null,
