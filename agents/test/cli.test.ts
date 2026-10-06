@@ -37,7 +37,7 @@ describe('command line', () => {
   });
 
   it('exits 2 for a wrong command line and says how to get help, and 1 when a stage cannot go on', async () => {
-    const wrong = [[], ['nope'], ['analyze', '--bogus'], ['notify', 'x'], ['toString']];
+    const wrong = [[], ['nope'], ['analyze', '--bogus'], ['notify', 'x'], ['toString'], ['intake', '--rounds', '9'], ['intake', '--rounds', 'many']];
     const [stopped, ...runs] = await Promise.all([cli('check-plan'), ...wrong.map((args) => cli(...args))]);
     runs.forEach((run, i) => {
       assert.equal(run.status, 2, wrong[i].join(' '));

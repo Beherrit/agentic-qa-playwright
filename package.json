@@ -36,6 +36,7 @@
     "coverage": "tsx agents/coverage.ts",
     "doctor": "tsx agents/cli.ts doctor",
     "draft": "tsx agents/cli.ts draft",
+    "intake": "tsx agents/cli.ts intake",
     "heal": "tsx agents/heal.ts",
     "history": "tsx agents/history.ts",
     "mcp": "tsx agents/mcp.ts",

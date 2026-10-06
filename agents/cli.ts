@@ -19,6 +19,7 @@ Setting up
 
 On your machine
   draft                  Write a requirement ticket from a wish (--text or --file); --source github --yes files it
+  intake                 Talk it through first: a safety screen, then the questions a developer would guess at, then the ticket
   analyze                The analysis half: requirements, technical review, plan and score
   tests                  The test half, from the analysis in qa-run/: code, gates, review, pull request text
   all                    Both halves, start to finish. Start from a clean working tree
@@ -30,7 +31,7 @@ On your machine
   mcp                    Serve the pipeline over MCP on stdio, for Claude Desktop or Claude Code
 
 One stage at a time, as the CI jobs run them
-  intake, requirements, technical, plan, critic, reconcile, check-plan,
+  intake --ref (reads a ticket; without --ref it is the conversation above), requirements, technical, plan, critic, reconcile, check-plan,
   generate (or write, sabotage, gates, fix as four jobs), apply [heal.patch], review, rework, report, notify <analysis|tests>,
   history record <qa-run dir> <out file> | render <history dir> [entry file]
 
@@ -43,7 +44,9 @@ Options
   --title <title>        A title for a requirement given as text
   --test-first           The feature is not built yet (a ticket says so itself)
   --answers <path>       draft: answers to the writer's blocking questions
-  --yes                  draft: file the ticket without asking; survey: write the drafts over existing documents
+  --rounds <n>           intake: at most this many rounds of questions (1 to 6; default from qa.config.json, 3)
+  --dry                  intake: do everything except file the ticket
+  --yes                  draft, intake: file the ticket without asking; survey: write the drafts over existing documents
   --force                init: overwrite files that exist
   -h, --help             This text
 
@@ -52,6 +55,7 @@ Examples
   npx agentic-qa analyze --source jira --ref SHOP-12
   npx agentic-qa all --title "Sort products" --text "As a shopper I want to ..."
   npx agentic-qa draft --text "I want shoppers to save a wishlist" --source github
+  npx agentic-qa intake --text "Shoppers can save a wishlist" --source github
   npx agentic-qa suite --grep @REQ-12
 
 Exit codes: 0 done, 1 a stage or a check failed, 2 the command line was wrong.
@@ -89,7 +93,9 @@ function parse() {
         text: { type: 'string' },
         file: { type: 'string' },
         answers: { type: 'string' }, // draft: a file with answers to the writer's questions
-        yes: { type: 'boolean', default: false }, // draft: file the ticket without asking; survey: overwrite
+        yes: { type: 'boolean', default: false }, // draft, intake: file the ticket without asking; survey: overwrite
+        rounds: { type: 'string' }, // intake: the most rounds of questions
+        dry: { type: 'boolean', default: false }, // intake: file nothing
         force: { type: 'boolean', default: false }, // init: overwrite
         export: { type: 'string' }, // coverage: junit, xray or testrail
         'test-first': { type: 'boolean', default: false },
@@ -162,7 +168,15 @@ const commands: Record<string, () => Promise<unknown>> = {
     const { draft } = await import('./draft.ts');
     await draft({ text: values.text, file: values.file, source: values.source, answers: values.answers, yes: values.yes });
   },
-  intake: async () => (await import('./flow.ts')).intake(input()),
+  // With --ref this is the CI stage that reads a ticket in. Without one it is the conversation that writes a ticket.
+  intake: async () => {
+    if (values.ref !== undefined) return (await import('./flow.ts')).intake(input());
+    const rounds = values.rounds === undefined ? undefined : Number(values.rounds);
+    if (rounds !== undefined && (!Number.isInteger(rounds) || rounds < 1 || rounds > 6)) usage('--rounds takes a whole number from 1 to 6.');
+    const { intake } = await import('./intake.ts');
+    const code = await intake({ text: values.text, file: values.file, source: values.source, rounds, yes: values.yes, dry: values.dry });
+    if (code !== 0) process.exit(code);
+  },
   requirements: async () => (await stages()).requirements(),
   technical: async () => (await stages()).technical(),
   plan: async () => (await stages()).plan(),
