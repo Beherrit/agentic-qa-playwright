@@ -493,6 +493,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `docs/test-conventions.md` | The rules the suite follows, including the two kinds of expected failure. The engineer writes to them and the reviewer checks against them |
 | `docs/test-design.md` | Short notes on choosing a design technique and a test level, used by the strategy agents |
 | `docs/ARCHITECTURE.md`, `docs/OPERATIONS.md` | How it fits together, and how to run it day to day |
+| `workflows/` | The agentic workflow in general, not tied to QA: the shape, how to test a system with agents in it, and a seven-minute demo script |
 | `agents/cli.ts` | Runs one stage, a half (`analyze`, `tests`) or everything (`all`) |
 | `agents/flow.ts` | The local intake and analysis flow, shared by the CLI and the MCP server |
 | `agents/stages.ts` | The pipeline, one function per stage, the verdict rules and the reports to the ticket |
