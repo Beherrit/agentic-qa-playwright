@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Candidate, Written } from './intake.ts';
 import { KEY } from './keys.ts';
 import { LABELS } from './paths.ts';
 
@@ -40,6 +41,28 @@ export const AnalyzeInput = z
   });
 export type AnalyzeInput = z.infer<typeof AnalyzeInput>;
 
+const SESSION = z.string().trim().min(1).max(64).describe('The session id qa_intake_start gave');
+
+export const IntakeStartInput = z.object({
+  wish: z.string().trim().min(10).max(4000).describe('The wish, in a sentence or two, e.g. "Shoppers can save a wishlist"'),
+  source: z.enum(['local', 'github']).default('local').describe('github checks open issues for duplicates and can file the ticket later; local only previews'),
+  rounds: z.number().int().min(1).max(6).optional().describe('The most rounds of questions. The default is intake.maxRounds in qa.config.json'),
+});
+export type IntakeStartInput = z.infer<typeof IntakeStartInput>;
+
+export const IntakeAnswerInput = z.object({
+  session: SESSION,
+  answers: z
+    .array(z.string().max(2000))
+    .min(1)
+    .max(20)
+    .describe('One answer per question, in the order asked. An empty string accepts the assumption shown; "skip" leaves the question open'),
+});
+export type IntakeAnswerInput = z.infer<typeof IntakeAnswerInput>;
+
+export const IntakeFileInput = z.object({ session: SESSION });
+export type IntakeFileInput = z.infer<typeof IntakeFileInput>;
+
 export const HistoryInput = z.object({
   limit: z.number().int().min(1).max(50).default(10).describe('How many of the newest runs to list'),
 });
@@ -52,6 +75,24 @@ export const TOOLS = {
     title: 'Write a requirement ticket',
     description: `The ticket writer: turns a wish into a complete requirement ticket (story, Given/When/Then criteria, technical notes, risk) and returns the preview. It files the ticket on GitHub only with file: true, and then without any label: a person adds ${LABELS.analyze} when happy. ${COSTS} Takes a minute or two.`,
     input: DraftInput,
+    readOnly: false,
+  },
+  qa_intake_start: {
+    title: 'Start an intake conversation',
+    description: `Starts the intake conversation for a wish: the safety screen reads it first (a refusal ends it here), then the skeptic and the analyst list what they would otherwise guess. Returns a session id and the first questions to put to the person. Nothing is filed. ${COSTS} Takes a minute or two.`,
+    input: IntakeStartInput,
+    readOnly: false,
+  },
+  qa_intake_answer: {
+    title: 'Answer the intake questions',
+    description: `Gives the answers to the questions of an intake session. Returns the next questions, or when none are left the drafted ticket, ready to file. Nothing is filed. ${COSTS}`,
+    input: IntakeAnswerInput,
+    readOnly: false,
+  },
+  qa_intake_file: {
+    title: 'File the intake ticket',
+    description: `Files the ticket an intake session drafted on GitHub, only when this is called, without any label: a person adds ${LABELS.analyze} when happy. The session needs source "github". Call it only after the person has said yes.`,
+    input: IntakeFileInput,
     readOnly: false,
   },
   qa_analyze: {
@@ -108,6 +149,24 @@ export function draftText(result: { preview: string; problems: string[]; labels:
       ? `Not filed. Call qa_draft_ticket again with file: true to file it${result.problems.length ? ', or answer the open questions first with answers' : ''}.`
       : 'Not filed: this was a preview. Use source "github" with file: true to file it.';
   return `${result.preview.trim()}\n\n---\n\n${next}`;
+}
+
+/** The questions waiting for the person, and how to answer them. */
+export function questionsText(session: string, pending: Candidate[], round: number): string {
+  const list = pending
+    .map((q, i) => `${i + 1}. ${q.lens ? `[${q.lens}] ` : '[blocks testing] '}${q.question.trim()}${q.assumed ? `\n   It would otherwise assume: ${q.assumed}` : ''}`)
+    .join('\n\n');
+  return `Session ${session}, round ${round}. Put these to the person and call qa_intake_answer with one answer each, in order. An empty string accepts the assumption shown; "skip" leaves the question open.\n\n${list}`;
+}
+
+/** The drafted ticket, and what to do next. */
+export function intakeTicketText(session: string, ticket: Written, source: string): string {
+  const notReady = ticket.problems.length ? `\nNot ready:\n${ticket.problems.map((p) => `- ${p}`).join('\n')}\n` : '';
+  const next =
+    source === 'github'
+      ? `Not filed. Show it to the person. Only after they say yes, call qa_intake_file with session ${session}.`
+      : 'Not filed: this session uses the local source. Start again with source "github" to be able to file it.';
+  return `# ${ticket.title}\n\nLabels: ${ticket.labels.join(', ') || 'none'}\n\n${ticket.body}${notReady}\n---\n\n${next}`;
 }
 
 /** What qa_history says when the clone has no history branch. */

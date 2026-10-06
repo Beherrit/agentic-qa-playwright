@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { categoryOf, refusedByRules, screenRules, screeningMd, type Screened } from '../lib/safety.ts';
+import { LABELS } from '../lib/paths.ts';
 import { Screening } from '../lib/schemas.ts';
+import { stageOf } from '../lib/status.ts';
 
 const HOSTS = ['saucedemo.com'];
 const rules = (text: string): string[] => screenRules(text, HOSTS).map((f) => f.rule);
@@ -94,5 +96,11 @@ describe('screening report', () => {
     assert.match(refused, /remove the `qa-refused` label, and add `qa-pipeline` again/);
     const asked: Screened = { verdict: 'ask', category: 'other', reasons: ['"clean up" could mean either'], question: 'Do you mean the cart?', findings: [], screener: 'ran' };
     assert.match(screeningMd(asked), /### Questions that block testing\n\n- Do you mean the cart\?/);
+  });
+
+  it('shows a refused ticket as refused in the status, whatever else it carries', () => {
+    assert.equal(LABELS.refused, 'qa-refused');
+    assert.equal(stageOf([LABELS.refused]), 'refused by the safety screen');
+    assert.equal(stageOf([LABELS.refused, LABELS.analyze]), 'refused by the safety screen');
   });
 });

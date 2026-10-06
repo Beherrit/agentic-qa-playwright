@@ -1,5 +1,5 @@
-import { withAnswers } from './draft.ts';
-import type { Requirements, Skepticism } from './schemas.ts';
+import { readiness, ticketBody, ticketLabels, withAnswers } from './draft.ts';
+import type { Requirements, Skepticism, TicketDraft } from './schemas.ts';
 import type { Screened } from './safety.ts';
 
 /**
@@ -100,46 +100,84 @@ export const bodyWithAnswers = (body: string, rounds: Round[]): string => {
 
 export type Resolved = { rounds: Round[]; ended: 'clear' | 'rounds' };
 
+/** What asks the agents: the two that read the wish and the answers so far. */
+export type Agents = Pick<Participants, 'doubt' | 'analyse'>;
+
 /**
- * The question rounds. Each round the skeptic reads the wish and the answers so far, and the person is asked what it
- * lists that has not been asked; then the analyst reads the same, and its blocking questions are asked too. The loop
- * ends when the analyst has nothing left to block on, or after `maxRounds`.
+ * The question rounds, one step at a time. Each round the skeptic reads the wish and the answers so far, and what it
+ * lists that has not been asked goes to the person; then the analyst reads the same, and its blocking questions go
+ * too. The rounds end when the analyst has nothing left to block on, or after `maxRounds`. The terminal asks
+ * through `converse`; the MCP server holds a session between two calls.
  */
-export async function converse(wish: string, who: Participants, maxRounds: number): Promise<Resolved> {
-  const rounds: Round[] = [];
-  const say = who.say ?? (() => undefined);
+export type Session = {
+  wish: string;
+  maxRounds: number;
+  rounds: Round[];
+  /** The round in progress, which is also the last of `rounds`. */
+  round: Round | null;
+  /** What the person has not answered yet. */
+  pending: Candidate[];
+  /** Which agent runs next. */
+  next: 'skeptic' | 'analyst';
+  doubts: Skepticism | null;
+  ended: Resolved['ended'] | null;
+};
 
-  const put = async (round: Round, questions: Candidate[]): Promise<void> => {
-    for (const [index, question] of questions.entries()) {
-      const { answer, by } = readReply(await who.ask(question, { index: index + 1, of: questions.length }), question.assumed);
-      round.asked.push({ ...question, answer, by, round: round.number });
+export const startSession = (wish: string, maxRounds: number): Session => ({ wish, maxRounds, rounds: [], round: null, pending: [], next: 'skeptic', doubts: null, ended: null });
+
+/** Runs the agents until there is something to ask the person, or the rounds are over. */
+export async function advance(s: Session, who: Agents): Promise<void> {
+  while (s.pending.length === 0 && s.ended === null) {
+    if (s.next === 'skeptic') {
+      if (s.rounds.length >= s.maxRounds) {
+        s.ended = 'rounds';
+        break;
+      }
+      s.round = { number: s.rounds.length + 1, asked: [] };
+      s.rounds.push(s.round);
+      s.doubts = await who.doubt(s.wish, answersText(s.rounds));
+      s.pending = unasked(
+        s.doubts.questions.map((d) => ({ question: d.question, lens: d.lens, assumed: d.assumed, answered: d.answer !== null })),
+        s.rounds,
+      );
+      s.next = 'analyst';
+    } else {
+      const requirements = await who.analyse(s.wish, answersText(s.rounds), s.doubts as Skepticism);
+      s.pending = unasked(
+        requirements.openQuestions.filter((q) => q.blocking).map((q) => ({ question: q.question, lens: null, assumed: null })),
+        s.rounds,
+      );
+      if (s.pending.length === 0) {
+        if (s.round?.asked.length === 0) s.rounds.pop();
+        s.ended = 'clear';
+      }
+      s.next = 'skeptic';
     }
-  };
-
-  for (let number = 1; number <= maxRounds; number++) {
-    const round: Round = { number, asked: [] };
-    say(`Round ${number} of at most ${maxRounds}`);
-
-    const doubts = await who.doubt(wish, answersText(rounds));
-    await put(
-      round,
-      unasked(
-        doubts.questions.map((d) => ({ question: d.question, lens: d.lens, assumed: d.assumed, answered: d.answer !== null })),
-        rounds,
-      ),
-    );
-
-    // The analyst reads the answers this round has just collected.
-    const requirements = await who.analyse(wish, answersText([...rounds, round]), doubts);
-    const blocking = unasked(
-      requirements.openQuestions.filter((q) => q.blocking).map((q) => ({ question: q.question, lens: null, assumed: null })),
-      [...rounds, round],
-    );
-    await put(round, blocking);
-    if (round.asked.length > 0) rounds.push(round);
-    if (blocking.length === 0) return { rounds, ended: 'clear' };
   }
-  return { rounds, ended: 'rounds' };
+}
+
+/** Records the person's replies to the pending questions, one reply each, in order. */
+export function answer(s: Session, replies: string[]): void {
+  if (replies.length !== s.pending.length) throw new Error(`${s.pending.length} question(s) are waiting and ${replies.length} answer(s) were given.`);
+  for (const [i, question] of s.pending.entries()) {
+    const { answer: text, by } = readReply(replies[i], question.assumed);
+    s.round?.asked.push({ ...question, answer: text, by, round: s.round.number });
+  }
+  s.pending = [];
+}
+
+/** The rounds, run at a terminal: every pending question goes to `ask`. */
+export async function converse(wish: string, who: Participants, maxRounds: number): Promise<Resolved> {
+  const s = startSession(wish, maxRounds);
+  for (;;) {
+    const before = s.rounds.length;
+    await advance(s, who);
+    if (s.rounds.length > before) who.say?.(`Round ${s.rounds[s.rounds.length - 1].number} of at most ${maxRounds}`);
+    if (s.ended !== null) return { rounds: s.rounds, ended: s.ended };
+    const replies: string[] = [];
+    for (const [index, question] of s.pending.entries()) replies.push(await who.ask(question, { index: index + 1, of: s.pending.length }));
+    answer(s, replies);
+  }
 }
 
 /** How the whole conversation ended, which decides the exit code. */
@@ -222,4 +260,29 @@ ${t.result}
 
 ${t.cost}
 `;
+}
+
+export type OpenTickets = { ref: string; title: string; url: string | null }[];
+
+/** The ticket as the person will see it and the tracker will get it. */
+export type Written = { title: string; labels: string[]; body: string; problems: string[] };
+
+/**
+ * The ticket, written the way `draft` writes it, from the wish and everything answered: the writer, the checks on
+ * what it names, the readiness test, and the questions and answers under their own heading.
+ */
+export async function buildTicket(
+  wish: string,
+  rounds: Round[],
+  open: OpenTickets,
+  parts: { writer: (wish: string, open: OpenTickets) => Promise<TicketDraft>; checked: (draft: TicketDraft, open: OpenTickets) => TicketDraft; autoRun: boolean },
+): Promise<Written> {
+  const drafted = parts.checked(await parts.writer(wishWithAnswers(wish, rounds), open), open);
+  const problems = readiness(drafted);
+  return {
+    title: `Requirement: ${drafted.title}`,
+    labels: ticketLabels(drafted, problems, parts.autoRun),
+    body: bodyWithAnswers(ticketBody(drafted), rounds),
+    problems,
+  };
 }

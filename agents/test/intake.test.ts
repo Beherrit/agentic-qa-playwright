@@ -5,6 +5,8 @@ import { loadFixture } from '../evals/harness.ts';
 import { intake, type Deps } from '../intake.ts';
 import { ticketBody, withAnswers } from '../lib/draft.ts';
 import {
+  advance,
+  answer,
   answersText,
   bodyWithAnswers,
   converse,
@@ -14,6 +16,7 @@ import {
   qaSection,
   readReply,
   readYesNo,
+  startSession,
   transcriptMd,
   unasked,
   wishWithAnswers,
@@ -166,6 +169,22 @@ describe('the question rounds', () => {
     assert.deepEqual(seen, ['Same question?']);
     assert.equal(result.rounds[0].asked[0].by, 'skipped');
     assert.equal(calls, 1);
+  });
+});
+
+describe('a session held between two calls', () => {
+  it('stops at each set of questions and goes on when they are answered', async () => {
+    const who = { doubt: async () => doubts(['Can two codes stack?'], ['Who may use it?']), analyse: async () => analysis() };
+    const s = startSession('Discount codes.', 3);
+    await advance(s, who);
+    assert.deepEqual(s.pending.map((q) => q.question), ['Can two codes stack?', 'Who may use it?']);
+    assert.equal(s.ended, null);
+    assert.throws(() => answer(s, ['only one']), /2 question\(s\) are waiting and 1 answer\(s\) were given/);
+    answer(s, ['Yes', 'skip']);
+    assert.equal(s.pending.length, 0);
+    await advance(s, who);
+    assert.equal(s.ended, 'clear', 'the same questions are not asked again');
+    assert.deepEqual(s.rounds[0].asked.map((a) => a.by), ['user', 'skipped']);
   });
 });
 

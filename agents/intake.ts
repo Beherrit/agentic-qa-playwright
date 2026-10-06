@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import readline from 'node:readline/promises';
 import type { Readable, Writable } from 'node:stream';
 import { checkedDraft, writeTicket as write } from './draft.ts';
-import { bodyWithAnswers, converse, costLine, exitCode, readYesNo, transcriptMd, wishWithAnswers, type Candidate, type Outcome, type Round, type Transcript } from './lib/intake.ts';
-import { readiness, ticketBody, ticketLabels } from './lib/draft.ts';
+import { buildTicket, converse, costLine, exitCode, readYesNo, transcriptMd, type Candidate, type Outcome, type Round, type Transcript } from './lib/intake.ts';
 import { config, LABELS } from './lib/paths.ts';
 import { screenRules, type Screened } from './lib/safety.ts';
 import type { Request, Requirements, Skepticism, TicketDraft } from './lib/schemas.ts';
@@ -61,14 +60,21 @@ const requestFor = (wish: string, answers: string | null): Request => ({
   ...(answers ? { answers } : {}),
 });
 
-async function defaults(): Promise<Deps> {
+/** The skeptic and the analyst, asked about a wish and the answers so far. The stages load when first used. */
+export async function liveAgents(): Promise<Pick<Deps, 'doubt' | 'analyse'>> {
   const stages = await import('./stages.ts');
   return {
+    doubt: (wish, answers) => stages.doubt(requestFor(wish, answers)),
+    analyse: (wish, answers, doubts) => stages.analyse(requestFor(wish, answers), doubts),
+  };
+}
+
+async function defaults(): Promise<Deps> {
+  return {
+    ...(await liveAgents()),
     input: process.stdin,
     output: process.stdout,
     screen: (text) => screenText(text),
-    doubt: (wish, answers) => stages.doubt(requestFor(wish, answers)),
-    analyse: (wish, answers, doubts) => stages.analyse(requestFor(wish, answers), doubts),
     writer: write,
     checked: checkedDraft,
     source: sourceFor,
@@ -198,11 +204,7 @@ export async function intake(options: IntakeOptions, given?: Partial<Deps>): Pro
 
     // 4. The ticket, written the way `draft` writes it, from the wish and everything answered.
     say('\nWriting the ticket...');
-    const drafted = deps.checked(await deps.writer(wishWithAnswers(wish, resolved.rounds), open), open);
-    const problems = readiness(drafted);
-    const body = bodyWithAnswers(ticketBody(drafted), resolved.rounds);
-    const labels = ticketLabels(drafted, problems, deps.autoRun);
-    const title = `Requirement: ${drafted.title}`;
+    const { title, labels, body, problems } = await buildTicket(wish, resolved.rounds, open, { writer: deps.writer, checked: deps.checked, autoRun: deps.autoRun });
     transcript.ticket = { title, labels, body, problems };
     say(`\n${title}`);
     say(`Labels: ${labels.join(', ') || 'none'}\n`);
