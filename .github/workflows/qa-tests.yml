@@ -546,6 +546,9 @@ jobs:
           existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
             gh pr edit "$existing" --title "$TITLE" --body-file qa-run/pull-request.md
+            # A second run can change the verdict: a draft becomes ready, or the other way round. Draft state
+            # is not part of `gh pr edit`, and private repositories on the free plan may refuse drafts.
+            if [ "$DRAFT" != "true" ]; then gh pr ready "$existing" || true; else gh pr ready --undo "$existing" || true; fi
           else
             args=(--body-file qa-run/pull-request.md --base "$BASE" --head "$BRANCH")
             if [ "$DRAFT" != "true" ]; then
