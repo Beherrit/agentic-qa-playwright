@@ -11,6 +11,7 @@ const cell = (text: string): string => text.replace(/\|/g, '\\|').replace(/\s*\n
 
 /** What the labels say about a ticket, in the order a ticket moves through them. */
 export function stageOf(labels: string[]): string {
+  if (labels.includes(LABELS.refused)) return 'refused by the safety screen';
   if (labels.includes(LABELS.generate)) return 'tests being written';
   if (labels.includes(LABELS.needsInfo)) return 'waiting for answers';
   if (labels.includes(LABELS.analyze)) return 'analysis running or queued';

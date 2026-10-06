@@ -1,0 +1,8 @@
+{
+  "verdict": "proceed",
+  "category": "none",
+  "reasons": [
+    "A shopping cart requirement: \"The delete button removes the item\" describes behaviour of the app."
+  ],
+  "question": null
+}

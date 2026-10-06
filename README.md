@@ -224,6 +224,16 @@ table, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [SECURITY.md](SECU
   read or write the ticket, where no agent runs. The job that runs the gates over the generated tests, the whole
   suite and the known-broken targets, holds no credentials at all, and so do the jobs that push a branch and open
   a pull request. A run can be capped at a dollar amount (`budget.maxUsdPerRun`).
+- **A safety screen first.** Every requirement is read by fixed rules and then by a read-only screener before any
+  agent analyses it. The rules (`agents/lib/safety.ts`) are small named checks for text that asks the pipeline to
+  delete or rewrite the repository, send a secret or personal data somewhere, act against a site other than the
+  app, bypass its own gates or review, or take orders from the ticket. They run without a model, and what they find
+  is final. If no rule objects, the screener (`request-screener`) answers `proceed`, `refuse` or `ask`:
+  vague or badly written requirements proceed, because that is the analyst's job, and `ask` is only for text that
+  could be a test requirement or one of the things above. A refusal posts the reasons on the ticket, takes off
+  `qa-pipeline` and puts on `qa-refused`, and nothing else runs. An `ask` is a blocking question like any other.
+  `safety` in `qa.config.json` turns the screen off or leaves it to the rules alone (`screener: false`). The
+  intake conversation below runs the same screen on the wish before it asks anything.
 - **Structured answers.** Every agent answers in a schema (`agents/lib/schemas.ts`), validated with zod before the
   next stage reads it. A malformed answer fails the job.
 - **Input is data.** Ticket text, diffs and anything read from the app are wrapped in tags and the agents are told
@@ -394,6 +404,29 @@ npx agentic-qa draft --file wish.md --answers answers.md --yes
 Without a terminal it stops after the preview; `--yes` files it. Jira tickets cannot be created yet, so use
 `--source github` (the default prints the ticket instead). The preview is saved as `qa-run/draft.md`.
 
+### Talk to it first
+
+`draft` writes the ticket from a sentence and asks only what it cannot settle. `intake` is the longer version, for
+a wish that is still fuzzy. It runs the safety screen on the wish, then the skeptic and the analyst ask what they
+would otherwise guess, at most `intake.maxQuestions` a round (5 by default) and in at most `intake.maxRounds` rounds
+(3 by default). Press Enter to accept the assumption shown under a question, type an answer, or type `skip` to leave
+it open. The skeptic usually lists more than the cap; the rest are taken as assumed, shown to you, and marked as
+"not asked" on the ticket, so nothing is settled silently. Then the ticket
+writer produces the ticket from the wish and everything you said, and it goes on the ticket under "Questions and
+answers", so the analysis in CI finds the answers and does not ask them again.
+
+```bash
+npx agentic-qa intake
+npx agentic-qa intake --text "Shoppers can save a wishlist" --source github --rounds 2
+npx agentic-qa intake --file wish.md --dry
+```
+
+Nothing is filed without your yes at "File this ticket? (yes/no)". `--yes` skips only that question, never the safety
+screen, and `--dry` goes through everything and files nothing. The agents never see the terminal: they are handed
+text, and nothing in the loop can write to the repository. The whole conversation is saved as `qa-run/intake.md`.
+It exits 0 when it ran its course, whether or not you filed, and 2 when the safety screen stopped it. With `--ref`,
+`intake` is still the CI stage that reads a ticket in.
+
 ## Use it from Claude
 
 `npm run mcp` starts the pipeline as an MCP server over stdio, so Claude Desktop or Claude Code can draft a ticket,
@@ -402,6 +435,8 @@ run an analysis or answer "where is everything?" in a conversation. No tool star
 | Tool | What it does | Runs agents |
 |---|---|---|
 | `qa_draft_ticket` | The ticket writer. Returns the preview; with `file: true` (and `source: "github"`) it files the issue, without labels, and says which labels to add | yes |
+| `qa_intake_start`, `qa_intake_answer` | The intake conversation, a step per call: the safety screen and the first questions, then the next questions or the drafted ticket. The session lives in the server's memory. Nothing is filed | yes |
+| `qa_intake_file` | Files the ticket a session drafted, on `source: "github"`, without labels. Call it only after the person has said yes | no agent, but it writes |
 | `qa_analyze` | The analysis for a wish given as text, or for a ticket (`source` and `ref`): requirements, technical review, plan and score. Returns the analysis markdown and posts nothing on the ticket. Takes several minutes | yes |
 | `qa_coverage` | The traceability map, as `npm run coverage` | no |
 | `qa_history` | Run history totals and the newest runs, read from `origin/qa-history` in your clone (`git fetch origin qa-history` first) | no |
@@ -501,6 +536,8 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/mcp.ts` | The MCP server (`npm run mcp`) |
 | `.mcp.json` | Registers that server with Claude Code for this checkout |
 | `agents/draft.ts` | The ticket writer (`npm run draft`) |
+| `agents/intake.ts`, `agents/lib/intake.ts` | The intake conversation (`npm run intake`): the terminal side, and the question rounds, replies and transcript behind it |
+| `agents/screen.ts`, `agents/lib/safety.ts` | The safety screen: the screener agent and the stage that saves `qa-run/screening.json`, and the fixed rules |
 | `agents/triage.ts`, `agents/heal.ts` | Failure triage and self-healing for a regression run |
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |

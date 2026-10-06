@@ -13,6 +13,17 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
+- **A safety screen** in front of every requirement. Fixed rules (`agents/lib/safety.ts`) catch text that asks for
+  the repository to be deleted or rewritten, secrets or personal data to be sent somewhere, another site to be
+  tested or attacked, the pipeline's own checks to be bypassed, or instructions aimed at the agents. If no rule
+  objects, a read-only `request-screener` answers proceed, refuse or ask. A refusal posts its reasons, labels the
+  ticket `qa-refused` and stops. `safety.enabled` and `safety.screener` in `qa.config.json` switch it. Five evaluation
+  cases cover it.
+- **`npx agentic-qa intake`**: a conversation that turns a wish into a ticket. It screens the wish, asks the skeptic's
+  and the analyst's questions, at most `intake.maxQuestions` a round, in up to `intake.maxRounds` rounds, writes the ticket with the answers under "Questions
+  and answers", and files it only on a yes. `--dry` files nothing, `--yes` never skips the screen. The MCP server has
+  `qa_intake_start`, `qa_intake_answer` and `qa_intake_file`. With `--ref`, `intake` is still the CI stage that reads
+  a ticket in.
 - **A skeptic.** Before the analyst, a new role reads the story alone and lists every question a developer would
   have to guess the answer to, from three angles (a developer's guess, a frustrated user, the same thing twice),
   each with the answer the tests will assume. The questions are posted on the ticket, numbered after any blocking

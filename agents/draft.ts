@@ -60,6 +60,16 @@ ${JSON.stringify(open, null, 2)}
   return output;
 }
 
+/** What the writer names is checked against the repository and the open tickets before anyone reads it. */
+export function checkedDraft(result: TicketDraft, open: OpenTickets): TicketDraft {
+  const repo = repoAt(ROOT);
+  return {
+    ...result,
+    duplicates: checkedDuplicates(result, open),
+    technical: checkedTechnical(result.technical, repo.fileExists, open.map((ticket) => ticket.ref), repo.titlesIn),
+  };
+}
+
 async function ask(question: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
@@ -94,12 +104,7 @@ export async function draft(options: DraftOptions): Promise<DraftResult> {
     if (answers?.trim()) result = await writeTicket(withAnswers(wish, result.questions.map((q) => q.question), answers), open);
   }
 
-  const repo = repoAt(ROOT);
-  result = {
-    ...result,
-    duplicates: checkedDuplicates(result, open),
-    technical: checkedTechnical(result.technical, repo.fileExists, open.map((ticket) => ticket.ref), repo.titlesIn),
-  };
+  result = checkedDraft(result, open);
   const problems = readiness(result);
   const body = ticketBody(result);
   // A caller that files without labels never starts the analysis, whatever the configuration says.

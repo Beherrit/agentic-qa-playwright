@@ -11,11 +11,20 @@ The same names work on GitHub issues and Jira tickets. On GitHub only people wit
 |---|---|---|
 | `qa-pipeline` | A person, or the ticket writer when `autoRun.analysisWhenWriterFiles` is on and the ticket is ready | Starts the analysis. The analysis removes it when it finishes, so adding it again starts a fresh one |
 | `qa-needs-info` | The pipeline | The analysis stopped on a blocking question, or the ticket writer's draft was not ready. Answer on the ticket in a comment that starts with `/qa-answer` (see below), or add `qa-pipeline` again |
+| `qa-refused` | The pipeline | The safety screen refused the requirement: it asks for something the pipeline does not do, such as deleting the repository, sending secrets out, acting against another site, bypassing its own checks, or giving orders to the agents. The reasons are in a comment on the ticket and nothing else ran. See below |
 | `qa-analyzed` | The pipeline | The plan passed the pass mark. The ticket is ready for tests. A `/qa-answer` comment still re-runs the analysis, with the skeptic's guesses replaced by the answers |
 | `qa-generate` | A person, or the analysis when `autoRun.testsWhenPlanIsReady` is on | Starts the test half from the latest analysis of the ticket. Removed when the half finishes |
 | `qa-test-first` | A person, or the ticket writer when the feature is not built | Tests are written before the feature, against a contract. The issue form answer "No, write the tests first" does the same |
 
-The pipeline creates `qa-needs-info` and `qa-analyzed` the first time it needs them; create the other three once.
+The pipeline creates `qa-needs-info`, `qa-analyzed` and `qa-refused` the first time it needs them; create the other three once.
+
+### Clearing `qa-refused`
+
+Read the comment the pipeline left: it quotes the words that decided it and names the rule or the screener's reason.
+If the ticket really asked for that, it stays refused. If it only worded a test requirement badly (a requirement
+that mentions a site that is not the app, or text that reads like an instruction to the agents), fix the ticket so
+it describes behaviour of the app to test, remove `qa-refused`, and add `qa-pipeline` again. A refusal by the
+screener rather than a rule says so in the comment; `safety.screener` in `qa.config.json` turns that half off.
 
 ### Answering the pipeline's questions
 

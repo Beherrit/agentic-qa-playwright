@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { historyMd, parseRunLog } from '../lib/history.ts';
-import { AnalyzeInput, draftText, DraftInput, HistoryInput, TOOLS } from '../lib/mcp-tools.ts';
+import { AnalyzeInput, draftText, DraftInput, HistoryInput, IntakeAnswerInput, IntakeFileInput, IntakeStartInput, intakeTicketText, questionsText, TOOLS } from '../lib/mcp-tools.ts';
 import { ROOT } from '../lib/paths.ts';
 import { pipelineIssues, pipelinePulls, stageOf, statusMd } from '../lib/status.ts';
 
@@ -35,11 +35,48 @@ describe('MCP tool input', () => {
     assert.ok(!HistoryInput.safeParse({ limit: 500 }).success);
   });
 
+  it('takes a wish to start an intake, and a session with answers or a session to file', () => {
+    assert.deepEqual(IntakeStartInput.parse({ wish: 'Shoppers can save a wishlist' }), { wish: 'Shoppers can save a wishlist', source: 'local' });
+    assert.ok(IntakeStartInput.safeParse({ wish: 'Shoppers can save a wishlist', source: 'github', rounds: 2 }).success);
+    for (const bad of [{}, { wish: 'short' }, { wish: 'Shoppers can save a wishlist', source: 'jira' }, { wish: 'Shoppers can save a wishlist', rounds: 0 }, { wish: 'Shoppers can save a wishlist', rounds: 7 }]) {
+      assert.ok(!IntakeStartInput.safeParse(bad).success, JSON.stringify(bad));
+    }
+    assert.ok(IntakeAnswerInput.safeParse({ session: 'ab12cd34', answers: ['Only one.', '', 'skip'] }).success);
+    for (const bad of [{ session: 'ab12cd34' }, { session: 'ab12cd34', answers: [] }, { answers: ['x'] }, { session: '', answers: ['x'] }, { session: 'ab12cd34', answers: [1] }]) {
+      assert.ok(!IntakeAnswerInput.safeParse(bad).success, JSON.stringify(bad));
+    }
+    assert.ok(IntakeFileInput.safeParse({ session: 'ab12cd34' }).success);
+    assert.ok(!IntakeFileInput.safeParse({}).success);
+  });
+
+  it('marks all three intake tools as not read-only, and says filing happens only on the call', () => {
+    for (const name of ['qa_intake_start', 'qa_intake_answer', 'qa_intake_file'] as const) assert.equal(TOOLS[name].readOnly, false, name);
+    for (const name of ['qa_intake_start', 'qa_intake_answer'] as const) assert.match(TOOLS[name].description, /spends the Claude plan/);
+    assert.match(TOOLS.qa_intake_file.description, /only when this is called/);
+  });
+
   it('says in the description which tools spend the plan, and none promises a label', () => {
     for (const name of ['qa_draft_ticket', 'qa_analyze'] as const) assert.match(TOOLS[name].description, /spends the Claude plan/);
     for (const name of ['qa_coverage', 'qa_history', 'qa_doctor', 'qa_status'] as const) assert.match(TOOLS[name].description, /No agent|no agent/);
     assert.match(TOOLS.qa_analyze.description, /several minutes/);
     assert.match(TOOLS.qa_analyze.description, /changes no label/);
+  });
+});
+
+describe('MCP intake answers', () => {
+  it('numbers the questions and says how to answer them', () => {
+    const text = questionsText('ab12cd34', [{ question: 'Can two codes stack?', lens: 'guess', assumed: 'One code.' }, { question: 'Who may use it?', lens: null, assumed: null }], 1);
+    assert.match(text, /^Session ab12cd34, round 1\./);
+    assert.match(text, /1\. \[guess\] Can two codes stack\?\n {3}It would otherwise assume: One code\./);
+    assert.match(text, /2\. \[blocks testing\] Who may use it\?/);
+    assert.match(text, /"skip" leaves the question open/);
+  });
+
+  it('shows the ticket and files it only on a later call', () => {
+    const ticket = { title: 'Requirement: Save a wishlist', labels: ['qa-needs-info'], body: '### Why\n\nBecause.', problems: ['Open question: Who?'] };
+    assert.match(intakeTicketText('ab12cd34', ticket, 'github'), /Not filed\. Show it to the person\. Only after they say yes, call qa_intake_file with session ab12cd34\./);
+    assert.match(intakeTicketText('ab12cd34', ticket, 'local'), /uses the local source/);
+    assert.match(intakeTicketText('ab12cd34', ticket, 'github'), /Not ready:\n- Open question: Who\?/);
   });
 });
 

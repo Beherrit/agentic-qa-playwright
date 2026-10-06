@@ -51,6 +51,12 @@ In this repository: the ticket writer, the skeptic and the requirements analyst
 ([agents/prompts/](../agents/prompts/)). A request with open questions is labelled `qa-needs-info` and the pipeline
 stops until somebody answers.
 
+A safety screen runs before any of that: fixed rules, then a read-only reviewer, decide whether the pipeline may act
+on the request at all, and a request that asks for damage, secrets, other sites or bypassed checks is refused with
+its reasons ([agents/lib/safety.ts](../agents/lib/safety.ts), [request-screener.md](../agents/prompts/request-screener.md)).
+For a wish that is still fuzzy there is also a conversation before the ticket exists: the questions are asked at a
+terminal and the answers travel with the ticket ([agents/intake.ts](../agents/intake.ts)).
+
 ### 2. Planning is adversarial
 
 One agent proposes a plan. A second agent, given the plan but not the first agent's reasoning, tries to find what it

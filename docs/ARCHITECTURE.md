@@ -71,6 +71,7 @@ and file upload are not on the list.
 | Role | Runs in | Access | Tools | Answers in |
 |---|---|---|---|---|
 | `suite-surveyor` | `npx agentic-qa survey` | read | Read | `Survey` |
+| `request-screener` | Before QA analysis, 1; `npx agentic-qa intake` | read | Read | `Screening` |
 | `ticket-writer` | `npx agentic-qa draft`, `qa_draft_ticket` | read | Read, browser | `TicketDraft` |
 | `skeptic` | QA analysis, 1 | read | Read | `Skepticism` |
 | `requirements-analyst` | QA analysis, 1 | read | Read | `Requirements` |
