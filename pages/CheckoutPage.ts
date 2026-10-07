@@ -12,6 +12,7 @@ export class CheckoutPage extends BasePage {
   readonly cancelButton: Locator;
   readonly finishButton: Locator;
   readonly error: Locator;
+  readonly errorButton: Locator;
   readonly itemTotal: Locator;
   readonly tax: Locator;
   readonly total: Locator;
@@ -26,6 +27,7 @@ export class CheckoutPage extends BasePage {
     this.cancelButton = page.getByRole('button', { name: 'Cancel' });
     this.finishButton = page.getByRole('button', { name: 'Finish' });
     this.error = page.getByTestId('error');
+    this.errorButton = page.getByRole('button', { name: 'Dismiss error' });
     this.itemTotal = page.getByTestId('subtotal-label');
     this.tax = page.getByTestId('tax-label');
     this.total = page.getByTestId('total-label');
