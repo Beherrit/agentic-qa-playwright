@@ -231,8 +231,13 @@ export function markerProblems(markers: Marker[], request: Pick<Request, 'key' |
   for (const marker of bugs) {
     if (!/\bAC-\d+\b/.test(marker.reason!)) problems.push(`\`${marker.line}\` does not name the criterion it disagrees with`);
   }
-  if (bugs.length > suspectedBugs) {
-    problems.push(`${bugs.length} tests are marked as product bugs but only ${suspectedBugs} suspected bugs were reported`);
+  // One bug can fail several tests (one per field, one per persona), so the count that must be reported is the
+  // number of criteria the markers disagree with, not the number of marked tests.
+  const disputed = [...new Set(bugs.flatMap((m) => m.reason!.match(/\bAC-\d+\b/g) ?? []))];
+  if (disputed.length > suspectedBugs) {
+    problems.push(
+      `${bugs.length} tests are marked as product bugs against ${disputed.length} criteria (${disputed.join(', ')}), but only ${suspectedBugs} suspected bugs were reported: report one per criterion`,
+    );
   }
   if (request.mode === 'built' && pending.length) {
     problems.push(`${pending.length} tests are marked "not built yet", but this requirement is not in test-first mode`);
