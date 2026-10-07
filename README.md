@@ -1,33 +1,34 @@
 ## QA run history
 
-**42 runs: 11 analysis, 11 tests, 20 regression.** Gates passed in 75% of tests runs; the review approved 27% at first review.
+**43 runs: 12 analysis, 11 tests, 20 regression.** Gates passed in 75% of tests runs; the review approved 27% at first review.
 
-Average plan score 98, estimated cost $0.43 per run, $17.92 in all.
+Average plan score 98, estimated cost $0.44 per run, $18.74 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 42 (11 analysis, 11 tests, 20 regression)
+- Runs: 43 (12 analysis, 11 tests, 20 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 75%
 - Approved at first review: 27%
 - Approved after rework: 9%
 - Not approved: 64%
 - Average plan score: 98
-- Total cost: $17.92
-- Average cost per run: $0.43
+- Total cost: $18.74
+- Average cost per run: $0.44
 - Average agent time: 2m 56s
 - Gate failing most often: Full suite (2)
 
 ### Runs
 
-42 runs, newest first.
+43 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-07 16:41 | REQ-42 | Requirement: Checkout information form errors and recovery | analysis | 98 | - | - | 3m 6s | $0.81 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37653253927) |
 | 2026-10-07 12:18 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37619817812) |
 | 2026-10-06 22:45 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37542390943) |
 | 2026-10-06 12:26 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/37462934564) |
