@@ -124,13 +124,19 @@ export function requirementsMd(
   technical: TechnicalResult | null = null,
   level = 2,
   doubts: Skepticism | null = null,
+  /** True when the criteria were taken from the ticket as filed: the ticket already shows them, so they are not repeated. */
+  fromTicket = false,
 ): string {
   const blocking = req.openQuestions.filter((q) => q.blocking);
   const other = req.openQuestions.filter((q) => !q.blocking);
   const rows = req.criteria.map((c) => [c.id, c.kind, cell(c.given), cell(c.when), cell(c.then)]);
   const criteria = fold(`${plural(req.criteria.length, 'criterion', 'criteria')}: ${kinds(req)}.`, table(['', 'Kind', 'Given', 'When', 'Then'], rows), rows.length <= LONG_TABLE);
   const sub = (text: string): string => heading(level + 1, text);
-  return `${heading(level, `Requirements: ${req.title} (${request.key})`)}
+  const asFiled = `${heading(level, `Requirements: ${req.title} (${request.key})`)}
+
+The ticket writer filed this ticket, so the story, the ${plural(req.criteria.length, 'criterion', 'criteria')} (${kinds(req)}), the assumptions and what is out of scope are taken from the ticket above as written. No analyst run. Ticket risk ${req.risk}.
+`;
+  const analysed = `${heading(level, `Requirements: ${req.title} (${request.key})`)}
 
 **As** ${req.story.asA}, **I want** ${req.story.iWant}, **so that** ${req.story.soThat}.
 
@@ -147,7 +153,8 @@ ${list(req.assumptions)}
 ${sub('Out of scope')}
 
 ${list(req.outOfScope)}
-${
+`;
+  return `${fromTicket ? asFiled : analysed}${
   blocking.length
     ? `\n${sub('Questions that block testing')}\n\n${list(blocking.map((q) => `**${q.question}** ${q.why}`))}\n\n${howToAnswer(request)}\n`
     : ''
@@ -532,8 +539,7 @@ export function analysisMd(input: {
 ${status}
 
 ${facts ? `${facts}.` : ''}
-${fromWriter ? '\n_Requirements taken from the ticket as the ticket writer filed them. No analyst run._\n' : ''}
-${req ? requirementsMd(request, req, technical, 3, doubts) : ''}
+${req ? requirementsMd(request, req, technical, 3, doubts, fromWriter) : ''}
 ${strategy ? strategyMd(request, strategy, compact, 3) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
   return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;

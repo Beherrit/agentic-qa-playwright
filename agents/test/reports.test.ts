@@ -121,11 +121,13 @@ describe('report shape', () => {
     const md = analysisMd({ request, requirements: requirements(), strategy: strategy(['AC-1']), technical, runUrl: null, fromWriter: true });
     assert.match(md, /^## QA analysis: Sort products \(REQ-12\)/);
     assert.match(md, /\n### Requirements: Sort products/);
-    assert.match(md, /\n#### Acceptance criteria/);
+    assert.doesNotMatch(md, /\n#### Acceptance criteria/, 'criteria the writer filed are on the ticket already, not repeated');
+    assert.match(md, /taken from the ticket above as written\. No analyst run\./);
+    const analysed = analysisMd({ request, requirements: requirements(), strategy: strategy(['AC-1']), technical, runUrl: null });
+    assert.match(analysed, /\n#### Acceptance criteria/, 'a hand-written ticket gets the full table');
     assert.match(md, /\n#### Technical review/);
     assert.match(md, /\n### Test strategy \(REQ-12\)/);
     assert.match(md, /ticket risk medium; technical risk low; 1 test case \(1 e2e\); 1 of 1 nearby behaviours unguarded\./);
-    assert.match(md, /_Requirements taken from the ticket as the ticket writer filed them\. No analyst run\._/);
   });
 
   it('puts the counts in the pull request opening and the closing keyword at the end', () => {

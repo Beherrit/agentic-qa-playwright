@@ -126,7 +126,7 @@ export async function requirements(): Promise<boolean> {
   // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
   const filed = requirementsFromTicket(req.title, req.body);
   if (filed) {
-    const markdown = `_Taken from the ticket as the ticket writer filed it. No analyst run._\n\n${requirementsMd(req, filed, null, 2, asked)}`;
+    const markdown = requirementsMd(req, filed, null, 2, asked, true);
     save('requirements.json', filed);
     save('requirements.md', markdown);
     jobSummary(markdown);
