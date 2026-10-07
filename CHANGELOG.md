@@ -7,6 +7,9 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Fixed
 
+- **The expected-failures gate counts criteria, not tests.** Three tests marked as the same product bug (one per
+  field) needed three bug reports and stopped a run; one bug per disputed criterion is now enough.
+
 - **An agent that writes a summary instead of handing in its answer** (haiku did, after thirteen minutes of
   passing tests) is no longer a failed run. Its session is resumed with everything it did in context and asked for
   the answer alone, once, in three turns at most. The cost ledger records the whole session.

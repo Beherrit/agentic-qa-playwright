@@ -125,9 +125,13 @@ describe('expected-failure markers', () => {
     assert.match(markerProblems(addedMarkers(patch('test.fail();')), built, 0).join(), /has no reason/);
   });
 
-  it('rejects more bug markers than reported bugs', () => {
+  it('rejects bug markers against more criteria than reported bugs, counting criteria rather than tests', () => {
     const markers = addedMarkers(patch("test.fail(true, 'bug: AC-1 x');", "test.fail(true, 'bug: AC-2 y');"));
-    assert.match(markerProblems(markers, built, 1).join(), /only 1 suspected bugs/);
+    assert.match(markerProblems(markers, built, 1).join(), /2 criteria \(AC-1, AC-2\), but only 1 suspected bugs/);
+    // Three tests for the same bug, one per field, need one report, not three.
+    const perField = addedMarkers(patch("test.fail(true, 'bug: AC-5 first name');", "test.fail(true, 'bug: AC-5 last name');", "test.fail(true, 'bug: AC-5 postal code');"));
+    assert.deepEqual(markerProblems(perField, built, 1), []);
+    assert.match(markerProblems(perField, built, 0).join(), /3 tests are marked as product bugs against 1 criteria \(AC-5\), but only 0/);
   });
 
   it('rejects a bug marker that does not name its criterion', () => {
