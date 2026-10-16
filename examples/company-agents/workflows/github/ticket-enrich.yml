@@ -1,0 +1,91 @@
+name: Ticket enrich
+
+# A ticket created, or labelled "ready", gets a comment with the context a developer would spend their first hour
+# finding. GitHub issues trigger it directly. Jira triggers it through a webhook into repository_dispatch (a Jira
+# automation rule: "when issue created or transitioned to Ready, send web request to
+# https://api.github.com/repos/<owner>/<repo>/dispatches with {"event_type":"ticket-created","client_payload":{"key":"{{issue.key}}"}}").
+
+on:
+  issues:
+    types: [opened, labeled]
+  repository_dispatch:
+    types: [ticket-created]
+  workflow_dispatch:
+    inputs:
+      key:
+        description: Ticket key (SHOP-123) or issue number (#123)
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+  KEY: ${{ inputs.key || github.event.client_payload.key || format('#{0}', github.event.issue.number) }}
+
+jobs:
+  fetch:
+    # On a label event, only the "ready" label. Never on the agent's own tickets, so it cannot loop.
+    if: >-
+      (github.event_name != 'issues' || github.event.action == 'opened' || github.event.label.name == 'ready') &&
+      !contains(github.event.issue.labels.*.name, 'agent-drafted')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsx examples/company-agents/cli/co.ts ticket enrich "$KEY" --stage fetch --bundle bundle.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with: { name: bundle, path: bundle.json, retention-days: 1 }
+
+  agent:
+    needs: fetch
+    runs-on: ubuntu-latest
+    environment: agents
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - run: npx tsx examples/company-agents/cli/co.ts ticket enrich "$KEY" --stage agent --bundle bundle.json --result result.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: result, path: result.json, retention-days: 1 }
+
+  post:
+    needs: agent
+    runs-on: ubuntu-latest
+    environment: tracker # holds the token that may write comments
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - uses: actions/download-artifact@v4
+        with: { name: result }
+      - run: npx tsx examples/company-agents/cli/co.ts ticket enrich "$KEY" --stage post --bundle bundle.json --result result.json --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_COMMENT_TOKEN }}

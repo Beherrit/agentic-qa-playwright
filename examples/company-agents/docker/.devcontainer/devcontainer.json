@@ -1,0 +1,14 @@
+{
+  "name": "company-agents",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "co",
+  "workspaceFolder": "/work",
+  "overrideCommand": true,
+  "postCreateCommand": "co doctor || true",
+  "customizations": {
+    "vscode": {
+      "extensions": ["anthropic.claude-code"]
+    }
+  },
+  "remoteUser": "agent"
+}

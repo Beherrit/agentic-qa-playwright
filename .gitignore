@@ -5,3 +5,6 @@ blob-report/
 .playwright-mcp/
 .env
 qa-run/
+
+# Company agents CLI: audit log and stage bundles
+.co/

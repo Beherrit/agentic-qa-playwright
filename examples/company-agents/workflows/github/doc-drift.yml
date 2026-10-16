@@ -1,0 +1,105 @@
+name: Documentation drift
+
+# Sunday night: the documentation pages for each area against the code they describe. Confirmed disagreements become
+# one ticket per area for the documentation owners. The areas and their page ids live in a repository variable so
+# nobody edits a workflow to add one:
+#
+#   CO_DRIFT_AREAS = [{"area":"checkout","pages":"123,456"},{"area":"accounts","pages":"789"}]
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+
+jobs:
+  areas:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.read.outputs.matrix }}
+    steps:
+      - id: read
+        run: echo "matrix=$(echo '${{ vars.CO_DRIFT_AREAS }}' | jq -c .)" >> "$GITHUB_OUTPUT"
+
+  fetch:
+    needs: areas
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.areas.outputs.matrix) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsx examples/company-agents/cli/co.ts drift "${{ matrix.area }}" --pages "${{ matrix.pages }}" --stage fetch --bundle bundle.json
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          CONFLUENCE_BASE_URL: ${{ secrets.CONFLUENCE_BASE_URL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.area }}
+          path: bundle.json
+          retention-days: 1
+
+  agent:
+    needs: [areas, fetch]
+    runs-on: ubuntu-latest
+    environment: agents
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.areas.outputs.matrix) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle-${{ matrix.area }}
+      - run: npx tsx examples/company-agents/cli/co.ts drift "${{ matrix.area }}" --pages "${{ matrix.pages }}" --stage agent --bundle bundle.json --result result.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.area }}
+          path: result.json
+          retention-days: 1
+
+  post:
+    needs: [areas, agent]
+    runs-on: ubuntu-latest
+    environment: tracker
+    strategy:
+      matrix:
+        include: ${{ fromJSON(needs.areas.outputs.matrix) }}
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle-${{ matrix.area }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: result-${{ matrix.area }}
+      - run: npx tsx examples/company-agents/cli/co.ts drift "${{ matrix.area }}" --pages "${{ matrix.pages }}" --stage post --bundle bundle.json --result result.json --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_CREATE_TOKEN }}

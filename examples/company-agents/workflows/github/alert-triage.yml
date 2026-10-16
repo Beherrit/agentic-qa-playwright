@@ -1,0 +1,79 @@
+name: Alert triage
+
+# Monitoring (Grafana, Datadog, PagerDuty, Alertmanager) sends its webhook to a small relay that calls
+# repository_dispatch with the alert as the payload. The triager reads it, the last 48 hours of merges and the runbook,
+# and posts a note to the incidents channel. It never touches a system: the on-call engineer acts.
+#
+# The relay is the one piece not in this folder: a few lines in a serverless function that checks the monitoring
+# tool's signature, drops anything else, and POSTs to https://api.github.com/repos/<owner>/<repo>/dispatches with
+# {"event_type":"alert","client_payload":{"alert":{...}}} using a fine-grained token that can do nothing but dispatch.
+
+on:
+  repository_dispatch:
+    types: [alert]
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: echo '${{ toJSON(github.event.client_payload.alert) }}' > alert.json
+      - run: npx tsx examples/company-agents/cli/co.ts alert alert.json --channel "${{ vars.CO_INCIDENTS_CHANNEL }}" --stage fetch --bundle bundle.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          CONFLUENCE_BASE_URL: ${{ secrets.CONFLUENCE_BASE_URL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with: { name: bundle, path: bundle.json, retention-days: 1 }
+
+  agent:
+    needs: fetch
+    runs-on: ubuntu-latest
+    environment: agents
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - run: npx tsx examples/company-agents/cli/co.ts alert - --channel "${{ vars.CO_INCIDENTS_CHANNEL }}" --stage agent --bundle bundle.json --result result.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: result, path: result.json, retention-days: 1 }
+
+  post:
+    needs: agent
+    runs-on: ubuntu-latest
+    environment: chat # holds the Slack bot token
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - uses: actions/download-artifact@v4
+        with: { name: result }
+      - run: npx tsx examples/company-agents/cli/co.ts alert - --channel "${{ vars.CO_INCIDENTS_CHANNEL }}" --stage post --bundle bundle.json --result result.json --yes
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# `co` inside the image: runs the CLI from the agents checkout against the mounted repository.
+# Inside the container the Figma desktop app is on the host, so its URL is rewritten if the config uses desktop mode.
+set -euo pipefail
+exec npx --prefix "${CO_HOME:-/opt/agents}" tsx "${CO_HOME:-/opt/agents}/examples/company-agents/cli/co.ts" "$@"

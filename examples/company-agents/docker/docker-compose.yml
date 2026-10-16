@@ -1,0 +1,49 @@
+# One file for Mac and Windows. Named volumes hold the logins (no host-path differences to argue about); the
+# company's repository is mounted at /work from CO_WORKDIR in .env, which defaults to the repository this file is in.
+#
+#   cp examples/company-agents/docker/.env.example .env     (at the repository root; fill in what you have, leave the rest)
+#   docker compose -f examples/company-agents/docker/docker-compose.yml build
+#   docker compose -f examples/company-agents/docker/docker-compose.yml run --rm onboard
+#   docker compose -f examples/company-agents/docker/docker-compose.yml run --rm co doctor
+#
+# `co` posts as you, so the first thing onboard does is `co login`.
+
+name: company-agents
+
+services:
+  co:
+    build:
+      context: ../../..
+      dockerfile: examples/company-agents/docker/Dockerfile
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-latest}
+        GITHUB_MCP_VERSION: ${GITHUB_MCP_VERSION:-latest}
+    image: company-agents/co:local
+    env_file:
+      - path: ../../../.env
+        required: false
+    environment:
+      # Everything in .env is passed through; these are the ones the tooling reads. Empty stays empty.
+      CO_AGENTS_ENABLED: ${CO_AGENTS_ENABLED:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      # The Figma desktop app on the host, from inside the container.
+      CO_FIGMA_DESKTOP_URL: http://host.docker.internal:3845/mcp
+    volumes:
+      - ${CO_WORKDIR:-../../..}:/work
+      - co-credentials:/home/agent/.co
+      - claude-config:/home/agent/.claude
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    stdin_open: true
+    tty: true
+    working_dir: /work
+
+  onboard:
+    extends: co
+    entrypoint: ["/usr/bin/tini", "--", "onboard"]
+    command: []
+
+volumes:
+  co-credentials:
+  claude-config:

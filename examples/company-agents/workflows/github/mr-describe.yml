@@ -1,0 +1,84 @@
+name: MR describe
+
+# A pull request opened or pushed to gets a description and a risk note. Three jobs, three credentials, one JSON
+# bundle between them: the job that reads the pull request holds a GitHub token and no model key; the job that runs
+# the agent holds the model key and no GitHub token; the job that posts holds a GitHub token and runs no model.
+# A prompt injection in the diff can at worst produce a bad answer, which the validator drops.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: mr-describe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+
+jobs:
+  fetch:
+    if: github.event.pull_request.draft == false && !contains(github.event.pull_request.labels.*.name, 'no-agents')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsx examples/company-agents/cli/co.ts mr describe ${{ github.event.pull_request.number }} --stage fetch --bundle bundle.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Jira, when the company links tickets there. Read-only API token scoped to browse.
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with: { name: bundle, path: bundle.json, retention-days: 1 }
+
+  agent:
+    needs: fetch
+    runs-on: ubuntu-latest
+    environment: agents # holds the model key and nothing else
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - run: npx tsx examples/company-agents/cli/co.ts mr describe ${{ github.event.pull_request.number }} --stage agent --bundle bundle.json --result result.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: result, path: result.json, retention-days: 1 }
+
+  post:
+    needs: agent
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - uses: actions/download-artifact@v4
+        with: { name: result }
+      # The description is posted as a comment. Add --apply to replace the pull request body instead, once the team
+      # trusts it; the author can still edit either.
+      - run: npx tsx examples/company-agents/cli/co.ts mr describe ${{ github.event.pull_request.number }} --stage post --bundle bundle.json --result result.json --yes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,53 @@
+{
+  "enabled": true,
+  "company": "Acme: an online shop for outdoor gear (web and mobile), with a Node API and a React front end",
+  "tracker": "jira",
+  "repoHost": "github",
+  "docs": "confluence",
+  "chat": "slack",
+  "project": {
+    "repo": "acme/shop",
+    "key": "SHOP",
+    "docsParentId": "123456789",
+    "docsPath": "docs",
+    "testrail": { "projectId": 1, "suiteId": null, "sectionId": 42 }
+  },
+  "mcp": {
+    "github": { "mode": "binary", "toolsets": ["repos", "issues", "pull_requests", "users"] },
+    "atlassian": { "enabled": true },
+    "testrail": { "enabled": true, "version": "latest" },
+    "figma": { "mode": "desktop" }
+  },
+  "allowedHosts": ["github.com", "acme.atlassian.net", "acme.slack.com", "acme.testrail.io", "figma.com", "docs.acme.example", "shop.acme.example"],
+  "channels": {
+    "allowed": ["#eng", "#shop-team", "#help-engineering", "#incidents", "#eng-digest"],
+    "shared": ["#partner-acme-vendor"],
+    "help": "#help-engineering",
+    "digest": "#eng-digest"
+  },
+  "approvalReaction": "white_check_mark",
+  "commands": { "test": "npm test", "typecheck": "npm run typecheck" },
+  "models": {
+    "*": "sonnet",
+    "request-screener": "haiku",
+    "weekly-digest": "haiku",
+    "onboarding-guide": "haiku"
+  },
+  "budget": { "maxUsdPerDay": 50 },
+  "roles": {
+    "ticket-writer": { "allowed": ["*"], "allowYesLocally": false, "maxUsdPerRun": 1.5, "mcp": ["atlassian", "figma"] },
+    "ticket-enricher": { "allowed": ["*", "ci:*"], "allowYesLocally": true, "maxUsdPerRun": 2, "mcp": ["github", "atlassian"] },
+    "test-case-writer": { "allowed": ["*", "ci:*"], "allowYesLocally": false, "maxUsdPerRun": 2, "mcp": ["testrail", "figma"] },
+    "merge-request-describer": { "allowed": ["*", "ci:*"], "allowYesLocally": true, "maxUsdPerRun": 2, "mcp": ["github", "atlassian"] },
+    "merge-request-reviewer": { "allowed": ["*", "ci:*"], "allowYesLocally": false, "maxUsdPerRun": 4, "mcp": ["github"] },
+    "design-reviewer": { "allowed": ["*", "ci:*"], "allowYesLocally": true, "maxUsdPerRun": 3, "mcp": ["figma"] },
+    "release-documenter": { "allowed": ["*", "ci:*"], "approvers": ["docs-owners"], "allowYesLocally": false, "maxUsdPerRun": 3, "mcp": ["atlassian"] },
+    "doc-drift-checker": { "allowed": ["ci:*", "docs-owners"], "maxUsdPerRun": 5, "mcp": ["atlassian"] },
+    "chat-responder": { "allowed": ["*", "ci:*"], "allowYesLocally": false, "perActorPerHour": 30, "maxUsdPerRun": 1, "mcp": ["github", "atlassian"] },
+    "alert-triager": { "allowed": ["ci:*", "oncall"], "allowYesLocally": true, "maxUsdPerRun": 2, "mcp": ["github"] },
+    "incident-scribe": { "allowed": ["ci:*", "oncall", "incident-commanders"], "maxUsdPerRun": 3 },
+    "weekly-digest": { "allowed": ["ci:*", "eng-managers"], "maxUsdPerRun": 3 },
+    "onboarding-guide": { "allowed": ["*", "ci:*"], "perActorPerHour": 60, "maxUsdPerRun": 1, "mcp": ["github", "atlassian", "testrail"] }
+  },
+  "audit": ".co/audit.jsonl"
+}

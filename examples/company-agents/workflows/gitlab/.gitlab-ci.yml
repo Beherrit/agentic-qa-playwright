@@ -1,0 +1,139 @@
+# The same agents on GitLab. Merge request pipelines run the describer on open and on each push, the reviewer when the
+# MR leaves draft, and the documenter on merge (a pipeline on the target branch whose commit names an MR). Three jobs
+# per role, three sets of variables, one artifact between them.
+#
+# Variables, in Settings > CI/CD > Variables, each "protected" and "masked" and scoped to the environment named on
+# the job so a job can only read the ones it is meant to hold:
+#   environment agents : CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY
+#   environment tracker: GITLAB_TOKEN (a project access token with api scope, role Reporter for read jobs and
+#                        Developer for post jobs), JIRA_BASE_URL, JIRA_EMAIL, JIRA_TOKEN
+#   environment docs   : CONFLUENCE_BASE_URL, CONFLUENCE_TOKEN
+#   environment chat   : SLACK_BOT_TOKEN
+# Kill switch: set CO_AGENTS_ENABLED to "false" at project or group level.
+
+stages: [fetch, agent, post]
+
+variables:
+  CO_AGENTS_ENABLED: 'true'
+  MR: $CI_MERGE_REQUEST_IID
+
+.node:
+  image: node:22
+  cache:
+    key: { files: [package-lock.json] }
+    paths: [node_modules/]
+  before_script:
+    - npm ci --prefer-offline
+  rules:
+    - if: $CO_AGENTS_ENABLED == "false"
+      when: never
+    - if: $CI_MERGE_REQUEST_LABELS =~ /no-agents/
+      when: never
+
+# ── Describe ──────────────────────────────────────────────────────────────────
+
+describe:fetch:
+  extends: .node
+  stage: fetch
+  environment: { name: tracker, action: access }
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr describe "$MR" --stage fetch --bundle bundle.json
+  artifacts: { paths: [bundle.json], expire_in: 1 day }
+
+describe:agent:
+  extends: .node
+  stage: agent
+  environment: { name: agents, action: access }
+  needs: [describe:fetch]
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr describe "$MR" --stage agent --bundle bundle.json --result result.json
+  artifacts: { paths: [result.json], expire_in: 1 day }
+
+describe:post:
+  extends: .node
+  stage: post
+  environment: { name: tracker, action: access }
+  needs: [describe:fetch, describe:agent]
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr describe "$MR" --stage post --bundle bundle.json --result result.json --yes
+
+# ── Review ────────────────────────────────────────────────────────────────────
+
+review:fetch:
+  extends: .node
+  stage: fetch
+  environment: { name: tracker, action: access }
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TITLE !~ /^Draft:/
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr review "$MR" --stage fetch --bundle review-bundle.json
+  artifacts: { paths: [review-bundle.json], expire_in: 1 day }
+
+review:agent:
+  extends: .node
+  stage: agent
+  environment: { name: agents, action: access }
+  needs: [review:fetch]
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TITLE !~ /^Draft:/
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr review "$MR" --stage agent --bundle review-bundle.json --result review-result.json
+  artifacts: { paths: [review-result.json], expire_in: 1 day }
+
+review:post:
+  extends: .node
+  stage: post
+  environment: { name: tracker, action: access }
+  needs: [review:fetch, review:agent]
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TITLE !~ /^Draft:/
+  script:
+    - npx tsx examples/company-agents/cli/co.ts mr review "$MR" --stage post --bundle review-bundle.json --result review-result.json --yes
+
+# ── Document on merge ─────────────────────────────────────────────────────────
+# A merge commit on the default branch names the MR ("See merge request group/project!123"). The documenter takes it.
+
+.merged:
+  rules:
+    - !reference [.node, rules]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_MESSAGE =~ /See merge request .*!\d+/
+  before_script:
+    - npm ci --prefer-offline
+    - export MR=$(echo "$CI_COMMIT_MESSAGE" | grep -oE '!\d+' | head -1 | tr -d '!')
+
+document:fetch:
+  extends: [.node, .merged]
+  stage: fetch
+  environment: { name: tracker, action: access }
+  script:
+    - npx tsx examples/company-agents/cli/co.ts doc "$MR" --stage fetch --bundle doc-bundle.json
+  artifacts: { paths: [doc-bundle.json], expire_in: 1 day }
+
+document:agent:
+  extends: [.node, .merged]
+  stage: agent
+  environment: { name: agents, action: access }
+  needs: [document:fetch]
+  script:
+    - npx tsx examples/company-agents/cli/co.ts doc "$MR" --stage agent --bundle doc-bundle.json --result doc-result.json
+  artifacts: { paths: [doc-result.json], expire_in: 1 day }
+
+document:post:
+  extends: [.node, .merged]
+  stage: post
+  environment: { name: docs, action: access }
+  needs: [document:fetch, document:agent]
+  script:
+    - npx tsx examples/company-agents/cli/co.ts doc "$MR" --stage post --bundle doc-bundle.json --result doc-result.json --yes

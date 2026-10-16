@@ -1,0 +1,119 @@
+name: Release document
+
+# A pull request merged with a ticket key gets its documentation drafted. With docs in Confluence the draft is a new
+# page labelled agent-draft next to the page it proposes to change; with docs in the repository it is a pull request
+# against the docs folder. Either way a documentation owner publishes; the agent never does.
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Ticket key (SHOP-123) or pull request number
+        required: true
+        type: string
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+  REF: ${{ inputs.ref || github.event.pull_request.number }}
+
+jobs:
+  fetch:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no-docs'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsx examples/company-agents/cli/co.ts doc "$REF" --stage fetch --bundle bundle.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_TOKEN: ${{ secrets.JIRA_READ_TOKEN }}
+          CONFLUENCE_BASE_URL: ${{ secrets.CONFLUENCE_BASE_URL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_READ_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with: { name: bundle, path: bundle.json, retention-days: 1 }
+
+  agent:
+    needs: fetch
+    runs-on: ubuntu-latest
+    environment: agents
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - run: npx tsx examples/company-agents/cli/co.ts doc "$REF" --stage agent --bundle bundle.json --result result.json --out draft.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: result, path: result.json, retention-days: 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: draft, path: draft.json, retention-days: 7 }
+
+  post-confluence:
+    if: vars.CO_DOCS != 'repo'
+    needs: agent
+    runs-on: ubuntu-latest
+    environment: docs # holds the Confluence token that may create pages
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - uses: actions/download-artifact@v4
+        with: { name: result }
+      - run: npx tsx examples/company-agents/cli/co.ts doc "$REF" --stage post --bundle bundle.json --result result.json --yes
+        env:
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          CONFLUENCE_BASE_URL: ${{ secrets.CONFLUENCE_BASE_URL }}
+          CONFLUENCE_TOKEN: ${{ secrets.CONFLUENCE_WRITE_TOKEN }}
+
+  post-repo:
+    if: vars.CO_DOCS == 'repo'
+    needs: agent
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: draft }
+      # The draft's body becomes a file under docs/, on a branch, as a pull request for the docs owners. The agent's
+      # answer was validated in the agent job; this job only moves bytes.
+      - name: Write the page and open a pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          title=$(jq -r '.target.title' draft.json)
+          slug=$(echo "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]+/-/g; s/-+/-/g; s/^-//; s/-$//')
+          mkdir -p docs
+          jq -r '.body' draft.json > "docs/${slug}.md"
+          branch="docs/${REF}-${slug}"
+          git config user.name "docs-agent"
+          git config user.email "docs-agent@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add docs
+          git commit -m "docs: ${title} (${REF})" -m "Drafted by the release-documenter agent. A docs owner reviews and merges."
+          git push -u origin "$branch"
+          gh pr create --title "docs: ${title} (${REF})" --body "$(jq -r '"Changelog: " + .changelog + "\n\nTo confirm:\n" + (.toConfirm | map("- " + .) | join("\n")) + "\n\nDiscrepancies between ticket and code:\n" + (.discrepancies | map("- " + .) | join("\n"))' draft.json)" --label docs --label agent-drafted --draft

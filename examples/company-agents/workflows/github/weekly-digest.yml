@@ -1,0 +1,78 @@
+name: Weekly digest
+
+# Monday 08:00 UTC: last week in engineering, posted to the digest channel. Read-only input, labelled output, nobody
+# to sign it off, so the validator is the last line: every ticket and merge request named must be one the agent was
+# given, every link must be to an allowed host, and the whole thing is at most 60 lines.
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: How many days back
+        default: '7'
+        type: string
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+  DAYS: ${{ inputs.days || '7' }}
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsx examples/company-agents/cli/co.ts digest --days "$DAYS" --stage fetch --bundle bundle.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with: { name: bundle, path: bundle.json, retention-days: 1 }
+
+  agent:
+    needs: fetch
+    runs-on: ubuntu-latest
+    environment: agents
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - run: npx tsx examples/company-agents/cli/co.ts digest --days "$DAYS" --stage agent --bundle bundle.json --result result.json
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: result, path: result.json, retention-days: 1 }
+
+  post:
+    needs: agent
+    runs-on: ubuntu-latest
+    environment: chat
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with: { name: bundle }
+      - uses: actions/download-artifact@v4
+        with: { name: result }
+      - run: npx tsx examples/company-agents/cli/co.ts digest --days "$DAYS" --stage post --bundle bundle.json --result result.json --yes
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}

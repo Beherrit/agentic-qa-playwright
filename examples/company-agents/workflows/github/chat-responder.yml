@@ -1,0 +1,91 @@
+name: Chat responder
+
+# The bot was mentioned in Slack. A Slack app with Events API subscriptions (app_mention, reaction_added) points at a
+# relay that verifies Slack's signature and calls repository_dispatch. Two event types:
+#
+#   chat-mention   someone wrote "@bot ...": the responder drafts. An answer is posted at once in the thread; a
+#                  statement is posted ephemerally to the asker with "react with :white_check_mark: to send".
+#   chat-approve   the asker reacted on the ephemeral draft: the saved statement is posted to the channel.
+#
+# The approval is a second, separate run that only moves a saved message, so a model is never between the person's
+# yes and the post. The person who asked and the person who approved must be the same, and must be in the company
+# directory (the relay checks both; the workflow checks again).
+
+on:
+  repository_dispatch:
+    types: [chat-mention, chat-approve]
+
+permissions: {}
+
+env:
+  CO_AGENTS_ENABLED: ${{ vars.CO_AGENTS_ENABLED || 'true' }}
+  CHANNEL: ${{ github.event.client_payload.channel }}
+  TS: ${{ github.event.client_payload.ts }}
+  USER: ${{ github.event.client_payload.user }}
+
+jobs:
+  mention:
+    if: github.event.action == 'chat-mention'
+    runs-on: ubuntu-latest
+    environment: chat
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      # The chat responder reads the thread and drafts, in one process here because a reply is low-stakes and
+      # read-only until a person approves a statement. Split it into fetch/agent/post like the others if the channel
+      # list ever includes channels with people outside the company.
+      - run: |
+          npx tsx examples/company-agents/cli/co.ts post "$CHANNEL" "$(printf '%s' '${{ github.event.client_payload.text }}')" --dry --out reply.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Post an answer in the thread, or offer a statement for approval
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          kind=$(jq -r .kind reply.json)
+          text=$(jq -r .text reply.json)
+          if [ "$kind" = "answer" ]; then
+            jq -n --arg c "$CHANNEL" --arg t "$text"$'\n_answered by the chat-responder agent; check the sources before relying on it_' --arg ts "$TS" '{channel:$c,text:$t,thread_ts:$ts}' \
+              | curl -sS -H "Authorization: Bearer $SLACK_BOT_TOKEN" -H 'Content-Type: application/json' -d @- https://slack.com/api/chat.postMessage
+          elif [ "$kind" = "statement" ]; then
+            jq -n --arg c "$CHANNEL" --arg u "$USER" --arg t "Draft, visible only to you. React to this message with :white_check_mark: to post it to the channel as you, or ignore it."$'\n\n'"$text" '{channel:$c,user:$u,text:$t}' \
+              | curl -sS -H "Authorization: Bearer $SLACK_BOT_TOKEN" -H 'Content-Type: application/json' -d @- https://slack.com/api/chat.postEphemeral
+            # Saved for the approval run. The cache key ties it to this channel, thread and user.
+            cp reply.json statement.json
+          else
+            echo "The responder refused: $text"
+          fi
+      - uses: actions/cache/save@v4
+        if: hashFiles('statement.json') != ''
+        with:
+          path: statement.json
+          key: statement-${{ env.CHANNEL }}-${{ env.TS }}-${{ env.USER }}
+
+  approve:
+    if: github.event.action == 'chat-approve'
+    runs-on: ubuntu-latest
+    environment: chat
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/cache/restore@v4
+        id: saved
+        with:
+          path: statement.json
+          key: statement-${{ env.CHANNEL }}-${{ env.TS }}-${{ env.USER }}
+      - name: Post the approved statement
+        if: steps.saved.outputs.cache-hit == 'true'
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          text=$(jq -r .text statement.json)
+          jq -n --arg c "$CHANNEL" --arg t "$text"$'\n'"_posted for <@$USER> by the chat-responder agent_" '{channel:$c,text:$t}' \
+            | curl -sS -H "Authorization: Bearer $SLACK_BOT_TOKEN" -H 'Content-Type: application/json' -d @- https://slack.com/api/chat.postMessage

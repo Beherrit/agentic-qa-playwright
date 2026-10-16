@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["agents", "fixtures", "pages", "tests", "playwright.config.ts"]
+  "include": ["agents", "examples", "fixtures", "pages", "tests", "playwright.config.ts"]
 }
