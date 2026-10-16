@@ -5,6 +5,48 @@ deployed from `main`, so each entry is dated by its commits.
 
 ## Unreleased
 
+### Added
+
+- **The history page rolls up the last seven days**: runs, cost and cost per run, cost and average turns per role, the
+  most expensive tickets, the gates that blocked, and today's spend against a new `budget.maxUsdPerDay`, which the
+  history workflow warns about when it is over.
+- **Two proving workflows.** `Compatibility` runs the unit tests, typecheck and lint on Linux, Windows and macOS with
+  Node 22 and 24, and the packed-install test on Playwright 1.50 and the latest. `Second host` runs the whole pipeline
+  against OWASP Juice Shop in a container every week, and its dry form (no agents) on pull requests. The host template's
+  Playwright config now typechecks on older Playwright too.
+- **Three browser levels for the agents**, each the smaller one plus what the job needs: `look` (read the page, the
+  console and the network log), `test` (Playwright's preferred locator for an element and live checks of an
+  assertion before it is written; the engineer and the healer) and `break` (answer, slow or drop requests and change
+  cookies and storage, to try a fault before writing it; the saboteur). The Playwright MCP server starts with only
+  the capabilities a level needs, WebMCP off, generated code only for the roles that write code, short action and
+  navigation timeouts, and, when `browser.allowedOrigins` is set, no way to reach any origin but the app's own and
+  the listed ones. The saboteur's prompt now treats network faults as a first choice where the break belongs there.
+- **`init` scaffolds a suite in the recommended shape** for a project that has none: `playwright.config.ts` (reads
+  the app's address from `qa.config.json`; Firefox and WebKit configured with `default: false`), `tsconfig.json`,
+  `fixtures/test.ts` with a page-object fixture, `pages/BasePage.ts` and `pages/HomePage.ts`, a tagged
+  `tests/smoke.spec.ts`, `.github/CODEOWNERS` for the shared layers, `.gitignore` and `.env.example`. Files that
+  exist are kept, as before. The conventions now say what the layout is and which folders not to add, and
+  `docs/project-structure.md` gives the reasoning.
+- **The gates shuffle the suite.** Playwright 1.64's `--shuffle` runs the full-suite and stability gates in a
+  random order, one seed per run, with the seed and the command that repeats it in the gate summary. A test that only
+  passes after another one now fails in the pipeline, not in a month. `gates.shuffle` in `qa.config.json` turns it
+  off; a host on an older Playwright is left alone. Playwright is bumped to 1.64; Firefox and WebKit are configured
+  with `default: false`, so the gates run Chromium and `--project="*"` runs the rest. The conventions now cover
+  `locator.within()`, `locator.visible()` and test locks for shared server-side state.
+- **An example of the shape applied to a whole company** (`examples/company-agents/`): twelve role prompts (merge
+  request describer and reviewer, ticket writer and enricher, release documenter, documentation drift checker, chat
+  responder, alert triager, incident scribe, weekly digest, onboarding guide, and a general request screener), the
+  schemas they answer in, a `co` CLI anyone in a company can run with adapters for GitHub, GitLab, Jira, Confluence,
+  Slack and Teams, three-job workflows for GitHub Actions and GitLab CI that keep the model key and the tracker tokens
+  in different jobs, eval cases including adversarial ones, and the guardrails and adoption guides. The fixed rules,
+  identity checks and validators have unit tests under `npm run test:unit`.
+- **The company agents read through MCP servers**, each in read-only mode with its tools allowlisted by name: GitHub
+  (`github/github-mcp-server`), Atlassian (the official hosted server, Jira and Confluence), TestRail
+  (`@bun913/mcp-testrail`) and Figma. Two roles with them: a test case writer that drafts manual cases into one
+  TestRail section, and a design reviewer that lists where a merge request and its Figma frame disagree. `co doctor`
+  reports what is missing. An onboarding container (`examples/company-agents/docker/`) for Mac and Windows carries
+  Node, the Claude Code CLI, `co` and the servers, with a guided first run and an `.env.example` of every token name.
+
 ### Fixed
 
 - **The expected-failures gate counts criteria, not tests.** Three tests marked as the same product bug (one per

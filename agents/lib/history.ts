@@ -390,7 +390,91 @@ export function escapeMd(value: string): string {
 }
 
 /** The history page. With a limit, the summary still covers every run and the table shows the newest ones. */
-export function historyMd(entries: RunEntry[], limit?: number): string {
+// ── Rollups: the last N days, for the people who pay ─────────────────────────
+
+export type RoleStat = { role: string; runs: number; avgTurns: number; avgSeconds: number; costUsd: number };
+export type Rollup = {
+  days: number;
+  from: string;
+  runs: number;
+  failedRuns: number;
+  costUsd: number;
+  avgCostUsd: number | null;
+  /** What today's runs have cost so far, against budget.maxUsdPerDay. */
+  todayUsd: number;
+  byRole: RoleStat[];
+  byTicket: { key: string; runs: number; costUsd: number }[];
+  failedGates: { name: string; count: number }[];
+};
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** The last `days` days: what ran, what it cost, which roles and tickets cost it, which gates blocked. */
+export function rollup(entries: RunEntry[], days = 7, now: Date = new Date()): Rollup {
+  const since = now.getTime() - days * 86_400_000;
+  const recent = entries.filter((e) => Date.parse(e.finishedAt) >= since);
+  const today = now.toISOString().slice(0, 10);
+  const roles = new Map<string, { runs: number; turns: number; seconds: number; cost: number }>();
+  const tickets = new Map<string, { runs: number; cost: number }>();
+  const gates = new Map<string, number>();
+  for (const e of recent) {
+    for (const a of e.agents) {
+      const r = roles.get(a.role) ?? { runs: 0, turns: 0, seconds: 0, cost: 0 };
+      roles.set(a.role, { runs: r.runs + 1, turns: r.turns + a.turns, seconds: r.seconds + a.seconds, cost: r.cost + a.costUsd });
+    }
+    const key = e.key ?? '(no ticket)';
+    const t = tickets.get(key) ?? { runs: 0, cost: 0 };
+    tickets.set(key, { runs: t.runs + 1, cost: t.cost + e.costUsd });
+    for (const g of e.gates) if (!g.passed && !g.advisory) gates.set(g.name, (gates.get(g.name) ?? 0) + 1);
+  }
+  const cost = sumOf(recent.map((e) => e.costUsd));
+  return {
+    days,
+    from: new Date(since).toISOString().slice(0, 10),
+    runs: recent.length,
+    failedRuns: recent.filter((e) => e.conclusion !== 'success').length,
+    costUsd: round2(cost),
+    avgCostUsd: recent.length ? round2(cost / recent.length) : null,
+    todayUsd: round2(sumOf(entries.filter((e) => e.finishedAt.startsWith(today)).map((e) => e.costUsd))),
+    byRole: [...roles]
+      .map(([role, r]) => ({ role, runs: r.runs, avgTurns: Math.round(r.turns / r.runs), avgSeconds: Math.round(r.seconds / r.runs), costUsd: round2(r.cost) }))
+      .sort((a, b) => b.costUsd - a.costUsd),
+    byTicket: [...tickets]
+      .map(([key, t]) => ({ key, runs: t.runs, costUsd: round2(t.cost) }))
+      .sort((a, b) => b.costUsd - a.costUsd)
+      .slice(0, 5),
+    failedGates: [...gates].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+  };
+}
+
+function todayLine(r: Rollup, capPerDay: number): string {
+  if (!capPerDay) return `Today: ${dollars(r.todayUsd)}.`;
+  return `Today: ${dollars(r.todayUsd)} of a ${dollars(capPerDay)} daily cap${r.todayUsd > capPerDay ? ', over it' : ''}.`;
+}
+
+export function rollupMd(r: Rollup, capPerDay = 0): string[] {
+  const per = r.avgCostUsd === null ? '' : `, ${dollars(r.avgCostUsd)} per run`;
+  const lines = [`### Last ${r.days} days`, '', `**${r.runs} runs since ${r.from}, ${dollars(r.costUsd)} in all${per}.** ${r.failedRuns} failed. ${todayLine(r, capPerDay)}`, ''];
+  if (r.byRole.length) {
+    lines.push('| Role | Runs | Avg turns | Avg time | Est. cost |', '| --- | ---: | ---: | ---: | ---: |');
+    for (const s of r.byRole) lines.push(`| ${escapeMd(s.role)} | ${s.runs} | ${s.avgTurns} | ${clock(s.avgSeconds)} | ${dollars(s.costUsd)} |`);
+    lines.push('');
+  }
+  if (r.byTicket.length) lines.push(`Most expensive tickets: ${r.byTicket.map((t) => `${escapeMd(t.key)} ${dollars(t.costUsd)} (${t.runs} run${t.runs === 1 ? '' : 's'})`).join(', ')}.`, '');
+  if (r.failedGates.length) lines.push(`Gates that blocked: ${r.failedGates.map((g) => `${escapeMd(g.name)} (${g.count})`).join(', ')}.`, '');
+  return lines;
+}
+
+export function rollupHtml(r: Rollup, capPerDay = 0): string {
+  const per = r.avgCostUsd === null ? '' : `, ${dollars(r.avgCostUsd)} per run`;
+  const rows = r.byRole.map((s) => `<tr><td>${escapeHtml(s.role)}</td><td>${s.runs}</td><td>${s.avgTurns}</td><td>${escapeHtml(clock(s.avgSeconds))}</td><td>${escapeHtml(dollars(s.costUsd))}</td></tr>`).join('');
+  const table = r.byRole.length ? `<div class="wrap"><table><thead><tr><th>Role</th><th>Runs</th><th>Avg turns</th><th>Avg time</th><th>Est. cost</th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
+  const tickets = r.byTicket.length ? `<p>Most expensive tickets: ${r.byTicket.map((t) => `${escapeHtml(t.key)} ${escapeHtml(dollars(t.costUsd))} (${t.runs})`).join(', ')}.</p>` : '';
+  const gates = r.failedGates.length ? `<p>Gates that blocked: ${r.failedGates.map((g) => `${escapeHtml(g.name)} (${g.count})`).join(', ')}.</p>` : '';
+  return `<h2>Last ${r.days} days</h2>\n<p><strong>${r.runs} runs since ${r.from}, ${escapeHtml(dollars(r.costUsd))} in all${escapeHtml(per)}.</strong> ${r.failedRuns} failed. ${escapeHtml(todayLine(r, capPerDay))}</p>\n${table}${tickets}${gates}`;
+}
+
+export function historyMd(entries: RunEntry[], limit?: number, capPerDay = 0): string {
   const all = newestFirst(entries);
   const sorted = limit === undefined ? all : all.slice(0, limit);
   const s = summary(all);
@@ -408,6 +492,7 @@ export function historyMd(entries: RunEntry[], limit?: number): string {
     '',
   ];
   for (const [label, value] of summaryLines(s)) lines.push(`- ${label}: ${escapeMd(value)}`);
+  lines.push('', ...rollupMd(rollup(all, 7), capPerDay));
   lines.push('', '### Runs', '');
   // A long table is folded behind its summary line, as in the other reports.
   const folded = sorted.length > 10;
@@ -535,7 +620,7 @@ const SCRIPT = `
 
 const COLUMNS = ['Date (UTC)', 'Ticket', 'Title', 'Half', 'Plan score', 'Gates', 'Review', 'Agent time', 'Est. cost', 'Run'];
 
-export function historyHtml(entries: RunEntry[]): string {
+export function historyHtml(entries: RunEntry[], capPerDay = 0): string {
   const sorted = newestFirst(entries);
   const tiles = summaryLines(summary(sorted))
     .map(([k, v]) => `<li><span class="v">${escapeHtml(v)}</span><span class="k">${escapeHtml(k)}</span></li>`)
@@ -567,6 +652,7 @@ export function historyHtml(entries: RunEntry[]): string {
 <p class="muted">Every analysis and tests run of the pipeline, newest first. Costs are estimates from the agent ledger.</p>
 <h2>Summary</h2>
 <ul class="tiles">${tiles}</ul>
+${rollupHtml(rollup(sorted, 7), capPerDay)}
 <h2>Trends</h2>
 <div class="charts">
 ${chart('Estimated cost per run (USD)', sorted, (e) => e.costUsd, (n) => `$${n.toFixed(2)}`)}

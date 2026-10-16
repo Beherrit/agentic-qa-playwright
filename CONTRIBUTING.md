@@ -58,6 +58,7 @@ Projects install the engine from git and their workflows call the engine's at `@
 the newest 1.x release, and an exact tag (`v1.2.0`) freezes it. To release:
 
 1. `npm run check`, `npm run evals -- --dry` and `bash agents/test/install.sh` on the commit.
+   Check the newest `Compatibility` and `Second host` runs are green; start them by hand if the week's have not run.
 2. Bump `version` in `package.json` and move the top `## Unreleased` entry of the changelog under the version.
 3. Tag the commit `v<version>` and move `v1` to it (`git tag -f v1 && git push -f origin v1`).
 

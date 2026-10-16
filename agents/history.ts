@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFirst, parseRunLog, type RunEntry, type RunFiles } from './lib/history.ts';
+import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFirst, parseRunLog, rollup, type RunEntry, type RunFiles } from './lib/history.ts';
+import { config } from './lib/paths.ts';
 
 /**
  * The run history, kept by .github/workflows/qa-history.yml:
@@ -63,9 +64,13 @@ export function render(dir: string, entryFile?: string): void {
     entries = mergeEntries(entries, entry);
   }
   fs.writeFileSync(log, entries.map((e) => JSON.stringify(e)).join('\n') + (entries.length ? '\n' : ''));
-  fs.writeFileSync(path.join(dir, 'README.md'), historyMd(entries));
-  fs.writeFileSync(path.join(dir, 'index.html'), historyHtml(entries));
+  const cap = config.budget.maxUsdPerDay;
+  fs.writeFileSync(path.join(dir, 'README.md'), historyMd(entries, undefined, cap));
+  fs.writeFileSync(path.join(dir, 'index.html'), historyHtml(entries, cap));
   console.log(`History has ${entries.length} runs.`);
+  const today = rollup(entries, 1).todayUsd;
+  // The workflow log shows it as a warning; the cap itself stops nothing, since the history is written after the run.
+  if (cap && today > cap) console.log(`::warning title=Daily agent budget::Today's runs have cost $${today.toFixed(2)}, over the $${cap.toFixed(2)} cap in qa.config.json (budget.maxUsdPerDay).`);
 }
 
 // Only when run as a script; the CLI imports record and render.

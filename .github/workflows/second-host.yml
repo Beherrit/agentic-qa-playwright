@@ -1,0 +1,66 @@
+name: Second host
+
+# The pipeline end to end against an app that is not the demo shop: OWASP Juice Shop, an Angular single-page app
+# over a REST API, started as a container on the runner. Weekly, because it runs every agent and costs real money;
+# the dry form (no agents) runs on pull requests that touch the engine. See agents/test/second-host.sh.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model for every role (empty keeps the default)
+        type: string
+        default: ''
+      budget:
+        description: Most the run may spend, in dollars
+        type: string
+        default: '4'
+  pull_request:
+    paths:
+      - 'agents/**'
+      - 'templates/**'
+      - '.github/workflows/second-host.yml'
+
+permissions: {}
+
+jobs:
+  juice-shop:
+    name: ${{ github.event_name == 'pull_request' && 'Dry run (no agents)' || 'Full pipeline' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # The POC environment holds the model credentials. A pull request gets none and runs dry.
+    environment: ${{ github.event_name != 'pull_request' && 'POC' || '' }}
+    permissions:
+      contents: read
+    services:
+      juice-shop:
+        # Pin a tag (bkimminich/juice-shop:v17.x) once the run is stable; latest is for finding out.
+        image: bkimminich/juice-shop:latest
+        ports:
+          - 3000:3000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
+
+      - name: Run the engine against Juice Shop
+        env:
+          SECOND_HOST_URL: http://localhost:3000
+          SECOND_HOST_DRY: ${{ github.event_name == 'pull_request' && '1' || '' }}
+          SECOND_HOST_MODEL: ${{ inputs.model }}
+          SECOND_HOST_BUDGET: ${{ inputs.budget || '4' }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: bash agents/test/second-host.sh
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && hashFiles('qa-run-second-host/**') != ''
+        with:
+          name: second-host-run
+          path: qa-run-second-host
+          retention-days: 14
