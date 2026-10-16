@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig, devices, type Project } from '@playwright/test';
-import qa from './qa.config.json' with { type: 'json' };
 
 /**
  * Written by `npx agentic-qa init` for a project that had no Playwright config. Kept as it is after that: edit freely.
@@ -7,6 +8,11 @@ import qa from './qa.config.json' with { type: 'json' };
  */
 
 const isCI = !!process.env.CI;
+
+// qa.config.json sits next to this file. It is read rather than imported so the same config works in a CommonJS
+// project (where TypeScript forbids import attributes) and in an ES module one (where Node requires them).
+const here = typeof __dirname === 'string' ? __dirname : process.cwd();
+const qa = JSON.parse(readFileSync(path.join(here, 'qa.config.json'), 'utf8')) as { app: { baseUrl: string } };
 
 // `default: false` is Playwright 1.64. Older versions ignore the key at run time; the cast keeps their typecheck quiet.
 const OTHER_BROWSERS = [

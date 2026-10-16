@@ -8,3 +8,4 @@ qa-run/
 
 # Company agents CLI: audit log and stage bundles
 .co/
+qa-run-second-host/

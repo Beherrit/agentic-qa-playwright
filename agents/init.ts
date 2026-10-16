@@ -69,8 +69,10 @@ export function nextSteps(result: InitResult): string {
     '  4. Add the secrets: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY on an environment named POC (or QA_PROVIDER_ENV',
     '     for Bedrock or Vertex), and an environment named TRACKER (empty for GitHub issues)',
     '  5. Create the labels qa-pipeline, qa-generate and qa-test-first, then label an issue qa-pipeline',
-    '  6. If the suite is new: replace pages/HomePage.ts and tests/smoke.spec.ts with the app\'s first page and behaviour,',
-    '     set testIdAttribute in playwright.config.ts, and put a real team in .github/CODEOWNERS',
+    '  6. If the suite is new: npm install --save-dev @types/node typescript (the config reads process.env), commit the',
+    '     scaffold (the scope gate reads uncommitted files as part of a run), replace pages/HomePage.ts and',
+    '     tests/smoke.spec.ts with the app\'s first page and behaviour, set testIdAttribute in playwright.config.ts, and',
+    '     put a real team in .github/CODEOWNERS',
   ];
   return lines.join('\n');
 }

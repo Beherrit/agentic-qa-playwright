@@ -14,7 +14,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 app=${SECOND_HOST_URL:-http://localhost:3000}
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# Whatever happens, the run folder comes home before the temp dir goes: a failed gate is the interesting case.
+keep() { [ -d "$work/host/qa-run" ] && rm -rf "$root/qa-run-second-host" && cp -r "$work/host/qa-run" "$root/qa-run-second-host" && echo "Run folder kept at qa-run-second-host/"; rm -rf "$work"; }
+trap keep EXIT
 
 say() { printf '\n== %s\n' "$*"; }
 fail() { printf '\nFAILED: %s\n' "$*" >&2; exit 1; }
@@ -33,7 +35,7 @@ mkdir "$work/host"
 cd "$work/host"
 git init -q
 npm init -y >/dev/null
-npm install --no-audit --no-fund --save-dev "$work/$tarball" @playwright/test typescript >/dev/null
+npm install --no-audit --no-fund --save-dev "$work/$tarball" @playwright/test typescript @types/node >/dev/null
 npx agentic-qa init | grep -q '^wrote  qa.config.json' || fail "init did not write the config"
 
 say "configure it for Juice Shop"
@@ -87,6 +89,9 @@ if [ "${SECOND_HOST_DRY:-}" = "1" ]; then
   exit 0
 fi
 
+# A real project has a history. Without a commit, the scope gate sees every file as a change outside the writable folders.
+git add -A && git -c user.name=second-host -c user.email=second-host@example.invalid commit -q -m "Scaffold from npx agentic-qa init"
+
 say "the whole pipeline on one requirement"
 npx agentic-qa all \
   --title "Search for products from the top bar" \
@@ -98,5 +103,4 @@ test -f qa-run/gates.md || fail "no gate report was written"
 grep -q '"passed": *true' qa-run/gates.json || { cat qa-run/gates.md; fail "the generated tests did not pass the gates"; }
 count=$(find tests -name '*.spec.ts' | wc -l)
 [ "$count" -ge 2 ] || fail "no spec was generated"
-cp -r qa-run "$root/qa-run-second-host"
 say "second host: analysed, generated and gated. Run folder copied to qa-run-second-host/"
