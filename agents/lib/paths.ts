@@ -124,12 +124,39 @@ export const ConfigSchema = z.object({
    * The full-suite gate. New tests must pass first time. An existing test that fails gets one retry when this is
    * on; passing then counts as flaky and is reported, not blocked. Off, any failure in the suite blocks.
    */
-  gates: z.object({ retryExistingOnce: z.boolean().default(true) }).prefault({}),
+  gates: z
+    .object({
+      retryExistingOnce: z.boolean().default(true),
+      /**
+       * Run the suite in a random order in the full-suite and stability gates (Playwright 1.64's `--shuffle`), so a
+       * test that only passes after another one fails here and not in a month. The seed is in the gate report, so
+       * `npx playwright test --shuffle <seed>` repeats the same order. Ignored on a Playwright older than 1.64.
+       */
+      shuffle: z.boolean().default(true),
+    })
+    .prefault({}),
   /**
    * The safety screen every requirement passes before an agent acts on it: fixed rules first, then (with `screener`)
    * a read-only agent that judges what the rules cannot. Turn `enabled` off only on a project that trusts every author.
    */
   safety: z.object({ enabled: z.boolean().default(true), screener: z.boolean().default(true) }).prefault({}),
+  /**
+   * The browser the agents get (the Playwright MCP server), beyond the per-role tool lists in agents/lib/agent.ts.
+   * `allowedOrigins`: when set, the browser may request only these origins and the app's own; anything else is
+   * refused at the network, not merely by the safety screen. Left empty, everything is allowed, because an app's
+   * CDN and third-party scripts are not knowable in advance; fill it in once they are. `blockedOrigins` is for
+   * analytics and the like, and wins over the allowlist. `webmcp` offers the agents the tools a page registers through
+   * the WebMCP API; off until a product decides to expose some.
+   */
+  browser: z
+    .object({
+      allowedOrigins: z.array(z.string()).default([]),
+      blockedOrigins: z.array(z.string()).default([]),
+      webmcp: z.boolean().default(false),
+      actionTimeoutMs: z.number().int().positive().default(5_000),
+      navigationTimeoutMs: z.number().int().positive().default(30_000),
+    })
+    .prefault({}),
   /** The conversation that turns a wish into a ticket (`npx agentic-qa intake`): how many rounds of questions at most. */
   intake: z
     .object({
@@ -139,8 +166,11 @@ export const ConfigSchema = z.object({
     })
     .prefault({}),
   autoRun: z.object({ analysisWhenWriterFiles: z.boolean().default(false), testsWhenPlanIsReady: z.boolean().default(false) }).prefault({}),
-  /** The most a single pipeline run may spend on agents, in dollars as the SDK estimates them. 0 is no cap. */
-  budget: z.object({ maxUsdPerRun: z.number().min(0).default(0) }).prefault({}),
+  /**
+   * The most a single pipeline run may spend on agents, in dollars as the SDK estimates them, and the most a day's
+   * runs may add up to on the history page before it warns. 0 is no cap.
+   */
+  budget: z.object({ maxUsdPerRun: z.number().min(0).default(0), maxUsdPerDay: z.number().min(0).default(0) }).prefault({}),
   /** A model per agent role, e.g. { "plan-critic": "haiku" }; "*" is every role not named. Falls back to QA_AGENT_MODEL, then sonnet. */
   models: z.record(z.string(), z.string()).default({}),
   jira: z

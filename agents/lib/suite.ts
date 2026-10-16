@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { config, ROOT, RUN_DIR } from './paths.ts';
 
@@ -79,6 +80,23 @@ export function runChecks(): number {
 }
 
 /** Runs the suite with the given Playwright arguments, as the `suite` command. Returns the exit code. */
+/** The host project's Playwright version, from its own node_modules; null when it cannot be found. */
+export function playwrightVersion(root: string = ROOT): string | null {
+  try {
+    const require = createRequire(path.join(root, 'package.json'));
+    return (require('@playwright/test/package.json') as { version: string }).version;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether `--shuffle` exists here: Playwright 1.64 added it. */
+export function supportsShuffle(version: string | null = playwrightVersion()): boolean {
+  if (!version) return false;
+  const [major, minor] = version.split('.').map(Number);
+  return major > 1 || (major === 1 && minor >= 64);
+}
+
 export function runSuite(args: string[]): number {
   prepareAuth();
   const quoted = args.map((arg) => (/^[\w./=:@-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`)).join(' ');

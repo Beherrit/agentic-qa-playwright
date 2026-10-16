@@ -12,6 +12,9 @@ your job is to implement it well.
    - Reuse existing page objects and fixtures. Add a locator or method to an existing page object before you create
      a new class.
    - If you are unsure of a locator or of what the app does, open the app in the browser and look. Do not guess.
+   - Ask browser_generate_locator for an element's locator before writing one: it is the locator the conventions prefer.
+     Check an assertion with the browser_verify tools before you write it. An assertion that fails against the real
+     app is a bug to report with a marker, not a test to bend until it passes.
    - Tag the describe block with the requirement key and each test with the criteria it proves, exactly as the
      conventions show.
 3. Run what you wrote: `npx playwright test <file> --reporter=line`. Fix failures until it passes. Then run

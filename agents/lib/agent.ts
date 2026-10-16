@@ -24,10 +24,19 @@ export type AgentSpec<S extends z.ZodType> = {
   /** The shape the agent has to answer in. Validated before anything downstream sees it. */
   schema: S;
   access: Access;
-  /** Give the agent a real browser pointed at the app under test. */
-  browser?: boolean;
+  /** Give the agent a real browser pointed at the app under test. `true` is `look`. */
+  browser?: boolean | BrowserAccess;
   maxTurns?: number;
 };
+
+/**
+ * How much of the browser a role gets. Each level is the smaller one plus what the job needs:
+ *   look   - navigate, read the page, click and type, read the console and the network log
+ *   test   - also Playwright's preferred locator for an element, and live checks of an assertion before it is written
+ *   break  - also answer, slow or drop requests and change cookies and storage, to try a fault before writing it
+ * No level evaluates scripts, uploads files or saves PDFs.
+ */
+export type BrowserAccess = 'look' | 'test' | 'break';
 
 export type AgentResult<T> = { output: T; turns: number; seconds: number; costUsd: number; commands: string[] };
 
@@ -40,19 +49,86 @@ const SHELL_ALLOWLIST = [commands.test, commands.typecheck, commands.lint].map((
 // The only places an agent may write (from qa.config.json).
 const WRITE_ALLOWLIST = config.writable.map((dir) => `Edit(${dir}**)`);
 
-// Enough of the Playwright MCP server to look around and try things. No script evaluation, no file upload.
-const BROWSER_TOOLS = [
+// The Playwright MCP server's tools, by the access level that gets them. Everything else the server exposes is refused.
+const LOOK_TOOLS = [
   'browser_navigate',
   'browser_navigate_back',
   'browser_snapshot',
+  'browser_find',
   'browser_click',
   'browser_type',
   'browser_fill_form',
   'browser_select_option',
   'browser_press_key',
+  'browser_hover',
   'browser_wait_for',
+  'browser_tabs',
+  'browser_console_messages',
+  'browser_network_requests',
+  'browser_network_request',
   'browser_close',
-].map((tool) => `mcp__playwright__${tool}`);
+];
+const TEST_TOOLS = ['browser_generate_locator', 'browser_verify_element_visible', 'browser_verify_text_visible', 'browser_verify_list_visible', 'browser_verify_value'];
+const BREAK_TOOLS = [
+  'browser_route',
+  'browser_route_list',
+  'browser_unroute',
+  'browser_network_state_set',
+  'browser_cookie_list',
+  'browser_cookie_set',
+  'browser_cookie_delete',
+  'browser_cookie_clear',
+  'browser_localstorage_list',
+  'browser_localstorage_set',
+  'browser_localstorage_delete',
+  'browser_localstorage_clear',
+  'browser_sessionstorage_list',
+  'browser_sessionstorage_set',
+  'browser_sessionstorage_delete',
+  'browser_sessionstorage_clear',
+];
+/** The server capabilities each level needs switched on (`--caps`). */
+const BROWSER_CAPS: Record<BrowserAccess, string[]> = { look: [], test: ['testing'], break: ['network', 'storage'] };
+
+export const browserAccess = (browser: boolean | BrowserAccess | undefined): BrowserAccess | null => (browser === true ? 'look' : browser || null);
+
+/** The allowed tool names for a level, prefixed the way the SDK names MCP tools. */
+export function browserTools(access: BrowserAccess): string[] {
+  const names = [...LOOK_TOOLS, ...(access === 'test' ? TEST_TOOLS : []), ...(access === 'break' ? BREAK_TOOLS : [])];
+  return names.map((tool) => `mcp__playwright__${tool}`);
+}
+
+type BrowserConfig = { allowedOrigins: string[]; blockedOrigins: string[]; webmcp: boolean; actionTimeoutMs: number; navigationTimeoutMs: number };
+
+/**
+ * The server's command line for a level: the capabilities it needs, the origins it may reach, WebMCP off unless the
+ * project says otherwise, timeouts short enough that an agent does not wait a minute on a dead end, and generated
+ * code only for the role that writes code (every other role pays tokens for it and never uses it).
+ */
+export function browserArgs(access: BrowserAccess, browser: BrowserConfig, appOrigins: string[]): string[] {
+  const args: string[] = [];
+  if (BROWSER_CAPS[access].length) args.push('--caps', BROWSER_CAPS[access].join(','));
+  if (!browser.webmcp) args.push('--no-webmcp');
+  args.push('--codegen', access === 'test' ? 'typescript' : 'none');
+  args.push('--timeout-action', String(browser.actionTimeoutMs), '--timeout-navigation', String(browser.navigationTimeoutMs));
+  if (browser.allowedOrigins.length) args.push('--allowed-origins', [...new Set([...appOrigins, ...browser.allowedOrigins])].join(';'));
+  if (browser.blockedOrigins.length) args.push('--blocked-origins', browser.blockedOrigins.join(';'));
+  return args;
+}
+
+/** The app's own origins, from the configuration: the app, and a preview URL when it is a plain URL. */
+export function appOrigins(app: { baseUrl: string; previewUrl?: string } = config.app): string[] {
+  const origins: string[] = [];
+  for (const url of [app.baseUrl, app.previewUrl]) {
+    if (!url || /\{[a-z]+\}/i.test(url)) continue;
+    try {
+      origins.push(new URL(url).origin);
+    } catch {
+      // Not a URL on its own; it adds no origin.
+    }
+  }
+  return origins;
+}
 
 const GROUND_RULES = `
 # Ground rules
@@ -64,11 +140,23 @@ const GROUND_RULES = `
 - Your final answer must match the required output format. Write it in plain, direct English, the way an experienced tester would write to a colleague.
 `;
 
-const BROWSER_NOTE = `
+const BROWSER_NOTE: Record<BrowserAccess, string> = {
+  look: `
 # Using the browser
 
-The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. It lists every element with its role and accessible name, which is what you need for locators.
-`;
+The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. It lists every element with its role and accessible name, which is what you need for locators. browser_find is cheaper than a full snapshot when you know what you are looking for. The console and network tools show what the page did, not what it shows.
+`,
+  test: `
+# Using the browser
+
+The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. Before you write a locator, ask browser_generate_locator for the element: it returns the locator Playwright itself prefers, which is the one the conventions prefer. Before you write an assertion, check it live with the browser_verify tools; an assertion that fails against the real app is a bug report, not a test.
+`,
+  break: `
+# Using the browser
+
+The browser tools save each page snapshot to a file under .playwright-mcp/ and give you its path. Read that file to see the page. You may answer, slow or drop requests (browser_route, browser_network_state_set) and change cookies and storage, to try a break before you write it down. Anything you try here is gone when the session ends: a break only counts once it is written as a fault, with a probe that shows it took effect.
+`,
+};
 
 /**
  * The environment the model provider needs, from one secret: KEY=value lines in QA_PROVIDER_ENV. That is how a
@@ -114,7 +202,7 @@ export function modelFor(role: string, models: Record<string, string> = config.m
   return models[role] || models['*'] || env.QA_AGENT_MODEL || 'sonnet';
 }
 
-function browserServer(): NonNullable<Options['mcpServers']> {
+function browserServer(access: BrowserAccess): NonNullable<Options['mcpServers']> {
   const require = createRequire(import.meta.url);
   const cli = path.join(path.dirname(require.resolve('@playwright/mcp/package.json')), 'cli.js');
   // A signed-in session saved by the project's own setup (auth.storageState), so the agent starts where the tests do.
@@ -132,6 +220,7 @@ function browserServer(): NonNullable<Options['mcpServers']> {
         // Chromium's own sandbox cannot start on GitHub's Linux runners. The runner is thrown away after the job.
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
         ...(state ? ['--storage-state', state] : []),
+        ...browserArgs(access, config.browser, appOrigins()),
       ],
       alwaysLoad: true,
     },
@@ -149,12 +238,13 @@ const NUDGE_TURNS = 3;
 
 export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: QueryFn = query): Promise<AgentResult<z.infer<S>>> {
   // An agent with a browser starts from the same signed-in state as the tests, when the project has one.
-  if (spec.browser) prepareAuth();
+  const browser = browserAccess(spec.browser);
+  if (browser) prepareAuth();
   const tools = spec.access === 'write' ? [...READ_TOOLS, 'Write', 'Edit', 'Bash'] : READ_TOOLS;
   const allowed = [
     ...READ_TOOLS,
     ...(spec.access === 'write' ? [...WRITE_ALLOWLIST, ...SHELL_ALLOWLIST] : []),
-    ...(spec.browser ? BROWSER_TOOLS : []),
+    ...(browser ? browserTools(browser) : []),
   ];
 
   const left = budgetLeft();
@@ -164,17 +254,17 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     env: { ...process.env, ...providerEnv() },
     ...(left === null ? {} : { maxBudgetUsd: left }),
     model: modelFor(spec.role),
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${spec.browser ? BROWSER_NOTE : ''}` },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${browser ? BROWSER_NOTE[browser] : ''}` },
     tools,
     allowedTools: allowed,
     // Not offered at all, so the agent does not spend a turn finding out they are refused.
-    disallowedTools: ['mcp__playwright__browser_run_code_unsafe', 'mcp__playwright__browser_evaluate'],
+    disallowedTools: ['mcp__playwright__browser_run_code_unsafe', 'mcp__playwright__browser_evaluate', 'mcp__playwright__browser_file_upload', 'mcp__playwright__browser_pdf_save'],
     // "dontAsk": whatever is not on the allowlist is refused outright. There is no human to approve anything in CI.
     permissionMode: 'dontAsk',
     // Ignore the settings, hooks and MCP servers of whoever happens to run this. The agent gets exactly what is listed here.
     settingSources: [],
     strictMcpConfig: true,
-    mcpServers: spec.browser ? browserServer() : {},
+    mcpServers: browser ? browserServer(browser) : {},
     maxTurns: spec.maxTurns ?? 40,
     outputFormat: { type: 'json_schema', schema: jsonSchema(spec.schema) },
   };
@@ -184,7 +274,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
 
   // Which tool each call belongs to, so a failed result can be traced back to it.
   const calls = new Map<string, string>();
-  const browser = { calls: 0, worked: 0 };
+  const browserCalls = { calls: 0, worked: 0 };
   // The shell commands that were allowed to run, so a stage can tell whether the agent ran what it was told to.
   // A command the allowlist refused is not counted: asking is not running.
   const asked = new Map<string, string>();
@@ -210,8 +300,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
           // A call the allowlist refused says nothing about whether the browser works, or whether a command ran.
           const refused = /has been denied/.test(result.text);
           const isBrowser = calls.get(result.id)?.startsWith('mcp__playwright__') && !refused;
-          if (isBrowser) browser.calls += 1;
-          if (isBrowser && !result.failed) browser.worked += 1;
+          if (isBrowser) browserCalls.calls += 1;
+          if (isBrowser && !result.failed) browserCalls.worked += 1;
           const command = asked.get(result.id);
           if (command !== undefined && !refused) commands.push(command);
           if (result.failed) console.log(`  ! ${calls.get(result.id) ?? 'tool'} failed: ${firstLine(result.text)}`);
@@ -243,7 +333,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     throw new Error(`${spec.role} took the run over its budget: $${total.toFixed(2)} of $${cap.toFixed(2)}. Raise budget.maxUsdPerRun in qa.config.json to go on.`);
   }
 
-  if (spec.browser && browser.calls > 0 && browser.worked === 0) {
+  if (browser && browserCalls.calls > 0 && browserCalls.worked === 0) {
     // An agent that could not see the app will still hand in confident work. Stop it here instead.
     throw new Error(`${spec.role} could not use the browser: every browser call failed. See the log above.`);
   }

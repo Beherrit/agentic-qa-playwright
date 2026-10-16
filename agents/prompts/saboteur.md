@@ -39,8 +39,11 @@ rarely, routes.
   `document.querySelector('[data-test="shopping-cart-badge"]') === null && document.querySelectorAll('[data-test^="remove-"]').length > 0`.
   It must be cheap, must not change the page, and must be false on a healthy page. A probe that is always true is
   as useless as one that is never true.
-- **routes**: requests to answer or drop, as `page.route` takes them. Usually empty. Use them only when the break is
-  best made at the network and a script cannot do it.
+- **routes**: requests to answer or drop, as `page.route` takes them: a 500 from the API, an empty list, a slow
+  response, a dropped request. Use them when the break belongs at the network rather than in the page. You can try a
+  route live in the browser (browser_route, browser_network_state_set) and watch what the page does before you write
+  it; the same goes for a corrupted cookie or local storage. What you tried is gone when you finish; only a written
+  fault counts.
 
 ## Rules
 

@@ -42,7 +42,9 @@ over login, cart and checkout; the pipeline has added more. To see it without ru
 
 More: [architecture](docs/ARCHITECTURE.md) (jobs, credentials, roles, gates on one page) ·
 [operations](docs/OPERATIONS.md) (labels, switches, failures, re-runs, cost) · [security](SECURITY.md) ·
-[contributing](CONTRIBUTING.md) · [changelog](CHANGELOG.md)
+[contributing](CONTRIBUTING.md) · [changelog](CHANGELOG.md) ·
+[project structure](docs/project-structure.md) (the layout a suite needs for agents to work in it) ·
+[examples](examples/) (a company-wide set of agents built on the same shape: merge requests, tickets, docs, chat, alerts)
 
 ## How it works
 
@@ -123,7 +125,7 @@ The ticket says which: the `qa-test-first` label, or "No, write the tests first"
 | Lint | `npx eslint` on the three folders, with the Playwright rules set to error |
 | Expected failures | Every `test.fail()` the change adds has one of the two reasons. Bug markers name a criterion and are no more than the reported bugs; "not built yet" markers appear only in test-first mode and name the ticket |
 | Traceability | Every criterion the plan assigns to an e2e test case has a test tagged with it and with the ticket key |
-| Full suite | Every new test passes with no retries. An existing test that fails is run once more by itself: passing then is reported as flaky, by name, and does not block; failing again does |
+| Full suite | The whole suite in a random order, with the seed in the report so the order can be repeated. Every new test passes with no retries. An existing test that fails is run once more by itself: passing then is reported as flaky or order-dependent, by name, and does not block; failing again does |
 | Stability | The new tests give the same result `stabilityRuns` times in a row (3 here) |
 | Fails for the right reason | Every expected failure failed on an assertion or a missing element, not on a `TypeError` or a network error. A crashing test also "fails as expected", and would otherwise sail through |
 | Sensitivity | The new tests are run against versions of the app known to be broken (`sensitivity.targets`) |

@@ -27,5 +27,12 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  // Chromium is what a plain `npx playwright test` runs, and what the pipeline's gates run on every iteration.
+  // Firefox and WebKit stay configured but off by default (Playwright 1.64): `--project=firefox` runs one,
+  // `--project="*"` runs them all, as the nightly regression does once the browsers are installed.
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] }, default: false },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] }, default: false },
+  ],
 });

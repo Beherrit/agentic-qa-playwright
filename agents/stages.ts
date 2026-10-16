@@ -326,7 +326,7 @@ async function engineer(task: string): Promise<Generation> {
       task: text,
       schema: Generation,
       access: 'write',
-      browser: true,
+      browser: 'test',
       maxTurns: 80,
     });
 
@@ -510,7 +510,7 @@ ${currentPatch()}
 </diff>`,
     schema: Sabotage,
     access: 'read',
-    browser: true,
+    browser: 'break',
     maxTurns: 40,
   });
 

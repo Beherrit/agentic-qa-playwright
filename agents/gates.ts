@@ -8,7 +8,7 @@ import { config, ROOT, RUN_DIR, type Target } from './lib/paths.ts';
 import { anyVisible, sabotageSummary, verdicts, type FaultRun } from './lib/sabotage.ts';
 import type { Generation, Request, Sabotage, Strategy } from './lib/schemas.ts';
 import { exists, load } from './lib/store.ts';
-import { commands, lintCommand, prepareAuth, suiteEnv, testCommand } from './lib/suite.ts';
+import { commands, lintCommand, prepareAuth, suiteEnv, supportsShuffle, testCommand } from './lib/suite.ts';
 
 /**
  * The checks generated code has to pass before a reviewer, human or otherwise, spends time on it.
@@ -358,10 +358,20 @@ export function wrongReasons(results: TestOutcome[]): string[] {
     });
 }
 
+/**
+ * The order the gates run the suite in. One seed per run, so every gate shuffles the same way and the report can
+ * say how to repeat it. Null when shuffling is off or the host's Playwright is older than 1.64.
+ */
+export const SHUFFLE_SEED: number | null = config.gates.shuffle && supportsShuffle() ? Math.floor(Math.random() * 2 ** 31) : null;
+
+/** The words a summary adds when the order was shuffled, and the command that repeats it. */
+export const shuffled = (seed: number | null = SHUFFLE_SEED): string => (seed === null ? '' : ` (shuffled; \`${testCommand(`--shuffle ${seed}`)}\` repeats this order)`);
+
 /** Runs the suite with the given arguments and a JSON report written to a temporary file, and returns both. */
-function runJson(args: string, env: Record<string, string> = {}): Shell & { report: TestOutcome[] } {
+function runJson(args: string, env: Record<string, string> = {}, shuffle: boolean = false): Shell & { report: TestOutcome[] } {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-gate-')), 'report.json');
-  const result = sh(testCommand(`--retries=0 --reporter=line,json ${args}`.trim()), {
+  const order = shuffle && SHUFFLE_SEED !== null ? ` --shuffle ${SHUFFLE_SEED}` : '';
+  const result = sh(testCommand(`--retries=0 --reporter=line,json${order} ${args}`.trim()), {
     ...env,
     PLAYWRIGHT_JSON_OUTPUT_NAME: file,
   });
@@ -434,31 +444,33 @@ const names = (tests: TestOutcome[]): string => tests.map((t) => `"${t.title}"`)
  * did (a page object, a fixture) broke it, and the gate blocks. `gates.retryExistingOnce` turns the retry off.
  */
 function fullSuiteGate(request: Request): Gate {
-  const first = runJson('');
-  if (first.ok) return { name: 'Full suite', passed: true, summary: 'every test in the suite passes' };
+  // Shuffled: a test that only passes after another one fails here, with the seed to repeat it, and not in a month.
+  const first = runJson('', {}, true);
+  if (first.ok) return { name: 'Full suite', passed: true, summary: `every test in the suite passes${shuffled()}` };
   const { mine, existing } = splitFailures(first.report, request.key);
   if (mine.length || existing.length === 0 || !config.gates.retryExistingOnce) {
     return {
       name: 'Full suite',
       passed: false,
-      summary: mine.length ? `${mine.length} of the new tests fail: ${names(mine)}` : existing.length ? `${existing.length} existing test(s) fail: ${names(existing)}` : 'the suite does not pass',
+      summary: `${mine.length ? `${mine.length} of the new tests fail: ${names(mine)}` : existing.length ? `${existing.length} existing test(s) fail: ${names(existing)}` : 'the suite does not pass'}${shuffled()}`,
       output: failureDigest(first.output),
     };
   }
-  const retry = runJson(`--grep "${grepFor(existing.map((t) => t.title))}"`);
+  // The retry runs the failed tests by themselves, in the same order, so an order dependence stays visible.
+  const retry = runJson(`--grep "${grepFor(existing.map((t) => t.title))}"`, {}, true);
   const still = retry.report.filter((t) => t.status === 'unexpected');
   if (still.length || !retry.ok) {
     return {
       name: 'Full suite',
       passed: false,
-      summary: `${still.length} existing test(s) fail on a retry too: ${names(still)}. This change did not write them, so a page object or fixture it touched may have broken them`,
+      summary: `${still.length} existing test(s) fail on a retry too: ${names(still)}. This change did not write them, so a page object or fixture it touched may have broken them${shuffled()}`,
       output: failureDigest(retry.output),
     };
   }
   return {
     name: 'Full suite',
     passed: true,
-    summary: `every test passes; ${existing.length} existing test(s) failed once and passed on a retry, so they are flaky, not this change's: ${names(existing)}`,
+    summary: `every test passes; ${existing.length} existing test(s) failed once in the full run and passed by themselves, so they are flaky or depend on the order, not this change's: ${names(existing)}${shuffled()}`,
     flaky: existing.map((t) => t.title),
   };
 }
@@ -716,11 +728,11 @@ export function runGates(request: Request, strategy: Strategy, generation: Gener
     results.push(traceabilityGate(request, strategy));
     results.push(fullSuiteGate(request));
 
-    const stability = runJson(`--grep "${tagGrep(request.key)}" --repeat-each=${config.stabilityRuns}`);
+    const stability = runJson(`--grep "${tagGrep(request.key)}" --repeat-each=${config.stabilityRuns}`, {}, true);
     results.push({
       name: 'Stability',
       passed: stability.ok,
-      summary: stability.ok ? `new tests gave the same result ${config.stabilityRuns} times in a row` : 'new tests did not give the same result every time',
+      summary: `${stability.ok ? `new tests gave the same result ${config.stabilityRuns} times in a row` : 'new tests did not give the same result every time'}${shuffled()}`,
       output: stability.ok ? undefined : failureDigest(stability.output),
     });
 

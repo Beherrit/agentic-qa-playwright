@@ -65,8 +65,18 @@ the working directory, and its own prompts and templates next to its code.
 
 Every agent runs with `permissionMode: dontAsk` and no user settings, hooks or MCP servers: whatever is not on its
 list is refused. "Read" means Read, Glob and Grep inside the repository. "Browser" means the Playwright MCP server
-with navigate, back, snapshot, click, type, fill form, select option, press key, wait and close; script evaluation
-and file upload are not on the list.
+at one of three levels, each the smaller one plus what the job needs (`agents/lib/agent.ts`):
+
+| Level | Adds | Who |
+|---|---|---|
+| look | navigate, snapshot, find, click, type, fill, select, press, hover, wait, tabs, the console log and the network log | ticket writer, technical reviewer, architect |
+| test | Playwright's preferred locator for an element (`browser_generate_locator`) and live checks of an assertion before it is written (`browser_verify_*`) | engineer, healer |
+| break | answer, slow or drop requests (`browser_route`, offline) and change cookies and storage, to try a fault before writing it | saboteur |
+
+No level evaluates scripts, uploads files or saves PDFs; those tools are not offered at all. The server itself is
+started with only the capabilities the level needs, with WebMCP off unless `browser.webmcp` says otherwise, with
+generated code only for the roles that write code, and, when `browser.allowedOrigins` is set, with the browser unable
+to request any origin but the app's own and the listed ones. `browser.blockedOrigins` is for analytics and the like.
 
 | Role | Runs in | Access | Tools | Answers in |
 |---|---|---|---|---|
@@ -79,14 +89,25 @@ and file upload are not on the list.
 | `test-architect` | QA analysis, 2a | read | Read, browser | `Plan` |
 | `plan-critic` | QA analysis, 2b | read | Read | `Checklist` |
 | `plan-reconciler` | QA analysis, 2c | read | Read | `Reconciled` |
-| `automation-engineer` | QA tests, 1, 1c and 2b | write | Read, browser, Write and Edit in the writable folders, Bash for the suite's test, typecheck and lint commands only | `Generation` |
-| `saboteur` | QA tests, 1a | read | Read, browser | `Sabotage` |
+| `automation-engineer` | QA tests, 1, 1c and 2b | write | Read, browser (test), Write and Edit in the writable folders, Bash for the suite's test, typecheck and lint commands only | `Generation` |
+| `saboteur` | QA tests, 1a | read | Read, browser (break) | `Sabotage` |
 | `code-reviewer` | QA tests, 2 and 2b | read | Read | `Review` |
 | `failure-triager` | Regression, triage | read | Read | `Triage` |
 | `test-healer` | Regression, heal | write | as the engineer | `Healing` |
 
 The schemas are in `agents/lib/schemas.ts`. An answer that does not parse fails the job; nothing downstream reads an
 unvalidated answer.
+
+### Playwright's own agents
+
+Playwright ships a planner, a generator and a healer (`npx playwright init-agents --loop=claude`) backed by its
+test-runner MCP server. They overlap with the architect, the engineer and the healer here. The difference is the
+frame around them: here every role has a schema, a tool list and a gate after it, and a person merges. Borrowed
+from them: a seed test that hands an agent a ready page (`auth.storageState` plays that part), verifying each
+locator and assertion live before writing it (the `test` browser level), and regenerating agent instructions when
+Playwright moves. Not borrowed: broad tools and no gates. Playwright's README also notes that for long code-writing
+runs its CLI and skills cost fewer tokens than the MCP server; the engineer's eighty-turn runs are where that would
+be tried first.
 
 ## Gates and checks
 
@@ -101,8 +122,8 @@ Nothing here asks a model. Blocking means the run stops (or, for the gates, goes
 | Lint | `suite.commands.lint` on the writable folders | yes |
 | Expected failures | Every added `test.fail()` has a valid reason; bug markers name a criterion and match the reported bugs; "not built yet" only in test-first mode | yes |
 | Traceability | Every criterion the plan sends to e2e has a test tagged with it and the ticket key | yes |
-| Full suite | New tests pass with no retries; an existing failing test gets one retry by itself and is reported as flaky if it passes | yes |
-| Stability | The new tests give the same result `stabilityRuns` times in a row | yes |
+| Full suite | The whole suite in a random order (`gates.shuffle`, seed in the report); new tests pass with no retries; an existing failing test gets one retry by itself in the same order and is reported as flaky if it passes | yes |
+| Stability | The new tests give the same result `stabilityRuns` times in a row, shuffled | yes |
 | Fails for the right reason | Each expected failure failed on an assertion or a missing element, not a crash | yes, when there are expected failures |
 | Sensitivity | The new tests are run against `sensitivity.targets` (broken accounts, old builds, or a fault injected into every page); at least one must catch something | only with `sensitivity.required` |
 | Sabotage | The new tests are run against each fault the saboteur wrote (`qa-run/faults/`), one per criterion; no fault may be `missed`. A `dud` (the breakage never showed) and an `untested` criterion do not block | unless `sabotage.required` is false |

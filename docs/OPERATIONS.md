@@ -78,6 +78,12 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `sensitivity.targets[].initScript`, `.routes` | one fault target | | A fault instead of broken accounts: a script on every page, requests answered or dropped. See below |
 | `budget.maxUsdPerRun` | 0 | no cap | The most a run may spend on agents. A run stops at the cap; each agent is given what is left |
 | `gates.retryExistingOnce` | true | true | The full-suite gate gives an existing test that fails one retry by itself. Passing then is reported as flaky, not blocked. New tests never get a retry. Off, any failure blocks |
+| `gates.shuffle` | true | true | The full-suite and stability gates run in a random order (Playwright 1.64 `--shuffle`), one seed per run, printed in the gate summary with the command that repeats it. Ignored on an older Playwright. Off, tests run in file order |
+| `budget.maxUsdPerDay` | 0 | 0 | The history page shows today's spend against this, and the history workflow warns when it is over. It stops nothing by itself: the history is written after a run. Pair it with `budget.maxUsdPerRun`, which does stop a run |
+| `browser.allowedOrigins` | [] | [] | When set, the agents' browser may request only these origins and the app's own; anything else fails at the network. Empty allows all, because an app's CDN and third-party scripts are not knowable in advance. Fill it in once they are |
+| `browser.blockedOrigins` | [] | [] | Origins the agents' browser never requests (analytics, chat widgets). Wins over the allowlist |
+| `browser.webmcp` | false | false | Offer the agents the tools a page registers through the WebMCP API. Off until a product decides to expose some |
+| `browser.actionTimeoutMs`, `browser.navigationTimeoutMs` | 5000, 30000 | same | How long an agent's click or navigation waits before it is told it failed, so a dead end costs seconds, not a minute |
 
 Repository variables and environment: `QA_AGENT_MODEL` picks the model for every role. `QA_PROVIDER_ENV` (a secret)
 holds a model provider's settings as `KEY=value` lines, for Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`,
@@ -229,3 +235,19 @@ it and runs `npx agentic-qa analyze --source <tracker> --ref <ticket>` is the an
 after it is the test half, which leaves the change in the working tree and the pull request text in
 `qa-run/pull-request.md` for the job to push and open. Give the model credential to those two steps and the tracker
 credentials to none of the agent steps, as the GitHub workflows do.
+
+## Proving it still works everywhere
+
+Two workflows run on a schedule and on pull requests that touch the engine, so the portability claim is checked by a
+machine rather than by whoever happens to be installing it next:
+
+- **Compatibility** (`compat.yml`, Sundays): the unit tests, typecheck and lint on Linux, Windows and macOS with each
+  supported Node, and the packed-install test (init, doctor, a suite, the checks, the MCP server) on the oldest
+  Playwright the package supports and on the newest. `PLAYWRIGHT_VERSION` picks the host's version when running
+  `agents/test/install.sh` by hand.
+- **Second host** (`second-host.yml`, Mondays): the whole pipeline, every agent included, against OWASP Juice Shop in
+  a container: an Angular single-page app over a REST API, nothing like the demo shop. It costs real money, so the
+  weekly run uses the `POC` environment and a budget cap; a pull request runs the dry form, which stops after init,
+  doctor and a smoke test. The run folder is kept as an artifact for two weeks. `agents/test/second-host.sh` runs
+  either form on a laptop with Docker.
+

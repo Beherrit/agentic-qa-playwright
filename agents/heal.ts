@@ -79,7 +79,7 @@ ${projectDoc(config.conventions)}
 </test-conventions>`,
     schema: Healing,
     access: 'write',
-    browser: true,
+    browser: 'test',
     maxTurns: 60,
   });
 

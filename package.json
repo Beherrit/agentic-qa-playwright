@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "test": "playwright test",
-    "test:unit": "node --test agents/test/*.test.ts",
+    "test:unit": "node --test agents/test/*.test.ts examples/company-agents/test/*.test.ts",
     "check": "npm run -s typecheck && npm run -s lint && npm run -s test:unit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",
     "eslint": "^10.11.0",
     "eslint-plugin-playwright": "^2.12.0",

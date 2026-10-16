@@ -9,10 +9,27 @@ this page.
 |---|---|
 | `tests/` | Spec files, one per feature: `tests/<feature>.spec.ts` |
 | `pages/` | Page objects, one class per page: `pages/<Name>Page.ts` |
-| `fixtures/` | `test.ts` (the `test` and `expect` every spec imports) and shared test data |
+| `fixtures/` | `test.ts` (the `test` and `expect` every spec imports), custom fixtures, and shared test data as typed modules |
+| `playwright.config.ts` | The one place for environment: base URL, test id attribute, timeouts, projects, reporters |
+| `docs/` | `product-brief.md` (what the app is) and this page (how the suite is written); the agents read both |
 
 Specs import `test` and `expect` from `fixtures/test.ts`, never straight from `@playwright/test`. A new page object
 gets a fixture there, so tests receive it as an argument instead of constructing it.
+
+That is the whole layout, on purpose. Folders not to add:
+
+- **`locators/`**: a locator lives with the page object that uses it, as a readonly field next to the actions. A
+  central locators file becomes a list nobody can prune, because nobody can see which page still needs what.
+- **`utils/`, `helpers/`, `test-data/`, `config/`**: test data and setup are fixtures and go in `fixtures/`;
+  environment goes in `playwright.config.ts` and `.env`. A helpers file is where untyped shortcuts and a second
+  copy of the app's logic accumulate.
+- **`reports/`, `screenshots/`**: Playwright writes `playwright-report/` and `test-results/` itself. They are
+  ignored by git and never edited.
+
+Everything is TypeScript. The typecheck is one of the gates, and typed page objects are what keep generated tests
+honest. The writable folders in `qa.config.json` (`tests/`, `pages/`, `fixtures/`) are the only places the pipeline
+may change; a change anywhere else fails the scope gate, and `.github/CODEOWNERS` names who reviews changes to the
+shared layers.
 
 ## Page objects
 
@@ -33,11 +50,24 @@ In order of preference:
 No XPath. No CSS classes or DOM structure (`.btn_primary`, `div > span:nth-child(2)`). They break when styling
 changes and say nothing about what the user sees.
 
+Scoping and filtering:
+
+- To find an element inside a container when both locators already exist, use `within` (Playwright 1.64):
+  `saveButton.within(settingsDialog)`. Chain (`dialog.getByRole(...)`) when the inner locator is only ever used
+  there.
+- To match only what is visible, use `locator.visible()` rather than the `:visible` pseudo-class.
+
 ## Tests
 
 - A title states the behaviour in plain words: `sorting by price shows the cheapest product first`.
 - One behaviour per test. If the title needs "and", it is probably two tests.
-- Every test stands alone: it does its own setup and passes when run by itself, in any order, in parallel.
+- Every test stands alone: it does its own setup and passes when run by itself, in any order, in parallel. The
+  gates run the suite in a random order (`--shuffle`) and report the seed, so a test that only passes after another
+  one fails here, with the order that showed it.
+- Tests that change state on a server shared by every worker (a settings page, the one test account's profile) take a
+  lock so they never overlap: `test('update user settings', { lock: 'user-settings' }, async ...)`, or
+  `test.describe.configure({ lock: 'user-settings' })` for a whole block. A lock is for shared server-side state
+  only; state that lives in the browser (a cart in local storage) needs none.
 - Assert on what the user can observe, using web-first assertions (`await expect(locator).toHaveText(...)`).
   They retry until the page settles.
 - Never `waitForTimeout`, never `{ force: true }`, no `test.only`, `test.skip` or `test.fixme`.
