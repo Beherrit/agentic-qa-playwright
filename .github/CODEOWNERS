@@ -1,0 +1,14 @@
+# Prompts, schemas, gates and workflows are code: a change to them changes what every future run does.
+
+/agents/prompts/                        @Beherrit
+/agents/lib/safety.ts                   @Beherrit
+/agents/lib/schemas.ts                  @Beherrit
+/agents/gates.ts                        @Beherrit
+/.github/workflows/                     @Beherrit
+/templates/host/                        @Beherrit
+/qa.config.json                         @Beherrit
+/docs/test-conventions.md               @Beherrit
+/docs/product-brief.md                  @Beherrit
+/examples/company-agents/agents/        @Beherrit
+/examples/company-agents/cli/lib/       @Beherrit
+/examples/company-agents/workflows/     @Beherrit

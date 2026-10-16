@@ -23,6 +23,19 @@ export const FILES: { to: string; from: string }[] = [
   { to: '.github/ISSUE_TEMPLATE/requirement.yml', from: 'templates/host/.github/ISSUE_TEMPLATE/requirement.yml' },
   { to: '.mcp.json', from: 'templates/host/.mcp.json' },
   { to: 'fixtures/fault.ts', from: 'templates/host/fixtures/fault.ts' },
+  // The suite's skeleton, for a project that has none yet. A project that has these keeps its own (init never
+  // overwrites without --force), so an existing suite is not disturbed; a new one starts in the recommended shape:
+  // tests/, pages/, fixtures/, one config, TypeScript, Playwright's own output folders, owners for the shared layers.
+  { to: 'playwright.config.ts', from: 'templates/host/playwright.config.ts' },
+  { to: 'tsconfig.json', from: 'templates/host/tsconfig.json' },
+  { to: 'fixtures/test.ts', from: 'templates/host/fixtures/test.ts' },
+  { to: 'pages/BasePage.ts', from: 'templates/host/pages/BasePage.ts' },
+  { to: 'pages/HomePage.ts', from: 'templates/host/pages/HomePage.ts' },
+  { to: 'tests/smoke.spec.ts', from: 'templates/host/tests/smoke.spec.ts' },
+  { to: '.github/CODEOWNERS', from: 'templates/host/.github/CODEOWNERS' },
+  // Named without the dot in the package: npm drops .gitignore files from a tarball.
+  { to: '.gitignore', from: 'templates/host/gitignore' },
+  { to: '.env.example', from: 'templates/host/.env.example' },
 ];
 
 export type InitResult = { root: string; written: string[]; kept: string[] };
@@ -56,6 +69,8 @@ export function nextSteps(result: InitResult): string {
     '  4. Add the secrets: CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY on an environment named POC (or QA_PROVIDER_ENV',
     '     for Bedrock or Vertex), and an environment named TRACKER (empty for GitHub issues)',
     '  5. Create the labels qa-pipeline, qa-generate and qa-test-first, then label an issue qa-pipeline',
+    '  6. If the suite is new: replace pages/HomePage.ts and tests/smoke.spec.ts with the app\'s first page and behaviour,',
+    '     set testIdAttribute in playwright.config.ts, and put a real team in .github/CODEOWNERS',
   ];
   return lines.join('\n');
 }

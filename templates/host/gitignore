@@ -1,0 +1,11 @@
+node_modules/
+
+# Playwright writes these; nothing is kept in them.
+test-results/
+playwright-report/
+blob-report/
+.playwright-mcp/
+
+# The pipeline's run folder and local secrets.
+qa-run/
+.env

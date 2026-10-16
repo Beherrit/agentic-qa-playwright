@@ -1,0 +1,17 @@
+# Who reviews what the agents and the pipeline depend on. Prompts, conventions and the config are code: a change to
+# them changes what every future run does, so it needs an owner's review like any other change.
+# Replace @your-org/qa-owners with a real team (Settings > Teams) or a list of logins.
+
+# The pipeline's configuration and the documents the agents read.
+/qa.config.json                 @your-org/qa-owners
+/docs/test-conventions.md       @your-org/qa-owners
+/docs/product-brief.md          @your-org/qa-owners
+
+# The workflows that call the engine, and what they may touch.
+/.github/workflows/             @your-org/qa-owners
+/.github/CODEOWNERS             @your-org/qa-owners
+
+# The shared layers of the suite. Specs under tests/ are reviewed by whoever owns the feature.
+/fixtures/                      @your-org/qa-owners
+/pages/                         @your-org/qa-owners
+/playwright.config.ts           @your-org/qa-owners

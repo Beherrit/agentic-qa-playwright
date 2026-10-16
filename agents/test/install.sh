@@ -23,7 +23,9 @@ mkdir "$work/host"
 cd "$work/host"
 git init -q
 npm init -y >/dev/null
-npm install --no-audit --no-fund --save-dev "$work/$tarball" @playwright/test typescript >/dev/null
+# PLAYWRIGHT_VERSION picks the host's Playwright: the compatibility workflow runs this with the oldest supported one.
+npm install --no-audit --no-fund --save-dev "$work/$tarball" "@playwright/test@${PLAYWRIGHT_VERSION:-latest}" typescript >/dev/null
+say "host Playwright $(node -p "require('@playwright/test/package.json').version")"
 test -x node_modules/.bin/agentic-qa || fail "the bin was not linked"
 
 say "help and exit codes"
@@ -34,13 +36,15 @@ say "init"
 npx agentic-qa init | grep -q '^wrote  qa.config.json' || fail "init did not write the config"
 for f in qa.config.json docs/product-brief.md docs/test-conventions.md docs/test-design.md \
          .github/workflows/qa-analysis.yml .github/workflows/qa-tests.yml .github/workflows/regression.yml \
-         .github/workflows/qa-history.yml .github/ISSUE_TEMPLATE/requirement.yml .mcp.json fixtures/fault.ts; do
+         .github/workflows/qa-history.yml .github/ISSUE_TEMPLATE/requirement.yml .mcp.json fixtures/fault.ts          playwright.config.ts tsconfig.json fixtures/test.ts pages/BasePage.ts pages/HomePage.ts tests/smoke.spec.ts          .github/CODEOWNERS .gitignore .env.example; do
   test -f "$f" || fail "init did not write $f"
 done
 grep -q 'agentic-qa-playwright/.github/workflows/qa-analysis.yml@' .github/workflows/qa-analysis.yml || fail "the caller does not use the engine's workflow"
 npx agentic-qa init | grep -q '^kept   qa.config.json' || fail "a second init overwrote the config"
 
 say "a one-test suite in the shape the config expects"
+# init wrote a skeleton suite that opens the app's home page. This project has no app, so the skeleton is replaced
+# by a one-test suite that needs no server; the engine must run it through the configured commands all the same.
 mkdir -p tests pages
 cat > fixtures/test.ts <<'TS'
 export { test, expect } from '@playwright/test';
@@ -90,7 +94,8 @@ grep -q 'name="criteria" value="AC-1"' qa-run/coverage.junit.xml || fail "the ex
 say "the MCP server answers over stdio"
 cat > "$work/mcp.mjs" <<'JS'
 import { spawn } from 'node:child_process';
-const p = spawn('npx', ['agentic-qa', 'mcp'], { stdio: ['pipe', 'pipe', 'ignore'] });
+// The package's own bin through this Node, not npx: on Windows npx is a .cmd shim that spawn() cannot start directly.
+const p = spawn(process.execPath, ['node_modules/agentic-qa-playwright/bin/agentic-qa.js', 'mcp'], { stdio: ['pipe', 'pipe', 'ignore'] });
 let out = '';
 p.stdout.on('data', (d) => { out += d; if (out.includes('"qa_doctor"')) { p.kill(); console.log('ok'); process.exit(0); } });
 const send = (o) => p.stdin.write(JSON.stringify(o) + '\n');
