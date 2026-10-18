@@ -1,6 +1,6 @@
 ## QA run history
 
-**57 runs: 12 analysis, 12 tests, 33 regression.** Gates passed in 78% of tests runs; the review approved 25% at first review.
+**58 runs: 12 analysis, 12 tests, 34 regression.** Gates passed in 78% of tests runs; the review approved 25% at first review.
 
 Average plan score 98, estimated cost $0.36 per run, $20.62 in all.
 
@@ -8,7 +8,7 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 
 ### Totals
 
-- Runs: 57 (12 analysis, 12 tests, 33 regression)
+- Runs: 58 (12 analysis, 12 tests, 34 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 78%
 - Approved at first review: 25%
@@ -17,24 +17,25 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 - Average plan score: 98
 - Total cost: $20.62
 - Average cost per run: $0.36
-- Average agent time: 2m 21s
+- Average agent time: 2m 19s
 - Gate failing most often: Full suite (2)
 
 ### Last 7 days
 
-**10 runs since 2026-10-10, $0.00 in all, $0.00 per run.** 0 failed. Today: $0.00.
+**10 runs since 2026-10-11, $0.00 in all, $0.00 per run.** 0 failed. Today: $0.00.
 
 Most expensive tickets: (no ticket) $0.00 (10 runs).
 
 
 ### Runs
 
-57 runs, newest first.
+58 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-18 10:06 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39117808468) |
 | 2026-10-17 09:54 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39022788586) |
 | 2026-10-16 18:08 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/38944766268) |
 | 2026-10-16 17:12 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/38937578782) |
