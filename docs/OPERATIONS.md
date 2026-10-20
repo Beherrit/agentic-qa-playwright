@@ -151,6 +151,31 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
   `QA_RUN_DIR=./qa-run-123 npx agentic-qa technical`. Stages that run an agent need a signed-in Claude Code CLI or
   a token.
 
+## Migrating a Selenium suite
+
+```bash
+npx agentic-qa migrate plan --from ../old-selenium-suite --to ../new-playwright-suite
+```
+
+prints the inventory (language, runner, tests, assertions) and the waves, without running an agent. The new
+project needs `@playwright/test` installed (`npm init -y && npm install --save-dev @playwright/test typescript
+agentic-qa-playwright`); the migration sets the rest up with `init` when there is no `qa.config.json` yet. Then
+
+```bash
+npx agentic-qa migrate run --from ../old-selenium-suite --to ../new-playwright-suite
+```
+
+runs the waves in order and stops at the first that does not pass. The state lives in the new project under
+`qa-run/migration/`: `migration.md` is the report, `state.json` remembers which waves passed, and a rerun carries on
+from the first that has not. `--wave <id>` runs one wave again after a person has fixed something. The agents need
+the same credentials as every other stage.
+
+For a big suite, pilot first: `--limit 20` runs the prerequisites and the first suites, and the report's first
+table says how many waves passed first time, passed after a fix round, or failed. That ratio, on your own tests,
+is the only honest estimate of how the rest will go. A failed suite wave does not stop the run; the "Needs a
+person" table lists each one with its first problem, and `--wave <id>` reruns it once the old test is understood.
+A wave costs about ten to twenty cents of agent time and a minute or two of gates per test module.
+
 ## Turning a gate from advisory to blocking
 
 Sensitivity, accessibility and performance are the advisory gates. Set `sensitivity.required`,

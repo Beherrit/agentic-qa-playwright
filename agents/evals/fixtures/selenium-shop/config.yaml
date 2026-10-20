@@ -1,0 +1,25 @@
+base_url: https://www.saucedemo.com
+browser: chrome
+headless: true
+window:
+  width: 1366
+  height: 900
+grid:
+  hub_url: http://selenium-hub:4444/wd/hub
+  max_instances: 4
+parallel:
+  workers: 4
+timeouts:
+  implicit: 0
+  explicit: 7
+  page_load: 30
+users:
+  standard: standard_user
+  locked_out: locked_out_user
+  problem: problem_user
+password: secret_sauce
+test_id_attribute: data-test
+env:
+  SAUCE_USER: overrides the default user (users.standard)
+  BASE_URL: overrides base_url
+  SELENIUM_HUB: overrides grid.hub_url

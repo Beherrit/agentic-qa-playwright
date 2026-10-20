@@ -132,6 +132,19 @@ Nothing here asks a model. Blocking means the run stops (or, for the gates, goes
 **Gates on a repair** (`runHealGates`): Scope, Nothing weakened (no skips, no markers, no assertions lost), Types,
 Lint, Healed tests (repeated `stabilityRuns` times) and Full suite. All block.
 
+**The Selenium migration** (`agents/migrate.ts`, on a machine, not a workflow). Code inventories the old project
+and fixes the wave order: settings, utilities and page objects, login, one test module at a time. The settings
+migrator (read-only) answers with values and evidence; code writes the config and checks Playwright loads it. The
+test migrator (write access inside the writable folders, the `test` browser level) writes one wave and answers with
+a verbatim map from old tests and assertions to new ones. Gates per wave, none asking a model: parity (every old
+test mapped or dropped with a reason, assertion counts kept, every quoted line found in the files), rules (no
+serial mode, `.only`, skips, sleeps or shared state), types, lint, the new specs shuffled twice over with four
+workers, and one inverted assertion per test that must fail. One fix round per wave; a failed prerequisite
+(settings, utilities, login) stops the run, a failed suite is recorded and the next one runs. The inventory marks
+each file's Grid habits (shared driver, ordered tests, static state, sleeps, implicit waits, retry loops, the hub)
+and the migrator is given a rule per habit; files over ten tests are split into waves. State and the report, which
+opens with waves passed first time, after a fix round, or failed, live in `qa-run/migration/` of the new project.
+
 **The performance gate** (`perf.yml`, on demand; `agents/perf.ts`). Two jobs. `Audit` (POC environment) launches one
 Chromium with a debugging port, signs in with `perf.setup`, finds the routes (`perf.routes`, the sitemap, a bounded
 crawl of same-origin links), and for each route and form factor lets Playwright load the page (console errors,

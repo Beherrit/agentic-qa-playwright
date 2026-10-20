@@ -7,6 +7,8 @@ blob-report/
 qa-run/
 # A local checkout of the qa-perf branch, for `perf run --baseline perf-history`
 perf-history/
+# Where the migration's own proof writes its Playwright project
+qa-migrate-out/
 
 # Company agents CLI: audit log and stage bundles
 .co/

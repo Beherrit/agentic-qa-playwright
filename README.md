@@ -185,6 +185,47 @@ that arrives after first paint. The clean one must pass every budget; the plante
 and Lighthouse must name `slow.js` and the element that shifted. No mocks: the same browser, Lighthouse and judging
 as a real run.
 
+### The Selenium migration
+
+`npx agentic-qa migrate run --from <selenium project> --to <playwright project>` moves a Selenium suite over one
+wave at a time, and no wave starts until the one before it has passed its gates. The order is fixed: settings,
+then utilities and page objects, then the login, then one test module at a time, smallest first. The inventory
+and the plan are code (`agents/lib/migrate/inventory.ts`, `plan.ts`): the language and runner are detected, every
+test and its assertions are counted, and `migrate plan` prints the waves without running an agent.
+
+Two roles do the work. The **settings migrator** reads the old configuration and answers with values, each with
+the file and line it came from; a value with no evidence falls back to the Playwright default and is listed, and
+code writes `playwright.config.ts`, `.env.example` and the personas from the answer. The **test migrator** writes
+the code for one wave, inside `tests/`, `pages/` and `fixtures/` only, with a browser to check a locator before it
+is written, and answers with a map: every old test to its new test, and every old assertion, quoted verbatim, to
+the `expect` that replaced it, quoted verbatim.
+
+That map is where the honesty comes from. The **parity check** looks each quoted line up in the files: every old
+test must be mapped or dropped with a reason, every mapped test must carry at least as many assertions as the old
+one had, and every quoted line must exist. Then the gates: a **rules** check that refuses serial mode, `.only`,
+skips, `waitForTimeout`, `waitForSelector` and shared module state; types; lint when the project has a config; a
+**parallel run** of the new specs, shuffled, twice over, with four workers; and the one that answers "does it
+catch what Selenium caught": **one assertion per test is inverted and the test is run again, and it must fail**.
+A test that still passes with its assertion turned upside down never checked anything. A wave that fails gets one
+fix round with the problems spelled out. The settings, utilities and login waves are prerequisites and stop the
+run when they fail; a suite wave that fails is recorded and the next suite runs, so one bad module does not hold a
+thousand tests. `qa-run/migration/migration.md` opens with the numbers a pilot is for: waves passed first time,
+passed after a fix round, failed and waiting for a person, still to run.
+
+A Grid suite is where this earns its keep. The inventory marks each old file with the habits that cannot survive a
+parallel run: a shared or class-scoped driver, ordered tests, static state, sleeps, implicit waits, retry loops,
+the hub itself. Each risk comes with a rule the test migrator is given for that wave (an ordered chain becomes
+independent tests that each set up their own state; a shared session becomes a `signedIn` fixture), and the rules
+and parallel gates refuse the result when the habit survived. Assertions that live in helpers count too: the
+inventory finds the old suite's assertion helpers and treats a call to one as an assertion. A file with more than
+ten tests is split into waves of ten so no agent run has to hold forty tests at once, and `--limit` bounds a run
+to a pilot's worth of waves.
+
+The proof is `agents/evals/fixtures/selenium-shop/`, a small Python, pytest and Selenium Grid project for Swag Labs
+with a YAML config, a conftest with a hub and a class-scoped shared session, utilities that assert, page objects
+with a retry loop, and four test modules, one of them an ordered checkout flow on the shared session. The
+migration moves it to a Playwright project that then runs against the live shop with four workers.
+
 ### The plan health score
 
 Arithmetic over facts, so a plan cannot talk its way to a pass.
@@ -570,6 +611,8 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |
 | `agents/perf.ts`, `agents/lib/perf/` | The performance gate (`npm run perf -- run`): routes, the shared browser, Lighthouse, budgets and regressions, the analyst and its checker, the `qa-perf` page, and `prove` |
 | `fixtures/perf-setup.ts` | How the performance gate signs in before it audits |
+| `agents/migrate.ts`, `agents/lib/migrate/` | The Selenium migration (`npm run migrate`): inventory and plan, the settings renderer, the wave runner, the parity check, the rules, the gates, the report |
+| `agents/evals/fixtures/selenium-shop/` | A small Python, pytest and Selenium project for Swag Labs: what the migration is proven on |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
 | `agents/prompts/` | One instruction file per role, the saboteur's (`saboteur.md`) among them |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, the technical checks, keys and labels, markdown rendering, the run folder |

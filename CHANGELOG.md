@@ -7,6 +7,21 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
+- **The Selenium migration** (`npx agentic-qa migrate plan|run --from <old> --to <new>`). The old project is
+  inventoried by code (language, runner, every test and its assertion count) and moved in fixed waves: settings,
+  utilities and page objects, login, then one test module at a time, each gated before the next starts. The settings
+  migrator answers with values and their evidence, and code writes the Playwright config from them. The test
+  migrator writes one wave inside `tests/`, `pages/` and `fixtures/` and answers with a verbatim map from every old
+  test and assertion to the new one, which the parity check looks up in the files. Gates: static rules (no serial
+  mode, no `.only`, no skips, no sleeps, no shared state), types, lint, the new specs shuffled twice over with four
+  workers, and one inverted assertion per test that must make the test fail. One fix round per wave; a failed
+  suite is recorded and the next runs, a failed prerequisite stops the run. Built for Grid suites: the inventory
+  marks each file's habits (shared driver, ordered tests, static state, sleeps, implicit waits, retry loops, the
+  hub), each with a rule the migrator is given; assertion helpers count as assertions; files over ten tests are
+  split into waves; `--limit` bounds a pilot; the report opens with waves passed first time, after a fix round,
+  or failed. The proof is a Python, pytest and Selenium Grid fixture for Swag Labs under
+  `agents/evals/fixtures/selenium-shop/`, with an ordered checkout flow on a shared session.
+
 - **The performance gate** (`perf.yml`, on demand; `npm run perf -- run`). Playwright launches one Chromium with a
   debugging port and signs in with the project's own module (`perf.setup`); for every route (`perf.routes`, the
   sitemap, a bounded crawl of the signed-in pages) it records console errors, failed requests and a screenshot, and

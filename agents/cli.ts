@@ -31,6 +31,8 @@ On your machine
   perf run               Lighthouse over the app's routes through the signed-in browser; --scope critical for the short list
   perf render <dir> [qa-run/perf]   The qa-perf branch: runs.jsonl, README.md, index.html, the last run's full reports
   perf prove             Audit two local pages, one broken on purpose, and show the gate catches the broken one
+  migrate plan --from <old> --to <new>   Inventory a Selenium project and the waves it will be moved in (no agent)
+  migrate run --from <old> --to <new>    Move it: settings, utilities, login, then one suite at a time, each gated; --wave <id> reruns one
   mcp                    Serve the pipeline over MCP on stdio, for Claude Desktop or Claude Code
 
 One stage at a time, as the CI jobs run them
@@ -44,6 +46,10 @@ Options
   --export <format>      coverage: also write junit, xray or testrail to qa-run/
   --scope <all|critical> perf run: every route with the crawl, or only perf.critical (a pull request run)
   --baseline <dir>       perf run: a checkout of the qa-perf branch, to judge regressions against its last run
+  --from <dir>           migrate: the Selenium project to read
+  --to <dir>             migrate: the Playwright project to write (set up with init when it has no qa.config.json)
+  --wave <id>            migrate run: run this one wave again
+  --limit <n>            migrate run: at most this many waves this run (a pilot of a big suite)
   --text <words>         The requirement or the wish as text
   --file <path>          The requirement or the wish from a file
   --title <title>        A title for a requirement given as text
@@ -105,6 +111,10 @@ function parse() {
         export: { type: 'string' }, // coverage: junit, xray or testrail
         scope: { type: 'string' }, // perf run: all or critical
         baseline: { type: 'string' }, // perf run: a checkout of the qa-perf branch
+        from: { type: 'string' }, // migrate: the Selenium project
+        to: { type: 'string' }, // migrate: the Playwright project
+        wave: { type: 'string' }, // migrate run: one wave
+        limit: { type: 'string' }, // migrate run: at most this many waves this run
         'test-first': { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -242,6 +252,27 @@ const commands: Record<string, () => Promise<unknown>> = {
     const code = await perfCommand(positionals.slice(1), { scope: values.scope, baseline: values.baseline });
     if (code === 1) stop('The performance gate failed. See qa-run/perf/perf.md.');
     if (code) process.exit(code);
+  },
+  // The new project is the project root for everything that follows, so it is chosen before any config loads.
+  migrate: async () => {
+    const what = positionals[1];
+    if (!['plan', 'run'].includes(what ?? '') || !values.from || !values.to) usage('Usage: npx agentic-qa migrate <plan|run> --from <old project> --to <new project> [--wave <id>]');
+    const { resolve } = await import('node:path');
+    const { existsSync } = await import('node:fs');
+    const source = resolve(values.from!);
+    const target = resolve(values.to!);
+    if (!existsSync(source)) usage(`--from ${source} does not exist.`);
+    if (!existsSync(resolve(target, 'qa.config.json'))) {
+      const { initProject } = await import('./init.ts');
+      const result = initProject(target);
+      console.log(`Set up ${target}: ${result.written.length} file(s) written.`);
+    }
+    process.env.QA_PROJECT_ROOT = target;
+    const { plan, run } = await import('./migrate.ts');
+    if (what === 'plan') return console.log(plan(source));
+    const limit = values.limit === undefined ? Infinity : Number(values.limit);
+    if (!Number.isInteger(limit) && limit !== Infinity) usage('--limit takes a whole number.');
+    if (!(await run(source, values.wave, limit))) stop('Not every wave has passed. See qa-run/migration/migration.md in the new project.');
   },
   history: async () => {
     const { record, render } = await import('./history.ts');
