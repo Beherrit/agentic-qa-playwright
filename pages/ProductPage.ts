@@ -10,8 +10,13 @@ export class ProductPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.name = page.getByTestId('inventory-item-name');
-    this.price = page.getByTestId('inventory-item-price');
+    // The product page reuses the list's test ids (inventory-item-name, inventory-item-price, and even the
+    // inventory-item container), and after a click the URL changes before the list is replaced, so an unscoped
+    // locator briefly matches all six cards and fails strict mode. The one thing only the product page has is the
+    // inventory_details wrapper, hence a class here where the rest of the suite uses test ids.
+    const details = page.locator('.inventory_details');
+    this.name = details.getByTestId('inventory-item-name');
+    this.price = details.getByTestId('inventory-item-price');
     this.backButton = page.getByRole('button', { name: 'Back to products' });
     this.addButton = page.getByRole('button', { name: 'Add to cart' });
   }
