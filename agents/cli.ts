@@ -28,6 +28,9 @@ On your machine
   coverage               The traceability map: which ticket each test exists for, and how it did last run
   triage                 Classify the failures in test-results/results.json (runs an agent)
   heal                   Repair the test defects triage found (runs an agent)
+  perf run               Lighthouse over the app's routes through the signed-in browser; --scope critical for the short list
+  perf render <dir> [qa-run/perf]   The qa-perf branch: runs.jsonl, README.md, index.html, the last run's full reports
+  perf prove             Audit two local pages, one broken on purpose, and show the gate catches the broken one
   mcp                    Serve the pipeline over MCP on stdio, for Claude Desktop or Claude Code
 
 One stage at a time, as the CI jobs run them
@@ -39,6 +42,8 @@ Options
   --source <name>        Where the requirement lives, with --ref: github, jira, pr, azure or linear
   --ref <ref>            The issue, pull request or work item number, or the Jira or Linear key
   --export <format>      coverage: also write junit, xray or testrail to qa-run/
+  --scope <all|critical> perf run: every route with the crawl, or only perf.critical (a pull request run)
+  --baseline <dir>       perf run: a checkout of the qa-perf branch, to judge regressions against its last run
   --text <words>         The requirement or the wish as text
   --file <path>          The requirement or the wish from a file
   --title <title>        A title for a requirement given as text
@@ -98,6 +103,8 @@ function parse() {
         dry: { type: 'boolean', default: false }, // intake: file nothing
         force: { type: 'boolean', default: false }, // init: overwrite
         export: { type: 'string' }, // coverage: junit, xray or testrail
+        scope: { type: 'string' }, // perf run: all or critical
+        baseline: { type: 'string' }, // perf run: a checkout of the qa-perf branch
         'test-first': { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -230,6 +237,12 @@ const commands: Record<string, () => Promise<unknown>> = {
   },
   triage: async () => (await import('./triage.ts')).triage(),
   heal: async () => (await import('./heal.ts')).heal(),
+  perf: async () => {
+    const { perfCommand } = await import('./perf.ts');
+    const code = await perfCommand(positionals.slice(1), { scope: values.scope, baseline: values.baseline });
+    if (code === 1) stop('The performance gate failed. See qa-run/perf/perf.md.');
+    if (code) process.exit(code);
+  },
   history: async () => {
     const { record, render } = await import('./history.ts');
     const [, what, first, second] = positionals;

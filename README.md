@@ -159,6 +159,32 @@ not decide listed as needing a person. It never says a page passed: automated ch
 asks for, so a clean scan is reported as "no violations detected by axe". That rule comes from a separate compliance
 scanner of mine, which has no pass state at all.
 
+### The performance gate
+
+A fourth workflow, `Performance` (`perf.yml`), on demand only. Playwright launches one Chromium with a debugging port,
+signs in with the project's own module (`perf.setup`, here `fixtures/perf-setup.ts`), and for every route looks at
+the page as a user would: console errors, failed requests, a full-page screenshot. Lighthouse then attaches to the
+same browser and measures the page, mobile and desktop, `perf.runs` times (3). The median is judged, because one
+Lighthouse run is noise, against two things that are both numbers a person chose: the budgets in `perf.budgets`
+(score 90, LCP 2.5 s, CLS 0.1, TBT 200 ms by default, Lighthouse's own "good" line) and the last recorded run,
+with `perf.regression` saying how much worse a page may get before that alone fails it (5 points, 20% LCP, 0.05
+CLS, 30% TBT, 2% of the screenshot's pixels). Routes come from `perf.routes`, the sitemap, and a bounded crawl of
+same-origin links from the signed-in page, so checkout and cart are audited signed in; `--scope critical` audits
+`perf.critical` alone, for a pull request.
+
+Nothing in the gate asks a model. One role does run, the **performance analyst**, and only after a page has failed:
+it gets the Lighthouse diagnostics, the last run's, the commits since, and the full report as JSON, and has to name
+the cause with the audit ids it rests on, or say it cannot. A finding that cites an audit the report does not
+contain, or a page that passed, is dropped before anyone reads it (`agents/lib/perf/analyst.ts`, `checkFindings`).
+
+The result lands on a branch of its own, `qa-perf`: `runs.jsonl`, a README, the last run's full Lighthouse reports,
+and `index.html`, one self-contained page with no external scripts (worst page first, score trend per page, median
+score and worst LCP per run), ready for GitHub Pages. `npx agentic-qa perf prove` is the proof it measures what it
+claims: two pages served from your machine, one clean and one with a render-blocking script and an unsized banner
+that arrives after first paint. The clean one must pass every budget; the planted one must fail CLS and the score,
+and Lighthouse must name `slow.js` and the element that shifted. No mocks: the same browser, Lighthouse and judging
+as a real run.
+
 ### The plan health score
 
 Arithmetic over facts, so a plan cannot talk its way to a pass.
@@ -542,13 +568,15 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/screen.ts`, `agents/lib/safety.ts` | The safety screen: the screener agent and the stage that saves `qa-run/screening.json`, and the fixed rules |
 | `agents/triage.ts`, `agents/heal.ts` | Failure triage and self-healing for a regression run |
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |
+| `agents/perf.ts`, `agents/lib/perf/` | The performance gate (`npm run perf -- run`): routes, the shared browser, Lighthouse, budgets and regressions, the analyst and its checker, the `qa-perf` page, and `prove` |
+| `fixtures/perf-setup.ts` | How the performance gate signs in before it audits |
 | `agents/sources/` | One adapter per tracker (GitHub, Jira) and the markdown/ADF conversion for Jira |
 | `agents/prompts/` | One instruction file per role, the saboteur's (`saboteur.md`) among them |
 | `agents/lib/` | The agent runner and its permissions, the schemas, the plan score, the technical checks, keys and labels, markdown rendering, the run folder |
 | `agents/test/` | Unit tests for the pipeline itself (`npm run test:unit`) |
 | `agents/evals/` | The agent evaluations: canned cases, their checks, and recorded answers for the dry run (`npm run evals`) |
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
-| `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history) |
+| `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history), `perf.yml` (the performance gate, on demand) |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
 | `bin/agentic-qa.js` | The command line, which a project with the engine installed runs as `npx agentic-qa` |
 | `templates/host/` | What `npx agentic-qa init` writes into a project: the config, the documents, the caller workflows |

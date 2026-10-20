@@ -39,6 +39,7 @@
     "intake": "tsx agents/cli.ts intake",
     "heal": "tsx agents/heal.ts",
     "history": "tsx agents/history.ts",
+    "perf": "tsx agents/cli.ts perf",
     "mcp": "tsx agents/mcp.ts",
     "evals": "tsx agents/evals/run.ts"
   },
@@ -64,6 +65,7 @@
     "@types/node": "^26.6.4",
     "eslint": "^10.11.0",
     "eslint-plugin-playwright": "^2.12.0",
+    "lighthouse": "^13.5.0",
     "typescript": "~6.0",
     "typescript-eslint": "^8.71.0"
   }

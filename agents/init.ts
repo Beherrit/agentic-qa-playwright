@@ -20,6 +20,8 @@ export const FILES: { to: string; from: string }[] = [
   { to: '.github/workflows/qa-tests.yml', from: 'templates/host/.github/workflows/qa-tests.yml' },
   { to: '.github/workflows/regression.yml', from: 'templates/host/.github/workflows/regression.yml' },
   { to: '.github/workflows/qa-history.yml', from: 'templates/host/.github/workflows/qa-history.yml' },
+  { to: '.github/workflows/perf.yml', from: 'templates/host/.github/workflows/perf.yml' },
+  { to: 'fixtures/perf-setup.ts', from: 'templates/host/fixtures/perf-setup.ts' },
   { to: '.github/ISSUE_TEMPLATE/requirement.yml', from: 'templates/host/.github/ISSUE_TEMPLATE/requirement.yml' },
   { to: '.mcp.json', from: 'templates/host/.mcp.json' },
   { to: 'fixtures/fault.ts', from: 'templates/host/fixtures/fault.ts' },

@@ -7,6 +7,18 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
+- **The performance gate** (`perf.yml`, on demand; `npm run perf -- run`). Playwright launches one Chromium with a
+  debugging port and signs in with the project's own module (`perf.setup`); for every route (`perf.routes`, the
+  sitemap, a bounded crawl of the signed-in pages) it records console errors, failed requests and a screenshot, and
+  Lighthouse measures the page through the same browser, mobile and desktop, `perf.runs` times. The median is judged
+  against `perf.budgets` and against the last recorded run (`perf.regression`, including the share of screenshot
+  pixels that changed). The result goes on the `qa-perf` branch as `runs.jsonl`, a README, the last run's full
+  reports and a self-contained `index.html`, ready for GitHub Pages. One agent, the performance analyst, runs only
+  after a page failed and must cite audit ids that exist in the page's own report; anything else is dropped before it
+  is shown. `npm run perf -- prove` audits two local pages, one clean and one with a render-blocking script and an
+  unsized banner that arrives after first paint, and shows the gate fails the right one and names both faults.
+  `lighthouse` is a dev dependency here and a host installs it only to turn the gate on.
+
 - **The history page rolls up the last seven days**: runs, cost and cost per run, cost and average turns per role, the
   most expensive tickets, the gates that blocked, and today's spend against a new `budget.maxUsdPerDay`, which the
   history workflow warns about when it is over.

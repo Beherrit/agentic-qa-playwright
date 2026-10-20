@@ -54,6 +54,17 @@
     "enabled": true,
     "required": false
   },
+  "perf": {
+    "enabled": true,
+    "required": false,
+    "routes": ["/", "/inventory.html", "/cart.html", "/checkout-step-one.html", "/checkout-step-two.html"],
+    "critical": ["/", "/inventory.html"],
+    "crawl": { "maxPages": 10, "sitemap": true },
+    "runs": 3,
+    "formFactors": ["mobile", "desktop"],
+    "setup": "fixtures/perf-setup.ts",
+    "analyst": true
+  },
   "safety": {
     "enabled": true,
     "screener": true

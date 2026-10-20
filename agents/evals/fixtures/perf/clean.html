@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clean page</title>
+<style>
+body{margin:0;font:16px/1.5 system-ui,sans-serif;color:#1f2328;background:#fff}
+main{max-width:720px;margin:0 auto;padding:24px 16px}
+h1{font-size:1.6rem;margin:0 0 12px}
+img{display:block;width:100%;height:auto;aspect-ratio:3/1;background:#eef}
+p{margin:12px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>A page with nothing wrong</h1>
+<img src="hero.svg" width="720" height="240" alt="A plain banner">
+<p>The image has its size in the markup, the styles are inline, and no script blocks rendering. This is the page the gate must pass.</p>
+<p>Lighthouse should find no render-blocking resource, no layout shift and no long task here.</p>
+</main>
+</body>
+</html>

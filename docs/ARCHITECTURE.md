@@ -132,6 +132,16 @@ Nothing here asks a model. Blocking means the run stops (or, for the gates, goes
 **Gates on a repair** (`runHealGates`): Scope, Nothing weakened (no skips, no markers, no assertions lost), Types,
 Lint, Healed tests (repeated `stabilityRuns` times) and Full suite. All block.
 
+**The performance gate** (`perf.yml`, on demand; `agents/perf.ts`). Two jobs. `Audit` (POC environment) launches one
+Chromium with a debugging port, signs in with `perf.setup`, finds the routes (`perf.routes`, the sitemap, a bounded
+crawl of same-origin links), and for each route and form factor lets Playwright load the page (console errors,
+failed requests, a screenshot) and Lighthouse measure it `perf.runs` times through the same browser. The median is
+judged against `perf.budgets` and against the last run on the `qa-perf` branch (`perf.regression`, including the
+share of screenshot pixels that changed). Only when a page failed does the one agent of this workflow run, the
+performance analyst, read-only, and every finding must cite audit ids that exist in that page's report or it is
+dropped. `Publish` (contents: write, no Claude token) downloads the run's folder, renders `runs.jsonl`, `README.md`,
+`index.html` and the last run's full reports, and pushes the branch. Blocks only with `perf.required`.
+
 **Other checks in code**
 
 | Check | Where | Effect |

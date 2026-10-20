@@ -14,6 +14,7 @@ my-app/
   fixtures/               test.ts (the test and expect every spec imports), custom fixtures, typed test data
     test.ts
     fault.ts
+    perf-setup.ts
     users.ts
   docs/
     product-brief.md      what the app is, for the agents
@@ -39,6 +40,8 @@ Three folders hold the suite, and each has one job.
   actions a user would recognise. It makes no assertions; the test decides what should be true.
 - **`fixtures/`** holds how tests get what they need: `test.ts` extends Playwright's `test` with a fixture per page
   object and per starting state (`signedIn`), and typed modules hold shared data (`users.ts`, `products.ts`).
+  `perf-setup.ts` is how the performance gate signs in before Lighthouse measures: the same sign-in the page objects
+  do, exported as one function, so pages behind the login are audited as a user sees them.
 
 A test receives its page objects as arguments. That is what lets the engine's scope gate hold the line: the pipeline
 may write only in these three folders, and a generated test that needs something new adds it to a page object or a

@@ -1,0 +1,31 @@
+name: Performance
+
+# Lighthouse over the app's routes through the signed-in browser, judged against the budgets in qa.config.json
+# (perf) and the last recorded run. The page lands on the `qa-perf` branch; serve it with GitHub Pages.
+# On demand only. Add `pull_request:` with scope `critical` once the budgets have settled. Needs `lighthouse`
+# in devDependencies and `perf.enabled: true`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Every route with the crawl, or only perf.critical
+        type: choice
+        options: [all, critical]
+        default: all
+      persona:
+        description: Sign in as this account (empty for the suite's default)
+        type: string
+        default: ''
+
+permissions: {}
+
+jobs:
+  performance:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/perf.yml@v1
+    permissions:
+      contents: write
+    with:
+      scope: ${{ inputs.scope }}
+      persona: ${{ inputs.persona }}
+    secrets: inherit

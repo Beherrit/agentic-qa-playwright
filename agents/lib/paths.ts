@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { PerfSchema } from './perf/schema.ts';
 import { PKG_ROOT } from './pkg.ts';
 
 export const CONFIG_FILE = 'qa.config.json';
@@ -120,6 +121,8 @@ export const ConfigSchema = z.object({
     .object({ enabled: z.boolean(), required: z.boolean(), maxFaults: z.number().int().min(1).max(12) })
     .prefault({ enabled: true, required: true, maxFaults: 8 }),
   accessibility: z.object({ enabled: z.boolean().default(false), required: z.boolean().default(false) }).prefault({}),
+  /** Lighthouse over the app's routes, through Playwright's browser. The fields are in agents/lib/perf/schema.ts. */
+  perf: PerfSchema.prefault({}),
   /**
    * The full-suite gate. New tests must pass first time. An existing test that fails gets one retry when this is
    * on; passing then counts as flaky and is reported, not blocked. Off, any failure in the suite blocks.

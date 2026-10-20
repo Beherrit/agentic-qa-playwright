@@ -5,6 +5,8 @@ blob-report/
 .playwright-mcp/
 .env
 qa-run/
+# A local checkout of the qa-perf branch, for `perf run --baseline perf-history`
+perf-history/
 
 # Company agents CLI: audit log and stage bundles
 .co/

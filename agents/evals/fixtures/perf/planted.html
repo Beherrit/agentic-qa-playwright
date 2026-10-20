@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planted page</title>
+<style>
+body{margin:0;font:16px/1.5 system-ui,sans-serif;color:#1f2328;background:#fff}
+main{max-width:720px;margin:0 auto;padding:24px 16px}
+h1{font-size:1.6rem;margin:0 0 12px}
+img{display:block;width:100%}
+p{margin:12px 0}
+</style>
+<!-- Planted: a synchronous script in the head that the server holds for 1.5 s, then it spins the main thread. -->
+<script src="slow.js"></script>
+</head>
+<body>
+<main>
+<h1>A page with two planted faults</h1>
+<p>This paragraph is painted first. The banner below has no width or height and is asked for only after the page has painted, the way a lazy carousel or an ad slot does it, so when it arrives it pushes everything down.</p>
+<!-- Planted: no width or height. The source is set after first paint (below), and the server holds the file for 400 ms. -->
+<img id="late-banner" data-src="hero-tall.svg?late" alt="A banner that arrives late and has no size" onerror="console.error('planted: the banner did not load')" onload="console.error('planted: the banner loaded without a reserved size')">
+<p>The gate must fail this page on its score or LCP and on CLS, name slow.js as render-blocking, and name the element that shifted.</p>
+<p>Everything below the banner moves when it lands. On a phone the banner is as tall as half the screen, so the shift is the kind a shopper notices: the button they were about to tap is no longer under their thumb.</p>
+<p>Lighthouse scores the shift by how much of the viewport moved and how far. These paragraphs are here so that the moved area is most of the screen, as it would be on a product page with a hero image above the fold.</p>
+<p>The clean page next door has the same banner with its size in the markup, and no shift at all.</p>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  setTimeout(function () {
+    var img = document.getElementById('late-banner');
+    img.src = img.getAttribute('data-src');
+  }, 500);
+});
+</script>
+</main>
+</body>
+</html>

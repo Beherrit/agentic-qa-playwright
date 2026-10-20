@@ -2,7 +2,8 @@ import tseslint from 'typescript-eslint';
 import playwright from 'eslint-plugin-playwright';
 
 export default tseslint.config(
-  { ignores: ['node_modules', 'playwright-report', 'test-results', 'qa-run'] },
+  // qa-run-second-host and perf-history are local run folders; the perf fixtures are deliberately plain page scripts.
+  { ignores: ['node_modules', 'playwright-report', 'test-results', 'qa-run', 'qa-run-second-host', 'perf-history', 'agents/evals/fixtures/perf'] },
   ...tseslint.configs.recommended,
   {
     files: ['tests/**/*.ts'],

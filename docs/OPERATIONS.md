@@ -64,6 +64,15 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `sabotage.maxFaults` | 8 | 8 | The most faults one run keeps (1 to 12) |
 | `accessibility.enabled` | true | gate off | Scan the pages the new tests end on with axe |
 | `accessibility.required` | false | advisory | Whether the accessibility gate blocks |
+| `perf.enabled` | true | off | The performance gate (`perf.yml`, `npm run perf -- run`): Lighthouse over the routes through the signed-in browser. Needs `lighthouse` in devDependencies |
+| `perf.required` | false | advisory | Whether a broken budget or a regression turns the run red |
+| `perf.routes`, `perf.critical` | the five shop pages; `/` and `/inventory.html` | `/`; same as routes | Always audited; the short list `--scope critical` audits |
+| `perf.crawl.maxPages`, `perf.crawl.sitemap` | 10, true | 20, true | How many more routes the sitemap and the crawl may add; 0 turns the crawl off |
+| `perf.runs`, `perf.formFactors` | 3; mobile and desktop | those | Lighthouse runs per page (the median is judged) and the devices |
+| `perf.budgets` | score 90, LCP 2500 ms, CLS 0.1, TBT 200 ms | those | The limits every page must stay inside |
+| `perf.regression` | 5 points, 20% LCP, 0.05 CLS, 30% TBT, 2% of pixels | those | How much worse than the last recorded run a page may get |
+| `perf.setup` | `fixtures/perf-setup.ts` | null: audited signed out | A module that signs the browser in: `export default async (page, persona) => {}` |
+| `perf.analyst` | true | on | Ask the performance analyst to attribute a failure. It runs only when a page failed |
 | `autoRun.analysisWhenWriterFiles` | true | off | A ready ticket from the ticket writer starts its own analysis |
 | `autoRun.testsWhenPlanIsReady` | true | off | A plan that passes starts the test half without a person adding `qa-generate` |
 | `models` | `{ "*": "sonnet" }` | `QA_AGENT_MODEL`, then `sonnet` | A model per role; `*` covers every role not named. Keep `sonnet` for the roles that write code (`automation-engineer`, `test-healer`) and the architect; the reading roles (skeptic, critic, reconciler, triager) can go on `haiku` |
@@ -144,8 +153,8 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 
 ## Turning a gate from advisory to blocking
 
-Sensitivity and accessibility are the two advisory gates. Set `sensitivity.required` or `accessibility.required` to
-`true` in `qa.config.json`. A failing advisory gate is still shown in the gate report and the pull request; once it
+Sensitivity, accessibility and performance are the advisory gates. Set `sensitivity.required`,
+`accessibility.required` or `perf.required` to `true` in `qa.config.json`. A failing advisory gate is still shown in the gate report and the pull request; once it
 is required it also sends the change back to the engineer, and then stops the run. Sabotage is the other way round: it
 blocks, and `sabotage.required: false` makes it advisory. Every other gate always blocks.
 

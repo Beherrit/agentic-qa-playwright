@@ -1,0 +1,156 @@
+name: Performance
+
+# Lighthouse over the app's routes, through a browser Playwright signed in, mobile and desktop, several runs
+# each with the median judged against the budgets in qa.config.json (perf) and against the last recorded run.
+# The result goes on the `qa-perf` branch: runs.jsonl, README.md, index.html (one self-contained page) and the
+# last run's full Lighthouse reports. Serve that branch with GitHub Pages to see the page.
+#
+# On demand only. There is no schedule and no pull request trigger yet: add `pull_request:` with scope
+# `critical` once the budgets have settled. `perf.required` decides whether a failure turns the run red.
+#
+# Two jobs, so the credential that runs the analyst (an agent, read-only, called only when a page failed) is
+# never in the job that can push, and the push job holds no Claude token.
+#
+# Another repository runs this same workflow with `uses:` from a caller `npx agentic-qa init` writes. That
+# repository needs `lighthouse` in its devDependencies.
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Every route with the crawl, or only perf.critical
+        type: choice
+        options: [all, critical]
+        default: all
+      persona:
+        description: Sign in as this account (the suite's default when empty)
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      scope:
+        type: string
+        default: all
+      persona:
+        type: string
+        default: ''
+
+permissions: {}
+
+concurrency:
+  group: qa-perf
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: POC
+    permissions:
+      contents: read
+    outputs:
+      passed: ${{ steps.perf.outputs.passed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
+
+      # The branch holds the last run, which this run is judged against. On the first run there is none.
+      - name: Get the last run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://github.com/${GITHUB_REPOSITORY}.git"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          mkdir perf-history
+          cd perf-history
+          git init --quiet
+          git remote add origin "$remote"
+          if git -c http.extraheader="$auth" fetch --quiet --depth 1 origin qa-perf; then
+            git checkout --quiet -B qa-perf FETCH_HEAD
+          else
+            echo "No qa-perf branch yet. This run becomes the baseline."
+          fi
+
+      - name: Audit the routes
+        id: perf
+        env:
+          QA_PERSONA: ${{ inputs.persona }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
+        run: npx agentic-qa perf run --scope "${{ inputs.scope }}" --baseline perf-history
+
+      # Everything the run wrote: the summary, the full reports, the raw Lighthouse JSON and the screenshots.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: qa-perf
+          path: qa-run/perf/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish the page
+    needs: audit
+    if: ${{ !cancelled() && needs.audit.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RUN_ID: ${{ github.run_id }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
+        with:
+          browser: 'false'
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: qa-perf
+          path: qa-run/perf
+
+      - name: Get the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://github.com/${GITHUB_REPOSITORY}.git"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          mkdir perf-history
+          cd perf-history
+          git init --quiet
+          git remote add origin "$remote"
+          if git -c http.extraheader="$auth" fetch --quiet --depth 1 origin qa-perf; then
+            git checkout --quiet -B qa-perf FETCH_HEAD
+          else
+            echo "No qa-perf branch yet. Starting it."
+            git checkout --quiet --orphan qa-perf
+          fi
+
+      - name: Render the page
+        run: npx agentic-qa perf render perf-history qa-run/perf
+
+      - name: Push the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd perf-history
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- runs.jsonl README.md index.html .nojekyll latest reports
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            exit 0
+          fi
+          git commit --quiet -m "Performance: run ${RUN_ID}"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" push origin HEAD:refs/heads/qa-perf
