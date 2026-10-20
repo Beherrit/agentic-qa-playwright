@@ -169,6 +169,7 @@ test.describe('Product sorting', { tag: '@REQ-1' }, () => {
         await signedIn.openProduct(BIKE_LIGHT);
         await expect(page).toHaveURL(/inventory-item/, { timeout: 2_000 });
       }).toPass();
+      await expect(productPage.backButton).toBeVisible();
       await expect(productPage.name).toHaveText(BIKE_LIGHT);
       await goBack();
 
