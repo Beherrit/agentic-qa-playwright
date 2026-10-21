@@ -1,0 +1,21 @@
+name: Pages
+
+# Publishes the run history (qa-history) and the performance page (qa-perf) as one GitHub Pages site, the
+# history at the root and the performance page under perf/, whenever either is updated. Turn Pages on once
+# first: Settings, Pages, Source "GitHub Actions", then dispatch this workflow.
+
+on:
+  workflow_run:
+    workflows: ['QA run history', 'Performance']
+    types: [completed]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  pages:
+    uses: Beherrit/agentic-qa-playwright/.github/workflows/pages.yml@v1
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

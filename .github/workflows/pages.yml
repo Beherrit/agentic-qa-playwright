@@ -1,0 +1,123 @@
+name: Pages
+
+# Publishes the two dashboards as one GitHub Pages site, without a gh-pages branch. Pages serves one source,
+# and the run history lives on `qa-history` while the performance page lives on `qa-perf`, so this assembles
+# them: the history branch becomes the site root, the performance branch goes under `perf/`, and the result
+# is uploaded as a Pages artifact and deployed from the workflow. Whenever "QA run history" or "Performance"
+# finishes, the site is rebuilt. Dispatch it by hand to publish the first time.
+#
+# A branch that does not exist yet (`qa-perf` until the first Performance run) is skipped, not an error.
+# Nothing is executed from the branches: they are copied as files. The deploy job is the only one with the
+# permissions to publish, and it checks nothing out.
+#
+# Pages has to be turned on once in the repository settings (Source: GitHub Actions); see docs/OPERATIONS.md.
+# Another repository runs this same workflow with `uses:` from a caller `npx agentic-qa init` writes.
+
+on:
+  workflow_run:
+    workflows: ['QA run history', 'Performance']
+    types: [completed]
+  workflow_dispatch:
+  workflow_call: {}
+
+permissions: {}
+
+# One site at a time, and a deploy that has started is left to finish.
+concurrency:
+  group: qa-pages
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    name: Assemble the site
+    # A trigger that did nothing (a history run that skipped) changed no page.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      found: ${{ steps.site.outputs.found }}
+    steps:
+      # Each branch is fetched at depth one into its own folder, then its .git is dropped so only the files go
+      # to Pages. On the first run of either workflow the branch may not exist yet, so a miss is reported and
+      # skipped; the site is deployed when at least one dashboard exists.
+      - name: Get the dashboards
+        id: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://github.com/${GITHUB_REPOSITORY}.git"
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          found=false
+          take() {
+            branch="$1"; folder="$2"
+            mkdir -p "$folder"
+            git -C "$folder" init --quiet
+            git -C "$folder" remote add origin "$remote"
+            if git -C "$folder" -c http.extraheader="$auth" fetch --quiet --depth 1 origin "$branch"; then
+              git -C "$folder" checkout --quiet FETCH_HEAD
+              rm -rf "$folder/.git"
+              echo "${branch}: checked out into ${folder}/"
+              found=true
+            else
+              rm -rf "$folder"
+              echo "${branch}: no branch yet, skipped."
+            fi
+          }
+          take qa-history site
+          take qa-perf site/perf
+          echo "found=${found}" >> "$GITHUB_OUTPUT"
+
+      # The history page is the site root. Until the first run records one, a small page points at what is
+      # there. Either way Pages must not run the folder through Jekyll, which would drop dotfiles and folders
+      # it does not understand.
+      - name: Finish the site
+        if: steps.site.outputs.found == 'true'
+        run: |
+          if [ ! -f site/index.html ]; then
+            if [ -d site/perf ]; then
+              perf='<li><a href="perf/">Performance</a></li>'
+            else
+              perf='<li>Performance: no run recorded yet</li>'
+            fi
+            cat > site/index.html <<HTML
+          <!doctype html>
+          <html lang="en">
+          <head><meta charset="utf-8"><title>QA dashboards</title></head>
+          <body>
+          <h1>QA dashboards</h1>
+          <ul>
+          <li>Run history: no run recorded yet</li>
+          ${perf}
+          </ul>
+          </body>
+          </html>
+          HTML
+          fi
+          touch site/.nojekyll
+          find site -maxdepth 2 -not -path '*/reports/*' | sort
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: steps.site.outputs.found == 'true'
+        with:
+          path: site
+
+  deploy:
+    name: Deploy the site
+    needs: assemble
+    if: ${{ needs.assemble.outputs.found == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Fails with a clear message when Pages is not turned on for the repository yet.
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        id: deployment

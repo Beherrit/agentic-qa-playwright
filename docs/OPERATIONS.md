@@ -235,6 +235,15 @@ coverage` reads it back: the traceability map ends with "Flaky lately", the test
 runs and how often. A test there needs a look before it blocks someone. The history page shows the same five
 flakiest tests in its totals.
 
+## Run history and performance pages
+
+The run history is on the `qa-history` branch and the performance page on `qa-perf`, each with its own
+`index.html`. GitHub Pages serves one source, so `.github/workflows/pages.yml` assembles both into one site, the
+history at the root and the performance page under `perf/`, and deploys it from the workflow (no `gh-pages`
+branch). It runs after every "QA run history" and "Performance" run. To turn it on: Settings, Pages, set Source
+to "GitHub Actions", then dispatch the "Pages" workflow once from the Actions tab; after that it keeps the site
+current by itself. Pages is not available for private repositories on the free plan.
+
 ## Exporting results
 
 `npx agentic-qa coverage --export junit|xray|testrail` writes the last run's results to `qa-run/` in the shape the

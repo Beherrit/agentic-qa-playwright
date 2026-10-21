@@ -619,7 +619,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/test/` | Unit tests for the pipeline itself (`npm run test:unit`) |
 | `agents/evals/` | The agent evaluations: canned cases, their checks, and recorded answers for the dry run (`npm run evals`) |
 | `tests/`, `pages/`, `fixtures/` | The Playwright suite: specs, page objects, the shared `test` fixture and personas |
-| `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history), `perf.yml` (the performance gate, on demand) |
+| `.github/workflows/` | `qa-analysis.yml` and `qa-tests.yml` (the two halves), `regression.yml` (suite, triage, bugs, healing), `qa-history.yml` (run history), `perf.yml` (the performance gate, on demand), `pages.yml` (both dashboards as one GitHub Pages site) |
 | `.github/actions/setup/` | Shared setup steps for the jobs |
 | `bin/agentic-qa.js` | The command line, which a project with the engine installed runs as `npx agentic-qa` |
 | `templates/host/` | What `npx agentic-qa init` writes into a project: the config, the documents, the caller workflows |

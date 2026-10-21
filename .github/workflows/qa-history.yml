@@ -10,9 +10,9 @@ name: QA run history
 # agents/history.ts reads it, as JSON, and checks every value before using it. This workflow always runs
 # the code of the default branch, never the code of the run it reports on.
 #
-# To see the page, serve the `qa-history` branch with GitHub Pages once the repository is public (Pages is
-# not available for private repositories on the free plan). Until then, README.md on that branch is the
-# readable view.
+# To see the page, turn GitHub Pages on (Source: GitHub Actions) and dispatch the Pages workflow once; it
+# publishes this branch as the site root after every run here. Pages is not available for private
+# repositories on the free plan; until then, README.md on that branch is the readable view.
 
 on:
   workflow_run:

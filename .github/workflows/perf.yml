@@ -3,7 +3,7 @@ name: Performance
 # Lighthouse over the app's routes, through a browser Playwright signed in, mobile and desktop, several runs
 # each with the median judged against the budgets in qa.config.json (perf) and against the last recorded run.
 # The result goes on the `qa-perf` branch: runs.jsonl, README.md, index.html (one self-contained page) and the
-# last run's full Lighthouse reports. Serve that branch with GitHub Pages to see the page.
+# last run's full Lighthouse reports. The Pages workflow (pages.yml) publishes it under perf/ on the site.
 #
 # On demand only. There is no schedule and no pull request trigger yet: add `pull_request:` with scope
 # `critical` once the budgets have settled. `perf.required` decides whether a failure turns the run red.

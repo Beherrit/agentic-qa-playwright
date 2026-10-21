@@ -30,7 +30,7 @@ describe('init', () => {
     initProject(root);
     const config = ConfigSchema.parse(JSON.parse(fs.readFileSync(path.join(root, 'qa.config.json'), 'utf8')));
     assert.equal(config.suite.commands.test, 'npx playwright test');
-    for (const name of ['qa-analysis', 'qa-tests', 'regression', 'qa-history']) {
+    for (const name of ['qa-analysis', 'qa-tests', 'regression', 'qa-history', 'perf', 'pages']) {
       const text = fs.readFileSync(path.join(root, '.github', 'workflows', `${name}.yml`), 'utf8');
       assert.match(text, new RegExp(`uses: Beherrit/agentic-qa-playwright/\\.github/workflows/${name}\\.yml@`), name);
       assert.match(text, /secrets: inherit|permissions:/, name);
