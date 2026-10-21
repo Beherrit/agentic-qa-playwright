@@ -1,4 +1,5 @@
 import { escapeHtml, safeUrl } from '../history.ts';
+import { type Column, PAGE_COLUMNS, RUN_COLUMNS } from './columns.ts';
 import { entryKey, newestFirst, type PageEntry, type PerfEntry } from './entry.ts';
 
 /**
@@ -113,9 +114,14 @@ function runRow(e: PerfEntry): string {
   );
 }
 
-const PAGE_COLUMNS = ['', 'Page', 'Score', 'LCP', 'CLS', 'TBT', 'Errors', 'Changed', 'Score trend', 'Why', 'Full report'];
-const RUN_COLUMNS = ['Date (UTC)', 'Result', 'Median score', 'Worst LCP', 'Persona', 'Commit', 'Run'];
-const header = (columns: string[]): string => `<thead><tr>${columns.map((h) => `<th scope="col">${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
+// Each column name carries its explanation as a tooltip; the legend under the table says the same for a reader on
+// a phone, where there is nothing to hover.
+const name = (c: Column): string => escapeHtml(c.label || 'Result');
+const header = (columns: Column[]): string =>
+  `<thead><tr>${columns.map((c) => `<th scope="col" title="${escapeHtml(c.help)}">${name(c)}</th>`).join('')}</tr></thead>`;
+const legend = (columns: Column[]): string =>
+  `<details class="legend"><summary>What the columns mean</summary><dl>${columns.map((c) => `<dt>${name(c)}</dt><dd>${escapeHtml(c.help)}</dd>`).join('')}</dl></details>`;
+const legendMd = (columns: Column[]): string[] => columns.map((c) => `- **${c.label || 'Result'}**: ${c.help}`);
 
 export function dashboardHtml(entries: PerfEntry[], appName = ''): string {
   const sorted = newestFirst(entries);
@@ -142,6 +148,7 @@ export function dashboardHtml(entries: PerfEntry[], appName = ''): string {
 <ul class="tiles">${tileHtml}</ul>
 <div class="wrap"><table><caption class="muted">Every page of the last run, worst first. Full report links open the Lighthouse report of the median run.</caption>
 ${header(PAGE_COLUMNS)}<tbody>${pageRows || `<tr><td colspan="${PAGE_COLUMNS.length}">No run recorded yet.</td></tr>`}</tbody></table></div>
+${legend(PAGE_COLUMNS)}
 <h2>Trends</h2>
 <div class="charts">
 ${chart('Median performance score per run', sorted, medianScore, (n) => String(Math.round(n)), 100)}
@@ -149,6 +156,7 @@ ${chart('Worst LCP per run', sorted, worstLcp, seconds)}
 </div>
 <h2>Runs</h2>
 <div class="wrap"><table>${header(RUN_COLUMNS)}<tbody>${runRows || `<tr><td colspan="${RUN_COLUMNS.length}">No runs recorded yet.</td></tr>`}</tbody></table></div>
+${legend(RUN_COLUMNS)}
 </main>
 </body>
 </html>
@@ -163,6 +171,7 @@ export function dashboardMd(entries: PerfEntry[], appName = ''): string {
   lines.push(`## Last run: ${dateText(latest.finishedAt)} UTC`, '', ...tiles(latest, sorted).map(([v, k]) => `- **${v}** ${k}`), '');
   lines.push('| | Page | Score | LCP | CLS | TBT | Errors | Why |', '|---|---|---|---|---|---|---|---|');
   for (const p of worstFirst(latest.pages)) lines.push(`| ${p.passed ? 'pass' : 'FAIL'} | ${entryKey(p)} | ${p.performance} | ${seconds(p.lcpMs)} | ${p.cls.toFixed(3)} | ${Math.round(p.tbtMs)} ms | ${p.errors} | ${p.failures.join('; ').replace(/\|/g, '\\|') || '-'} |`);
+  lines.push('', ...legendMd(PAGE_COLUMNS.filter((c) => !['Changed', 'Score trend', 'Full report'].includes(c.label))));
   lines.push('', '## Runs', '', '| Date (UTC) | Result | Median score | Worst LCP | Persona | Commit |', '|---|---|---|---|---|---|');
   for (const e of sorted) {
     const failing = e.pages.filter((p) => !p.passed).length;
@@ -198,6 +207,9 @@ table{border-collapse:collapse;width:100%;min-width:900px;font-size:.9rem}
 caption{text-align:left;padding:8px 10px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 th{background:var(--tile);white-space:nowrap}
+th[title]{cursor:help;text-decoration:underline dotted;text-underline-offset:3px}
+.legend{margin:8px 0 0;font-size:.875rem}.legend summary{color:var(--muted);cursor:pointer}
+.legend dl{margin:8px 0 0;display:grid;grid-template-columns:max-content 1fr;gap:4px 12px}.legend dt{font-weight:600}.legend dd{margin:0;color:var(--muted)}
 td.n{text-align:right;white-space:nowrap}
 tr:last-child td{border-bottom:0}
 .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}

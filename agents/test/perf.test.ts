@@ -210,9 +210,13 @@ describe('the report and the page', () => {
     assert.match(html, /desktop \/cart\.html/);
     assert.match(html, /href="reports\/mobile-home\.html"/);
     assert.match(html, /<polyline/);
+    assert.match(html, /<th scope="col" title="Largest Contentful Paint: [^"]+">LCP<\/th>/);
+    assert.match(html, /<details class="legend"><summary>What the columns mean<\/summary><dl><dt>Result<\/dt>/);
+    assert.match(html, /<dt>Run<\/dt><dd>The GitHub Actions run/);
     assert.ok(!/<script/.test(html));
     assert.deepEqual(tiles(entry, [entry])[1], ['1', 'failing budgets or regressed']);
     assert.match(dashboardMd([entry], 'Shop'), /\| FAIL \| desktop \/cart\.html \| 95 \|/);
+    assert.match(dashboardMd([entry], 'Shop'), /\n- \*\*LCP\*\*: Largest Contentful Paint/);
     assert.match(dashboardMd([], 'Shop'), /No runs recorded yet/);
   });
 });
