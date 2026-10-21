@@ -179,7 +179,8 @@ contain, or a page that passed, is dropped before anyone reads it (`agents/lib/p
 
 The result lands on a branch of its own, `qa-perf`: `runs.jsonl`, a README, the last run's full Lighthouse reports,
 and `index.html`, one self-contained page with no external scripts (worst page first, score trend per page, median
-score and worst LCP per run), ready for GitHub Pages. `npx agentic-qa perf prove` is the proof it measures what it
+score and worst LCP per run), served at <https://beherrit.github.io/agentic-qa-playwright/perf/> once the workflow
+has run. `npx agentic-qa perf prove` is the proof it measures what it
 claims: two pages served from your machine, one clean and one with a render-blocking script and an unsized banner
 that arrives after first paint. The clean one must pass every budget; the planted one must fail CLS and the score,
 and Lighthouse must name `slow.js` and the element that shifted. No mocks: the same browser, Lighthouse and judging
@@ -265,7 +266,8 @@ failures. `npm run coverage` prints the same locally.
 the review verdict, the rounds it took, and the time and estimated cost of every agent on the `qa-history` branch.
 `README.md` there is a table of all runs with totals (gate pass rate, how often the review approved first time, which
 gate fails most, average cost per run); `index.html` is the same as a dashboard in one file with no external
-scripts, ready for GitHub Pages once the repository is public.
+scripts, served live at <https://beherrit.github.io/agentic-qa-playwright/> by `pages.yml`, which redeploys the site
+whenever the history or the performance page changes.
 
 ### Reports
 
@@ -597,7 +599,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `docs/test-conventions.md` | The rules the suite follows, including the two kinds of expected failure. The engineer writes to them and the reviewer checks against them |
 | `docs/test-design.md` | Short notes on choosing a design technique and a test level, used by the strategy agents |
 | `docs/ARCHITECTURE.md`, `docs/OPERATIONS.md` | How it fits together, and how to run it day to day |
-| `workflows/` | The agentic workflow in general, not tied to QA: the shape, how to test a system with agents in it, and a seven-minute demo script |
+| `workflows/` | The agentic workflow in general, not tied to QA: the shape, how to test a system with agents in it, a seven-minute demo script, and a five-minute demo of the live dashboards |
 | `agents/cli.ts` | Runs one stage, a half (`analyze`, `tests`) or everything (`all`) |
 | `agents/flow.ts` | The local intake and analysis flow, shared by the CLI and the MCP server |
 | `agents/stages.ts` | The pipeline, one function per stage, the verdict rules and the reports to the ticket |

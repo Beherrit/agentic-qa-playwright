@@ -9,6 +9,8 @@ Three documents:
 
 - this page: what the workflow is and the rules that make it hold together
 - [testing-agentic-ai.md](testing-agentic-ai.md): how to test a system that has agents in it
+- [dashboard-demo.md](dashboard-demo.md): five minutes on the live site, the run history and the performance page,
+  and why the numbers on it can be trusted
 - [demo-script.md](demo-script.md): a seven-minute walkthrough, with the places in this repository that show each
   point
 
