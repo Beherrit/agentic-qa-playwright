@@ -1,0 +1,1193 @@
+{
+  "app": "Swag Labs",
+  "baseUrl": "https://www.saucedemo.com",
+  "persona": "standard_user",
+  "startedAt": "2026-10-21T14:54:45.570Z",
+  "finishedAt": "2026-10-21T14:57:47.305Z",
+  "routes": [
+    "/",
+    "/inventory.html",
+    "/cart.html",
+    "/checkout-step-one.html",
+    "/checkout-step-two.html"
+  ],
+  "discovered": {
+    "configured": 5,
+    "sitemap": 0,
+    "crawled": 0
+  },
+  "settings": {
+    "runs": 3,
+    "formFactors": [
+      "mobile",
+      "desktop"
+    ],
+    "budgets": {
+      "performance": 90,
+      "lcpMs": 2500,
+      "cls": 0.1,
+      "tbtMs": 200
+    },
+    "regression": {
+      "score": 5,
+      "lcpPercent": 20,
+      "cls": 0.05,
+      "tbtPercent": 30,
+      "pixels": 0.02
+    }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "formFactor": "mobile",
+      "url": "https://www.saucedemo.com/",
+      "measure": {
+        "performance": 91,
+        "lcpMs": 2879.2417999999993,
+        "cls": 0.004281681127068979,
+        "tbtMs": 0,
+        "fcpMs": 2720.1125,
+        "speedIndexMs": 2720.1125
+      },
+      "runs": [
+        {
+          "performance": 90,
+          "lcpMs": 2878.5886,
+          "cls": 0.004281681127068979,
+          "tbtMs": 0,
+          "fcpMs": 2878.5886,
+          "speedIndexMs": 2878.5886
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2888.7079000000003,
+          "cls": 0.004281681127068979,
+          "tbtMs": 0,
+          "fcpMs": 2720.1125,
+          "speedIndexMs": 2720.1125
+        },
+        {
+          "performance": 93,
+          "lcpMs": 2879.2417999999993,
+          "cls": 0.004281681127068979,
+          "tbtMs": 10,
+          "fcpMs": 2118.7536,
+          "speedIndexMs": 2118.7536
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": "div.login_wrapper > div.login_credentials_wrap > div.login_credentials_wrap-inner > div#login_credentials",
+        "layoutShifts": [
+          {
+            "element": "div#root > div.login_container > div.login_wrapper > div.login_credentials_wrap",
+            "score": 0.004281681127068979
+          }
+        ],
+        "renderBlocking": [
+          {
+            "url": "https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500",
+            "wastedMs": 782
+          },
+          {
+            "url": "https://www.saucedemo.com/assets/index-aSZoiKGF.css",
+            "wastedMs": 0
+          }
+        ],
+        "unsizedImages": [],
+        "thirdParty": [
+          {
+            "entity": "Google Fonts",
+            "blockingMs": 0,
+            "transferKb": 54
+          }
+        ],
+        "heavyScripts": [
+          {
+            "url": "https://www.saucedemo.com/assets/index-DnLqFcJI.js",
+            "cpuMs": 122
+          }
+        ],
+        "failed": [
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 101 KiB"
+          },
+          {
+            "id": "cache-insight",
+            "title": "Use efficient cache lifetimes",
+            "score": 0,
+            "displayValue": "Est savings of 168 KiB"
+          },
+          {
+            "id": "network-dependency-tree-insight",
+            "title": "Network dependency tree",
+            "score": 0,
+            "displayValue": ""
+          },
+          {
+            "id": "render-blocking-insight",
+            "title": "Render-blocking requests",
+            "score": 0,
+            "displayValue": "Est savings of 1,050 ms"
+          },
+          {
+            "id": "first-contentful-paint",
+            "title": "First Contentful Paint",
+            "score": 0.59,
+            "displayValue": "2.7 s"
+          },
+          {
+            "id": "largest-contentful-paint",
+            "title": "Largest Contentful Paint",
+            "score": 0.81,
+            "displayValue": "2.9 s"
+          }
+        ],
+        "warnings": [],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "url": "https://www.saucedemo.com/"
+      },
+      "pixelDiff": null,
+      "verdicts": [
+        {
+          "metric": "lcpMs",
+          "value": 2879.2417999999993,
+          "limit": 2500,
+          "kind": "budget",
+          "text": "LCP 2.88 s, budget 2.50 s"
+        }
+      ],
+      "passed": false,
+      "files": {
+        "report": "reports/mobile-home.html",
+        "screenshot": "screenshots/mobile-home.png",
+        "lhr": "lhr/mobile-home.json"
+      }
+    },
+    {
+      "route": "/",
+      "formFactor": "desktop",
+      "url": "https://www.saucedemo.com/",
+      "measure": {
+        "performance": 99,
+        "lcpMs": 708.9529,
+        "cls": 0.001561414937396025,
+        "tbtMs": 0,
+        "fcpMs": 708.9529,
+        "speedIndexMs": 708.9529
+      },
+      "runs": [
+        {
+          "performance": 99,
+          "lcpMs": 708.9529,
+          "cls": 0.001561414937396025,
+          "tbtMs": 0,
+          "fcpMs": 708.9529,
+          "speedIndexMs": 708.9529
+        },
+        {
+          "performance": 99,
+          "lcpMs": 707.4589,
+          "cls": 0.001561414937396025,
+          "tbtMs": 0,
+          "fcpMs": 707.4589,
+          "speedIndexMs": 707.4589
+        },
+        {
+          "performance": 99,
+          "lcpMs": 709.6652,
+          "cls": 0.001561414937396025,
+          "tbtMs": 0,
+          "fcpMs": 709.6652,
+          "speedIndexMs": 709.6652
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": "div.login_wrapper > div.login_credentials_wrap > div.login_credentials_wrap-inner > div#login_credentials",
+        "layoutShifts": [
+          {
+            "element": "div#root > div.login_container > div.login_wrapper > div.login_credentials_wrap",
+            "score": 0.001561414937396025
+          }
+        ],
+        "renderBlocking": [
+          {
+            "url": "https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500",
+            "wastedMs": 223
+          },
+          {
+            "url": "https://www.saucedemo.com/assets/index-aSZoiKGF.css",
+            "wastedMs": 0
+          }
+        ],
+        "unsizedImages": [],
+        "thirdParty": [
+          {
+            "entity": "Google Fonts",
+            "blockingMs": 0,
+            "transferKb": 54
+          }
+        ],
+        "heavyScripts": [],
+        "failed": [
+          {
+            "id": "network-dependency-tree-insight",
+            "title": "Network dependency tree",
+            "score": 0,
+            "displayValue": ""
+          },
+          {
+            "id": "render-blocking-insight",
+            "title": "Render-blocking requests",
+            "score": 0,
+            "displayValue": "Est savings of 350 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0.5,
+            "displayValue": "Est savings of 101 KiB"
+          },
+          {
+            "id": "cache-insight",
+            "title": "Use efficient cache lifetimes",
+            "score": 0.5,
+            "displayValue": "Est savings of 168 KiB"
+          },
+          {
+            "id": "font-display-insight",
+            "title": "Font display",
+            "score": 0.5,
+            "displayValue": "Est savings of 10 ms"
+          }
+        ],
+        "warnings": [],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "url": "https://www.saucedemo.com/"
+      },
+      "pixelDiff": null,
+      "verdicts": [],
+      "passed": true,
+      "files": {
+        "report": "reports/desktop-home.html",
+        "screenshot": "screenshots/desktop-home.png",
+        "lhr": "lhr/desktop-home.json"
+      }
+    },
+    {
+      "route": "/inventory.html",
+      "formFactor": "mobile",
+      "url": "https://www.saucedemo.com/inventory.html",
+      "measure": {
+        "performance": 67,
+        "lcpMs": 3229.07805,
+        "cls": 0.7266512522266395,
+        "tbtMs": 0,
+        "fcpMs": 2148.6867,
+        "speedIndexMs": 2148.6867
+      },
+      "runs": [
+        {
+          "performance": 64,
+          "lcpMs": 3229.12115,
+          "cls": 0.7266512522266395,
+          "tbtMs": 0,
+          "fcpMs": 2882.2788,
+          "speedIndexMs": 2882.2788
+        },
+        {
+          "performance": 67,
+          "lcpMs": 3228.6867,
+          "cls": 0.7266512522266395,
+          "tbtMs": 0,
+          "fcpMs": 2148.6867,
+          "speedIndexMs": 2148.6867
+        },
+        {
+          "performance": 67,
+          "lcpMs": 3229.07805,
+          "cls": 0.7266512522266395,
+          "tbtMs": 10,
+          "fcpMs": 2146.9108,
+          "speedIndexMs": 2146.9108
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [
+          {
+            "element": "div#inventory_container > div.inventory_list > div.inventory_item > div.inventory_item_description",
+            "score": 0.7266512522266395
+          }
+        ],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [
+          {
+            "url": "https://www.saucedemo.com/?/inventory.html",
+            "cpuMs": 196
+          },
+          {
+            "url": "https://www.saucedemo.com/assets/index-DnLqFcJI.js",
+            "cpuMs": 173
+          },
+          {
+            "url": "Unattributable",
+            "cpuMs": 120
+          }
+        ],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 750 ms"
+          },
+          {
+            "id": "layout-shifts",
+            "title": "Avoid large layout shifts",
+            "score": 0,
+            "displayValue": "1 layout shift found"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 96 KiB"
+          },
+          {
+            "id": "cumulative-layout-shift",
+            "title": "Cumulative Layout Shift",
+            "score": 0.06,
+            "displayValue": "0.727"
+          },
+          {
+            "id": "viewport-insight",
+            "title": "Optimize viewport for mobile",
+            "score": 0.5,
+            "displayValue": ""
+          },
+          {
+            "id": "largest-contentful-paint",
+            "title": "Largest Contentful Paint",
+            "score": 0.72,
+            "displayValue": "3.2 s"
+          },
+          {
+            "id": "first-contentful-paint",
+            "title": "First Contentful Paint",
+            "score": 0.79,
+            "displayValue": "2.1 s"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/inventory.html) was redirected to https://www.saucedemo.com/?/inventory.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/inventory.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/inventory.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [
+        {
+          "metric": "performance",
+          "value": 67,
+          "limit": 90,
+          "kind": "budget",
+          "text": "performance score 67, budget 90"
+        },
+        {
+          "metric": "lcpMs",
+          "value": 3229.07805,
+          "limit": 2500,
+          "kind": "budget",
+          "text": "LCP 3.23 s, budget 2.50 s"
+        },
+        {
+          "metric": "cls",
+          "value": 0.7266512522266395,
+          "limit": 0.1,
+          "kind": "budget",
+          "text": "CLS 0.727, budget 0.100"
+        }
+      ],
+      "passed": false,
+      "files": {
+        "report": "reports/mobile-inventory.html",
+        "screenshot": "screenshots/mobile-inventory.png",
+        "lhr": "lhr/mobile-inventory.json"
+      }
+    },
+    {
+      "route": "/inventory.html",
+      "formFactor": "desktop",
+      "url": "https://www.saucedemo.com/inventory.html",
+      "measure": {
+        "performance": 99,
+        "lcpMs": 783.22195,
+        "cls": 0.0003490645886232963,
+        "tbtMs": 0,
+        "fcpMs": 712.7854,
+        "speedIndexMs": 712.7854
+      },
+      "runs": [
+        {
+          "performance": 99,
+          "lcpMs": 783.8128000000002,
+          "cls": 0.0003490645886232963,
+          "tbtMs": 0,
+          "fcpMs": 715.8126,
+          "speedIndexMs": 715.8126
+        },
+        {
+          "performance": 99,
+          "lcpMs": 783.22195,
+          "cls": 0.0003490645886232963,
+          "tbtMs": 0,
+          "fcpMs": 711.5358,
+          "speedIndexMs": 711.5358
+        },
+        {
+          "performance": 99,
+          "lcpMs": 783.0785500000002,
+          "cls": 0.0003490645886232963,
+          "tbtMs": 0,
+          "fcpMs": 712.7854,
+          "speedIndexMs": 712.7854
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [
+          {
+            "element": "div.inventory_item > div.inventory_item_description > div.inventory_item_label > div.inventory_item_desc",
+            "score": 0.0003490645886232963
+          }
+        ],
+        "renderBlocking": [],
+        "unsizedImages": [
+          "div.inventory_item > div.inventory_item_img > a#item_4_img_link > img.inventory_item_img",
+          "div.inventory_item > div.inventory_item_img > a#item_1_img_link > img.inventory_item_img",
+          "div.inventory_item > div.inventory_item_img > a#item_5_img_link > img.inventory_item_img",
+          "div.inventory_item > div.inventory_item_img > a#item_2_img_link > img.inventory_item_img",
+          "div.inventory_item > div.inventory_item_img > a#item_3_img_link > img.inventory_item_img",
+          "div.inventory_item > div.inventory_item_img > a#item_0_img_link > img.inventory_item_img"
+        ],
+        "thirdParty": [],
+        "heavyScripts": [],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 200 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 96 KiB"
+          },
+          {
+            "id": "unsized-images",
+            "title": "Image elements do not have explicit `width` and `height`",
+            "score": 0.5,
+            "displayValue": ""
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/inventory.html) was redirected to https://www.saucedemo.com/?/inventory.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/inventory.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/inventory.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [],
+      "passed": true,
+      "files": {
+        "report": "reports/desktop-inventory.html",
+        "screenshot": "screenshots/desktop-inventory.png",
+        "lhr": "lhr/desktop-inventory.json"
+      }
+    },
+    {
+      "route": "/cart.html",
+      "formFactor": "mobile",
+      "url": "https://www.saucedemo.com/cart.html",
+      "measure": {
+        "performance": 91,
+        "lcpMs": 2883.4755999999998,
+        "cls": 0,
+        "tbtMs": 5,
+        "fcpMs": 2735.4979999999996,
+        "speedIndexMs": 2735.4979999999996
+      },
+      "runs": [
+        {
+          "performance": 90,
+          "lcpMs": 2900.9992,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 2883.9329000000002,
+          "speedIndexMs": 2883.9329000000002
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2882.4873,
+          "cls": 0,
+          "tbtMs": 8.5,
+          "fcpMs": 2735.1052999999997,
+          "speedIndexMs": 2735.1052999999997
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2883.4755999999998,
+          "cls": 0,
+          "tbtMs": 5,
+          "fcpMs": 2735.4979999999996,
+          "speedIndexMs": 2735.4979999999996
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [
+          {
+            "url": "Unattributable",
+            "cpuMs": 294
+          },
+          {
+            "url": "https://www.saucedemo.com/assets/index-DnLqFcJI.js",
+            "cpuMs": 147
+          },
+          {
+            "url": "https://www.saucedemo.com/?/cart.html",
+            "cpuMs": 130
+          }
+        ],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 750 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 97 KiB"
+          },
+          {
+            "id": "first-contentful-paint",
+            "title": "First Contentful Paint",
+            "score": 0.59,
+            "displayValue": "2.7 s"
+          },
+          {
+            "id": "largest-contentful-paint",
+            "title": "Largest Contentful Paint",
+            "score": 0.81,
+            "displayValue": "2.9 s"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/cart.html) was redirected to https://www.saucedemo.com/?/cart.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/cart.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/cart.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [
+        {
+          "metric": "lcpMs",
+          "value": 2883.4755999999998,
+          "limit": 2500,
+          "kind": "budget",
+          "text": "LCP 2.88 s, budget 2.50 s"
+        }
+      ],
+      "passed": false,
+      "files": {
+        "report": "reports/mobile-cart.html",
+        "screenshot": "screenshots/mobile-cart.png",
+        "lhr": "lhr/mobile-cart.json"
+      }
+    },
+    {
+      "route": "/cart.html",
+      "formFactor": "desktop",
+      "url": "https://www.saucedemo.com/cart.html",
+      "measure": {
+        "performance": 99,
+        "lcpMs": 709.4919999999998,
+        "cls": 0,
+        "tbtMs": 0,
+        "fcpMs": 709.4919999999998,
+        "speedIndexMs": 709.4919999999998
+      },
+      "runs": [
+        {
+          "performance": 99,
+          "lcpMs": 717.0424999999999,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 717.0424999999999,
+          "speedIndexMs": 717.0424999999999
+        },
+        {
+          "performance": 99,
+          "lcpMs": 709.4919999999998,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 709.4919999999998,
+          "speedIndexMs": 709.4919999999998
+        },
+        {
+          "performance": 99,
+          "lcpMs": 708.6610000000002,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 708.6610000000002,
+          "speedIndexMs": 708.6610000000002
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 200 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0.5,
+            "displayValue": "Est savings of 97 KiB"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/cart.html) was redirected to https://www.saucedemo.com/?/cart.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/cart.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/cart.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [],
+      "passed": true,
+      "files": {
+        "report": "reports/desktop-cart.html",
+        "screenshot": "screenshots/desktop-cart.png",
+        "lhr": "lhr/desktop-cart.json"
+      }
+    },
+    {
+      "route": "/checkout-step-one.html",
+      "formFactor": "mobile",
+      "url": "https://www.saucedemo.com/checkout-step-one.html",
+      "measure": {
+        "performance": 91,
+        "lcpMs": 2811.9842,
+        "cls": 0.002328621273334823,
+        "tbtMs": 5,
+        "fcpMs": 2736.9800999999998,
+        "speedIndexMs": 2736.9800999999998
+      },
+      "runs": [
+        {
+          "performance": 91,
+          "lcpMs": 2811.9842,
+          "cls": 0.002328621273334823,
+          "tbtMs": 6.5,
+          "fcpMs": 2736.9800999999998,
+          "speedIndexMs": 2736.9800999999998
+        },
+        {
+          "performance": 90,
+          "lcpMs": 2919.9572000000003,
+          "cls": 0.002328621273334823,
+          "tbtMs": 0,
+          "fcpMs": 2919.9572000000003,
+          "speedIndexMs": 2919.9572000000003
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2811.1648000000005,
+          "cls": 0.002328621273334823,
+          "tbtMs": 5,
+          "fcpMs": 2736.1648000000005,
+          "speedIndexMs": 2736.1648000000005
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [
+          {
+            "element": "div#checkout_info_container > div.checkout_info_wrapper > form > div.checkout_buttons",
+            "score": 0.002328621273334823
+          }
+        ],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [
+          {
+            "url": "https://www.saucedemo.com/assets/index-DnLqFcJI.js",
+            "cpuMs": 144
+          },
+          {
+            "url": "Unattributable",
+            "cpuMs": 140
+          },
+          {
+            "url": "https://www.saucedemo.com/?/checkout-step-one.html",
+            "cpuMs": 135
+          }
+        ],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 750 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 96 KiB"
+          },
+          {
+            "id": "viewport-insight",
+            "title": "Optimize viewport for mobile",
+            "score": 0.5,
+            "displayValue": ""
+          },
+          {
+            "id": "first-contentful-paint",
+            "title": "First Contentful Paint",
+            "score": 0.59,
+            "displayValue": "2.7 s"
+          },
+          {
+            "id": "largest-contentful-paint",
+            "title": "Largest Contentful Paint",
+            "score": 0.83,
+            "displayValue": "2.8 s"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/checkout-step-one.html) was redirected to https://www.saucedemo.com/?/checkout-step-one.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/checkout-step-one.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [
+        {
+          "metric": "lcpMs",
+          "value": 2811.9842,
+          "limit": 2500,
+          "kind": "budget",
+          "text": "LCP 2.81 s, budget 2.50 s"
+        }
+      ],
+      "passed": false,
+      "files": {
+        "report": "reports/mobile-checkout-step-one.html",
+        "screenshot": "screenshots/mobile-checkout-step-one.png",
+        "lhr": "lhr/mobile-checkout-step-one.json"
+      }
+    },
+    {
+      "route": "/checkout-step-one.html",
+      "formFactor": "desktop",
+      "url": "https://www.saucedemo.com/checkout-step-one.html",
+      "measure": {
+        "performance": 99,
+        "lcpMs": 710.3611,
+        "cls": 0.0006841432448997461,
+        "tbtMs": 0,
+        "fcpMs": 710.3611,
+        "speedIndexMs": 710.3611
+      },
+      "runs": [
+        {
+          "performance": 99,
+          "lcpMs": 710.3611,
+          "cls": 0.0006841432448997461,
+          "tbtMs": 0,
+          "fcpMs": 710.3611,
+          "speedIndexMs": 710.3611
+        },
+        {
+          "performance": 99,
+          "lcpMs": 709.6365000000001,
+          "cls": 0.0006841432448997461,
+          "tbtMs": 0,
+          "fcpMs": 709.6365000000001,
+          "speedIndexMs": 709.6365000000001
+        },
+        {
+          "performance": 99,
+          "lcpMs": 722.8935999999999,
+          "cls": 0.0006841432448997461,
+          "tbtMs": 0,
+          "fcpMs": 722.8935999999999,
+          "speedIndexMs": 722.8935999999999
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [
+          {
+            "element": "div#checkout_info_container > div.checkout_info_wrapper > form > div.checkout_buttons",
+            "score": 0.0006841432448997461
+          }
+        ],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 200 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0.5,
+            "displayValue": "Est savings of 96 KiB"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/checkout-step-one.html) was redirected to https://www.saucedemo.com/?/checkout-step-one.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/checkout-step-one.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/checkout-step-one.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [],
+      "passed": true,
+      "files": {
+        "report": "reports/desktop-checkout-step-one.html",
+        "screenshot": "screenshots/desktop-checkout-step-one.png",
+        "lhr": "lhr/desktop-checkout-step-one.json"
+      }
+    },
+    {
+      "route": "/checkout-step-two.html",
+      "formFactor": "mobile",
+      "url": "https://www.saucedemo.com/checkout-step-two.html",
+      "measure": {
+        "performance": 91,
+        "lcpMs": 2886.3059000000003,
+        "cls": 0,
+        "tbtMs": 0,
+        "fcpMs": 2735.5697999999998,
+        "speedIndexMs": 2735.5697999999998
+      },
+      "runs": [
+        {
+          "performance": 90,
+          "lcpMs": 2882.7707,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 2879.9848,
+          "speedIndexMs": 2879.9848
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2899.0809,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 2735.5697999999998,
+          "speedIndexMs": 2735.5697999999998
+        },
+        {
+          "performance": 91,
+          "lcpMs": 2886.3059000000003,
+          "cls": 0,
+          "tbtMs": 5.5,
+          "fcpMs": 2734.9101,
+          "speedIndexMs": 2734.9101
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [
+          {
+            "url": "Unattributable",
+            "cpuMs": 157
+          },
+          {
+            "url": "https://www.saucedemo.com/assets/index-DnLqFcJI.js",
+            "cpuMs": 143
+          },
+          {
+            "url": "https://www.saucedemo.com/?/checkout-step-two.html",
+            "cpuMs": 131
+          }
+        ],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 750 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0,
+            "displayValue": "Est savings of 97 KiB"
+          },
+          {
+            "id": "viewport-insight",
+            "title": "Optimize viewport for mobile",
+            "score": 0.5,
+            "displayValue": ""
+          },
+          {
+            "id": "first-contentful-paint",
+            "title": "First Contentful Paint",
+            "score": 0.59,
+            "displayValue": "2.7 s"
+          },
+          {
+            "id": "largest-contentful-paint",
+            "title": "Largest Contentful Paint",
+            "score": 0.8,
+            "displayValue": "2.9 s"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/checkout-step-two.html) was redirected to https://www.saucedemo.com/?/checkout-step-two.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/checkout-step-two.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/checkout-step-two.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [
+        {
+          "metric": "lcpMs",
+          "value": 2886.3059000000003,
+          "limit": 2500,
+          "kind": "budget",
+          "text": "LCP 2.89 s, budget 2.50 s"
+        }
+      ],
+      "passed": false,
+      "files": {
+        "report": "reports/mobile-checkout-step-two.html",
+        "screenshot": "screenshots/mobile-checkout-step-two.png",
+        "lhr": "lhr/mobile-checkout-step-two.json"
+      }
+    },
+    {
+      "route": "/checkout-step-two.html",
+      "formFactor": "desktop",
+      "url": "https://www.saucedemo.com/checkout-step-two.html",
+      "measure": {
+        "performance": 99,
+        "lcpMs": 714.8326,
+        "cls": 0,
+        "tbtMs": 0,
+        "fcpMs": 714.8326,
+        "speedIndexMs": 714.8326
+      },
+      "runs": [
+        {
+          "performance": 99,
+          "lcpMs": 714.8326,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 714.8326,
+          "speedIndexMs": 714.8326
+        },
+        {
+          "performance": 99,
+          "lcpMs": 710.6439999999999,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 710.6439999999999,
+          "speedIndexMs": 710.6439999999999
+        },
+        {
+          "performance": 99,
+          "lcpMs": 716.7618,
+          "cls": 0,
+          "tbtMs": 0,
+          "fcpMs": 716.7618,
+          "speedIndexMs": 716.7618
+        }
+      ],
+      "diagnostics": {
+        "lcpElement": null,
+        "layoutShifts": [],
+        "renderBlocking": [],
+        "unsizedImages": [],
+        "thirdParty": [],
+        "heavyScripts": [],
+        "failed": [
+          {
+            "id": "redirects",
+            "title": "Avoid multiple page redirects",
+            "score": 0,
+            "displayValue": "Est savings of 200 ms"
+          },
+          {
+            "id": "unused-javascript",
+            "title": "Reduce unused JavaScript",
+            "score": 0.5,
+            "displayValue": "Est savings of 97 KiB"
+          }
+        ],
+        "warnings": [
+          "The page may not be loading as expected because your test URL (https://www.saucedemo.com/checkout-step-two.html) was redirected to https://www.saucedemo.com/?/checkout-step-two.html. Try testing the second URL directly."
+        ],
+        "error": null
+      },
+      "visit": {
+        "consoleErrors": [
+          "Failed to load resource: the server responded with a status of 404 ()"
+        ],
+        "pageErrors": [],
+        "failedRequests": [
+          {
+            "url": "https://www.saucedemo.com/checkout-step-two.html",
+            "status": 404
+          }
+        ],
+        "url": "https://www.saucedemo.com/checkout-step-two.html"
+      },
+      "pixelDiff": null,
+      "verdicts": [],
+      "passed": true,
+      "files": {
+        "report": "reports/desktop-checkout-step-two.html",
+        "screenshot": "screenshots/desktop-checkout-step-two.png",
+        "lhr": "lhr/desktop-checkout-step-two.json"
+      }
+    }
+  ],
+  "passed": false,
+  "advisory": true,
+  "lighthouseVersion": "13.5.0",
+  "commit": "aaa13c6f11ab8c66f057a7d6704bd2c8f857c288",
+  "runUrl": "https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39620928103",
+  "baselineFrom": null
+}
