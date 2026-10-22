@@ -150,3 +150,22 @@ describe('the run report', () => {
     assert.match(leadMd([ledger[3]], { title: 't', verdict: 'v' }), /nothing was escalated/);
   });
 });
+
+describe('the size of what is posted', async () => {
+  const { analysisMd, COMMENT_LIMIT, reportFold } = await import('../lib/render.ts');
+  const handoff = { summary: 'x'.repeat(4000), decisions: [], escalations: [], confidence: 'high' as const, confidenceReason: 'r' };
+  const ledger: RunRecord[] = Array.from({ length: 8 }, (_, i) => ({ role: `role-${i}`, turns: 1, seconds: 1, costUsd: 0, tier: 'build', model: 'm', outcome: 'ok', handoff }));
+  const notes = { title: 't', verdict: 'v' };
+
+  it('keeps every agent\'s card when it fits, and only the lead\'s card when it does not', () => {
+    assert.match(reportFold(ledger.slice(0, 1), notes), /#### 1\. role-0/);
+    assert.doesNotMatch(reportFold(ledger, notes), /#### 1\. role-0/);
+    assert.match(reportFold(ledger, notes), /run-report\.md/);
+  });
+
+  it('keeps a comment under GitHub\'s limit', () => {
+    assert.ok(COMMENT_LIMIT < 65_536);
+    const request = { key: 'REQ-1', title: 't', source: 'github', ref: '1', body: '', mode: 'built' } as unknown as Parameters<typeof analysisMd>[0]['request'];
+    assert.ok(analysisMd({ request, requirements: null, strategy: null, runUrl: null, ledger }).length < COMMENT_LIMIT);
+  });
+});

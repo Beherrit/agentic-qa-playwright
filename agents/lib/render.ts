@@ -396,7 +396,7 @@ export function pullRequestMd(input: {
     return [`${c.id} (${c.kind})`, cell(c.then), testsFor(c.id), verdict ? mark(verdict.verified) : 'not checked'];
   });
 
-  return `${heading(2, `Tests for ${req.title} (${request.key})`)}
+  const compose = (shortReport: boolean): string => `${heading(2, `Tests for ${req.title} (${request.key})`)}
 
 ${
   approved
@@ -448,8 +448,10 @@ ${fold('Test strategy', strategyMd(request, strategy, false, 3))}
 
 ${fold('Code review', reviewMd(review, round, 3))}
 
-${reportFold(ledger, testsNotes(request, gates, round, approved))}
+${reportFold(ledger, testsNotes(request, gates, round, approved), shortReport)}
 ${request.source === 'github' ? `\nCloses #${request.ref}\n` : ''}`;
+  const full = compose(false);
+  return full.length > COMMENT_LIMIT ? compose(true) : full;
 }
 
 // ── Regression ───────────────────────────────────────────────────────────────
@@ -548,17 +550,25 @@ export function analysisMd(input: {
         .join('; ')
     : '';
 
-  const body = `${heading(2, `QA analysis: ${request.title} (${request.key})`)}
+  const compose = (shortReport: boolean): string => {
+    const body = `${heading(2, `QA analysis: ${request.title} (${request.key})`)}
 
 ${status}
 
 ${facts ? `${facts}.` : ''}
 ${req ? requirementsMd(request, req, technical, 3, doubts, fromWriter) : ''}
 ${strategy ? strategyMd(request, strategy, compact, 3) : ''}
-${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), compact) : ''}
+${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), shortReport) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
-  return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
+    return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
+  };
+  // A big plan leaves less room for the report: the whole comment has to fit, so the agents' cards go first.
+  const full = compose(compact);
+  return full.length > COMMENT_LIMIT ? compose(true) : full;
 }
+
+/** The longest comment or pull request the pipeline posts with every agent's card in it; GitHub refuses over 65,536. */
+export const COMMENT_LIMIT = 50_000;
 
 /** The longest run report a ticket comment or pull request carries in full. GitHub refuses a body over 65,536. */
 const REPORT_LIMIT = 20_000;
