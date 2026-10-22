@@ -30,7 +30,7 @@ export async function syncTasks(options: { layers?: string[]; dry?: boolean } = 
   }
 
   const existing = await source.children(request.ref, TASK_LABEL);
-  const plan = planSync(wanted, existing);
+  const plan = planSync(wanted, existing, only);
   const done: { ref: string; url: string | null; layer: string; action: string }[] = [];
   if (!options.dry) {
     for (const task of plan.create) {

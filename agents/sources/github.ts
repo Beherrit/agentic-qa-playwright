@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { OpenIssue, OpenPull } from '../lib/status.ts';
+import { TASK_LABEL } from '../lib/tasks.ts';
 import type { ChildTask, RelatedTicket, Source, Ticket, TicketComment } from './types.ts';
 
 /**
@@ -49,11 +50,38 @@ export function mentionedIssues(body: string, self: string): { ref: string; rela
   return [...found.values()].filter((m) => m.ref !== self.replace(/^#/, '')).sort((a, b) => a.at - b.at).map(({ ref, relation }) => ({ ref, relation }));
 }
 
-type GhIssue = { number: number; title: string; body?: string | null; state?: string; html_url?: string; url?: string; labels?: ({ name?: string } | string)[] };
+type GhIssue = {
+  number: number;
+  title: string;
+  body?: string | null;
+  state?: string;
+  html_url?: string;
+  url?: string;
+  labels?: ({ name?: string } | string)[];
+  author_association?: string;
+  pull_request?: unknown;
+};
 
 const labelNames = (labels: GhIssue['labels']): string[] => (labels ?? []).map((l) => (typeof l === 'string' ? l : (l.name ?? ''))).filter(Boolean);
 
 /** The sub-issues GitHub holds for an issue. Empty when the repository has none or the API is not there. */
+/**
+ * One linked issue as context. Only issues written by people in the repository count: an outsider's issue, mentioned
+ * or linked, is listed by number alone, since in a public repository anyone can write one and edit it later.
+ * `withBody` is false once the limit on bodies is reached.
+ */
+export function relatedFrom(i: Pick<GhIssue, 'number' | 'title' | 'body' | 'state' | 'html_url' | 'author_association'>, relation: string, withBody: boolean): RelatedTicket {
+  const trusted = TRUSTED.includes(i.author_association ?? '');
+  return {
+    ref: String(i.number),
+    relation: trusted ? relation : `${relation}, by someone outside the repository: not read`,
+    title: trusted ? i.title : '',
+    status: i.state ?? null,
+    url: i.html_url ?? null,
+    body: trusted && withBody ? (i.body ?? '') : '',
+  };
+}
+
 function subIssues(ref: string): GhIssue[] {
   try {
     return JSON.parse(gh('api', `repos/{owner}/{repo}/issues/${ref}/sub_issues?per_page=50`)) as GhIssue[];
@@ -156,29 +184,26 @@ export const github: Source = {
 
   async related(ref, limit) {
     const own = JSON.parse(gh('issue', 'view', ref, '--json', 'body')) as { body?: string };
-    const subs = subIssues(ref).map((i): RelatedTicket => ({
-      ref: String(i.number),
-      relation: 'sub-issue',
-      title: i.title,
-      status: i.state ?? null,
-      url: i.html_url ?? null,
-      body: i.body ?? '',
-    }));
-    const seen = new Set(subs.map((s) => s.ref));
-    const mentioned: RelatedTicket[] = [];
-    for (const m of mentionedIssues(own.body ?? '', ref).filter((m) => !seen.has(m.ref))) {
-      if (subs.length + mentioned.length >= limit) {
-        mentioned.push({ ref: m.ref, relation: m.relation, title: '', status: null, url: null, body: '' });
+    // The pipeline's own per-layer tasks are its earlier output, not context: reading them back would copy the old plan.
+    const subs = subIssues(ref).filter((i) => !labelNames(i.labels).includes(TASK_LABEL));
+    const mentions = mentionedIssues(own.body ?? '', ref).filter((m) => !subs.some((s) => String(s.number) === m.ref));
+    const related: RelatedTicket[] = [];
+    const keep = (i: GhIssue, relation: string) => related.push(relatedFrom(i, relation, related.length < limit));
+    for (const sub of subs) keep(sub, 'sub-issue');
+    for (const m of mentions) {
+      if (related.length >= limit) {
+        related.push({ ref: m.ref, relation: m.relation, title: '', status: null, url: null, body: '' });
         continue;
       }
       try {
-        const i = JSON.parse(gh('issue', 'view', m.ref, '--json', 'number,title,body,state,url')) as GhIssue;
-        mentioned.push({ ref: String(i.number), relation: m.relation, title: i.title, status: i.state ?? null, url: i.url ?? null, body: i.body ?? '' });
+        const i = JSON.parse(gh('api', `repos/{owner}/{repo}/issues/${m.ref}`)) as GhIssue;
+        if (i.pull_request || labelNames(i.labels).includes(TASK_LABEL)) continue;
+        keep(i, m.relation);
       } catch {
-        // A pull request, a deleted issue, or one in another repository: nothing to read.
+        // A deleted issue, or a number that is not an issue here: nothing to read.
       }
     }
-    return [...subs, ...mentioned];
+    return related;
   },
 
   async children(ref, label) {
@@ -188,12 +213,19 @@ export const github: Source = {
         .filter((i) => labelNames(i.labels).includes(label))
         .map((i) => [String(i.number), toTask(i)]),
     );
-    // Where sub-issues are not available the tasks are plain issues; their first line says whose they are.
-    try {
-      const listed = JSON.parse(gh('issue', 'list', '--state', 'all', '--label', label, '--limit', '200', '--json', 'number,title,body,labels,url')) as GhIssue[];
-      for (const i of listed) if ((i.body ?? '').startsWith(`Part of #${ref}\n`) && !found.has(String(i.number))) found.set(String(i.number), toTask(i));
-    } catch {
-      // Listing failed; the sub-issues are all there is.
+    // Where sub-issues are not available the tasks are plain issues; their first line says whose they are. The
+    // newest ones are listed directly (no search index delay), and a search finds older ones.
+    const whose = new RegExp(`^Part of #${ref}\\r?\\n`);
+    const lists = [
+      ['issue', 'list', '--state', 'all', '--label', label, '--limit', '200', '--json', 'number,title,body,labels,url'],
+      ['issue', 'list', '--state', 'all', '--label', label, '--search', `"Part of #${ref}" in:body`, '--limit', '100', '--json', 'number,title,body,labels,url'],
+    ];
+    for (const args of lists) {
+      try {
+        for (const i of JSON.parse(gh(...args)) as GhIssue[]) if (whose.test(i.body ?? '') && !found.has(String(i.number))) found.set(String(i.number), toTask(i));
+      } catch {
+        // Listing failed; what was found so far is all there is.
+      }
     }
     return [...found.values()];
   },

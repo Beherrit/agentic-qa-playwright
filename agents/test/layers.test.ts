@@ -67,6 +67,14 @@ describe('test layers', () => {
     assert.equal(kindOf(TEAM, 'nonsense'), 'lower');
   });
 
+  it('keeps what the original ids meant after a project renames its layers', () => {
+    // A plan analysed before the rename still has e2e and manual cases; they must not turn into somebody else's work.
+    assert.equal(kindOf(TEAM, 'e2e'), 'e2e');
+    assert.equal(isE2e(TEAM, { layer: 'e2e' }), true);
+    assert.equal(kindOf(TEAM, 'manual'), 'manual');
+    assert.equal(kindOf(TEAM, 'lower-layer'), 'lower');
+  });
+
   it('moves a case on an unknown layer to the nearest fit, keeping what the old ids meant', () => {
     const { cases, moved } = placeCases([testCase('TC-1', 'e2e'), testCase('TC-2', 'manual'), testCase('TC-3', 'lower-layer'), testCase('TC-4', 'browser')], TEAM);
     assert.deepEqual(
@@ -199,5 +207,16 @@ describe('doctor on layers, context and tasks', async () => {
     assert.match(layers?.detail ?? '', /service \(\.\.\/api\)/);
     assert.match(checks.find((c) => c.name === 'Context')?.detail ?? '', /without FIGMA_TOKEN/);
     assert.match(checks.find((c) => c.name === 'Per-layer tasks')?.detail ?? '', /on demand/);
+  });
+
+  it('does not ask for a checkout of this repository', () => {
+    const here: Layer[] = LayersSchema.parse([
+      { id: 'unit', name: 'Unit', kind: 'lower', proves: 'Rules', repo: '.' },
+      { id: 'browser', name: 'Browser', kind: 'e2e', proves: 'Journeys', repo: ROOT },
+    ]);
+    const checks = layerChecks({ layers: here, context: { related: true, maxRelated: 8, maxChars: 3000, figma: true }, tasks: { enabled: false, layers: [] } }, ROOT, () => false, {});
+    const layers = checks.find((c) => c.name === 'Test layers');
+    assert.notEqual(layers?.level, 'warn');
+    assert.doesNotMatch(layers?.detail ?? '', /not checked out/);
   });
 });

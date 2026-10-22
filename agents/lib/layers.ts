@@ -87,8 +87,15 @@ export const layerIds = (layers: Layer[]): [string, ...string[]] => {
 
 export const layerById = (layers: Layer[], id: string): Layer | undefined => layers.find((l) => l.id === id);
 
-/** The kind of a case's layer. An id the project does not list counts as lower: not ours to automate, and not lost. */
-export const kindOf = (layers: Layer[], id: string): LayerKind => layerById(layers, id)?.kind ?? 'lower';
+/** What the three original layer ids mean, for a plan written before a project named its own layers. */
+const LEGACY_KINDS: Record<string, LayerKind> = { e2e: 'e2e', 'lower-layer': 'lower', manual: 'manual' };
+
+/**
+ * The kind of a case's layer. The original ids keep their meaning even after a project renames its layers, so a plan
+ * analysed before the rename still sends its browser cases to the engineer. Any other unknown id counts as lower:
+ * not ours to automate, and not lost.
+ */
+export const kindOf = (layers: Layer[], id: string): LayerKind => layerById(layers, id)?.kind ?? LEGACY_KINDS[id] ?? 'lower';
 
 export const isE2e = (layers: Layer[], c: { layer: string }): boolean => kindOf(layers, c.layer) === 'e2e';
 
@@ -100,7 +107,10 @@ export function layerRepoPath(layer: Layer, root: string): string | null {
   return layer.repo ? path.resolve(root, layer.repo) : null;
 }
 
-/** The repositories the read-only agents may search for existing coverage: every layer's that exists on disk. */
+/** A layer whose tests live in this repository, so there is nothing extra to check out or search. */
+export const inThisRepo = (layer: Layer, root: string): boolean => Boolean(layer.repo) && path.resolve(root, layer.repo!) === path.resolve(root);
+
+/** The repositories the read-only agents may search for existing coverage: every other layer's that exists on disk. */
 export function coverageRoots(layers: Layer[], root: string, exists: (dir: string) => boolean = fs.existsSync): { id: string; dir: string }[] {
   return layers
     .map((layer) => ({ id: layer.id, dir: layerRepoPath(layer, root) }))
@@ -128,11 +138,10 @@ export function layersText(layers: Layer[], root: string, exists: (dir: string) 
 export function placeCases<C extends { id: string; layer: string; technique: string }>(cases: C[], layers: Layer[]): { cases: C[]; moved: string[] } {
   const moved: string[] = [];
   const firstOfKind = (kind: LayerKind): Layer | undefined => layers.find((l) => l.kind === kind);
-  const legacy: Record<string, LayerKind> = { e2e: 'e2e', 'lower-layer': 'lower', manual: 'manual' };
   const placed = cases.map((c) => {
     let layer = c.layer;
     if (!layerById(layers, layer)) {
-      const target = firstOfKind(legacy[layer] ?? 'lower') ?? layers[0];
+      const target = firstOfKind(LEGACY_KINDS[layer] ?? 'lower') ?? layers[0];
       moved.push(`${c.id}: layer "${layer}" is not one of this project's, so it is on "${target.id}".`);
       layer = target.id;
     }

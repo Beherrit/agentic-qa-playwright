@@ -14,7 +14,11 @@ deployed from `main`, so each entry is dated by its commits.
   to its owner. Without a list, `lower-layer`, `e2e` and `manual` apply as before.
 - **Deep context** (`context`). The intake job reads the parent, children, subtasks and linked issues of a Jira
   ticket, the sub-issues and `#n` references of a GitHub issue, and, with `FIGMA_TOKEN`, the frames of linked Figma
-  designs (frame names and on-screen words). Each piece passes the fixed safety rules or is left out with a note.
+  designs (frame names and on-screen words). Each piece passes the fixed safety rules or is left out with a note,
+  and the screening agent reads all of it with the ticket. On GitHub only issues written by the repository's owners,
+  members and collaborators are read; anyone else's is listed by number. **On by default:** `context.related` and
+  `context.figma` send that linked text to the model along with the ticket. Set them to `false` to keep to the
+  ticket alone.
 - **Per-layer tasks** (`npx agentic-qa tasks`, `tasks.enabled`). One GitHub sub-issue or Jira subtask per layer,
   holding that layer's cases as a checklist; rewritten only when the plan changed, never closed by the pipeline.
 - **A wider test design library**: pairwise sets, exploratory charters and ten failure lenses that error guessing,

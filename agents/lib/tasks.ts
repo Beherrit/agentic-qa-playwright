@@ -79,8 +79,11 @@ export type SyncPlan = {
   stale: ChildTask[];
 };
 
-/** What has to happen on the tracker: the tasks to file, to rewrite, to leave alone, and the ones the plan left behind. */
-export function planSync(wanted: LayerTask[], existing: ChildTask[]): SyncPlan {
+/**
+ * What has to happen on the tracker: the tasks to file, to rewrite, to leave alone, and the ones the plan left behind.
+ * With `only`, a task for a layer outside it is out of this run's scope, not stale.
+ */
+export function planSync(wanted: LayerTask[], existing: ChildTask[], only: string[] = []): SyncPlan {
   const result: SyncPlan = { create: [], update: [], unchanged: [], stale: [] };
   const claimed = new Set<string>();
   for (const task of wanted) {
@@ -93,7 +96,8 @@ export function planSync(wanted: LayerTask[], existing: ChildTask[]): SyncPlan {
     if (fingerprintIn(match.body) === task.fingerprint) result.unchanged.push({ task, ref: match.ref });
     else result.update.push({ task, ref: match.ref });
   }
-  result.stale = existing.filter((e) => !claimed.has(e.ref) && e.labels.includes(TASK_LABEL));
+  const inScope = (e: ChildTask): boolean => !only.length || only.some((id) => e.labels.includes(layerLabel(id)));
+  result.stale = existing.filter((e) => !claimed.has(e.ref) && e.labels.includes(TASK_LABEL) && inScope(e));
   return result;
 }
 

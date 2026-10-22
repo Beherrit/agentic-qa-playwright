@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { providerName } from './lib/agent.ts';
-import { coverageRoots } from './lib/layers.ts';
+import { coverageRoots, inThisRepo } from './lib/layers.ts';
 import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 
 /**
@@ -136,7 +136,7 @@ export function layerChecks(
   exists: (dir: string) => boolean,
   env: NodeJS.ProcessEnv,
 ): Check[] {
-  const withRepo = cfg.layers.filter((layer) => layer.repo);
+  const withRepo = cfg.layers.filter((layer) => layer.repo && !inThisRepo(layer, root));
   const found = coverageRoots(cfg.layers, root, exists).map((r) => r.id);
   const missing = withRepo.filter((layer) => !found.includes(layer.id)).map((layer) => `${layer.id} (${layer.repo})`);
   return [

@@ -1,5 +1,6 @@
 import { config } from '../lib/paths.ts';
 import { adfToMarkdown, markdownToAdf } from './adf.ts';
+import { TASK_LABEL } from '../lib/tasks.ts';
 import type { ChildTask, RelatedTicket, Source, Ticket } from './types.ts';
 
 /**
@@ -146,32 +147,42 @@ export const jira: Source = {
       // A site without the search API leaves the children out; the rest still counts.
     }
     const related: RelatedTicket[] = [];
-    for (const [i, r] of refs.entries()) {
+    for (const r of refs) {
       let body = '';
-      if (i < limit) {
-        try {
-          const full = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(r.key)}?fields=description`)) as { fields: { description?: unknown } };
-          body = fieldText(full.fields.description);
-        } catch {
-          // Not readable with this token: listed by title only.
-        }
+      let labels: string[] = [];
+      try {
+        const full = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(r.key)}?fields=labels${related.length < limit ? ',description' : ''}`)) as {
+          fields: { description?: unknown; labels?: string[] };
+        };
+        labels = full.fields.labels ?? [];
+        body = related.length < limit ? fieldText(full.fields.description) : '';
+      } catch {
+        // Not readable with this token: listed by title only.
       }
+      // The pipeline's own per-layer tasks are its earlier output, not context: reading them back would copy the old plan.
+      if (labels.includes(TASK_LABEL)) continue;
       related.push({ ref: r.key, relation: r.relation, title: r.title, status: r.status, url: `${settings().base}/browse/${r.key}`, body });
+      if (related.length >= 30) break;
     }
     return related;
   },
 
   async children(ref, label) {
-    const issues = await search(`parent = ${quoted(ref)} AND labels = ${quoted(label)}`, ['summary', 'description', 'labels'], 100);
-    return issues.map(
-      (i): ChildTask => ({
-        ref: i.key,
-        title: String(i.fields.summary ?? ''),
-        body: fieldText(i.fields.description),
-        labels: (i.fields.labels as string[] | undefined) ?? [],
-        url: `${settings().base}/browse/${i.key}`,
-      }),
-    );
+    // The parent's own subtask list, not a search: a search may not show a subtask filed a moment ago, and a task that
+    // is not found is filed twice.
+    const parent = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(ref)}?fields=subtasks`)) as { fields: { subtasks?: JiraRef[] } };
+    const tasks: ChildTask[] = [];
+    for (const sub of parent.fields.subtasks ?? []) {
+      const full = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(sub.key)}?fields=summary,description,labels`)) as {
+        key: string;
+        fields: { summary?: string; description?: unknown; labels?: string[] };
+      };
+      const labels = full.fields.labels ?? [];
+      if (labels.includes(label)) {
+        tasks.push({ ref: full.key, title: String(full.fields.summary ?? ''), body: fieldText(full.fields.description), labels, url: `${settings().base}/browse/${full.key}` });
+      }
+    }
+    return tasks;
   },
 
   async createChild(parent, task) {

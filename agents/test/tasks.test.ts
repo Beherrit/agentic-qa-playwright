@@ -102,6 +102,17 @@ describe('per-layer tasks', () => {
     assert.match(md, /SHOP-12 "t" has no cases in the plan any more; left open/);
   });
 
+  it('counts a task as stale only when its layer was chosen for this run', () => {
+    const wanted = tasksFor(REQUEST, STRATEGY, LAYERS, ['browser']);
+    const existing = [child('SHOP-20', 'component', 'Plan fingerprint: 000000000000.'), child('SHOP-21', 'service', ''), child('SHOP-22', 'manual', '')];
+    // Syncing only the browser layer says nothing about the component, service or manual tasks.
+    assert.deepEqual(planSync(wanted, existing, ['browser']).stale, []);
+    assert.deepEqual(
+      planSync(tasksFor(REQUEST, { cases: [] }, LAYERS, ['service']), existing, ['service']).stale.map((s) => s.ref),
+      ['SHOP-21'],
+    );
+  });
+
   it('never matches one existing task to two layers', () => {
     const wanted = tasksFor(REQUEST, STRATEGY, LAYERS);
     const plan = planSync(wanted, [child('SHOP-10', 'browser', '')]);
