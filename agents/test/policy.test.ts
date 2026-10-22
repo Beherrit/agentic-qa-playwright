@@ -32,7 +32,7 @@ describe('big items', () => {
   it('is a big item at the criteria count or at high risk, and says why', () => {
     assert.equal(bigItem({ criteria: criteria(4), risk: 'medium' }, settings), null);
     assert.equal(bigItem({ criteria: criteria(10), risk: 'low' }, settings), '10 criteria (10 or more)');
-    assert.equal(bigItem({ criteria: criteria(12), risk: 'high' }, settings), '12 criteria (10 or more) and high risk');
+    assert.equal(bigItem({ criteria: criteria(12), risk: 'high' }, settings), '12 criteria (10 or more) and high ticket risk');
     assert.equal(bigItem({ criteria: criteria(3), risk: 'high' }, { criteria: 10, highRisk: false }), null);
     assert.equal(bigItem(null, settings), null);
   });
@@ -45,5 +45,23 @@ describe('turn limits in the report', () => {
     assert.equal(nearLimit({ ...near, turns: 71 }), false);
     assert.equal(nearLimit({ ...near, maxTurns: undefined }), false);
     assert.match(escalations([near]).join(), /used 72 of its 80 turns/);
+    // The nudge for a forgotten answer runs under its own limit.
+    assert.equal(nearLimit({ ...near, turns: 81, nudgeTurns: 3 }), true);
+    assert.match(escalations([{ ...near, turns: 81, nudgeTurns: 3 }]).join(), /used 78 of its 80 turns/);
+    assert.equal(nearLimit({ ...near, turns: 74, nudgeTurns: 3 }), false);
+  });
+});
+
+describe('the budget of one call', async () => {
+  const { callBudget } = await import('../lib/agent.ts');
+  it('is the smaller of the run\'s remainder and the tier\'s cap, less what an earlier attempt spent', () => {
+    assert.equal(callBudget(null, null), null);
+    assert.equal(callBudget(12, null), 12);
+    assert.equal(callBudget(null, 5), 5);
+    assert.equal(callBudget(12, 5), 5);
+    assert.equal(callBudget(3, 5), 3);
+    // A fallback after a first attempt that spent 2 of a 5 cap gets 3, even with the run's 12 left.
+    assert.equal(callBudget(12, 5, 2), 3);
+    assert.equal(callBudget(12, 5, 7), 0);
   });
 });

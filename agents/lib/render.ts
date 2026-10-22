@@ -537,7 +537,7 @@ export function analysisMd(input: {
   else
     status = `**Ready for tests.** Plan health ${strategy.health.score}/100. Add the \`${LABELS.generate}\` label to have the tests written and a pull request opened.${
       request.mode === 'test-first' ? ' The feature is marked as not built yet, so the tests will be written first, against the contract below.' : ''
-    }${big ? ` This is a big item (${big}), so the tests start only when a person adds the label.` : ''}`;
+    }${big ? ` This is a big item (${big}): read the plan before adding the label.${config.autoRun?.testsWhenPlanIsReady ? ' The tests will not start by themselves.' : ''}` : ''}`;
 
   const facts = req
     ? [
@@ -629,7 +629,7 @@ export function analysisNotes(request: Request, req: Requirements | null, strate
   const big = bigItem(req, config.bigItem);
   const decisions = [
     ...(strategy ? [`Scored the plan ${strategy.health.score}/100 (pass mark ${config.minPlanScore}).`] : []),
-    ...(big ? [`Marked it a big item (${big}): the tests wait for a person, whatever autoRun says.`] : []),
+    ...(big ? [`Marked it a big item (${big}): a person reads the plan before the tests are written${config.autoRun?.testsWhenPlanIsReady ? ', so they do not start by themselves' : ''}.`] : []),
     ...(strategy?.adjustments ?? []).map((a) => `Corrected an answer: ${a}`),
     ...(blocked ? ['Held the plan back until the blocking questions are answered.'] : []),
   ];

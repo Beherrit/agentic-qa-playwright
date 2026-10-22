@@ -215,6 +215,17 @@ export function modelFor(
   return resolveModel(role, { models, tiers }, env).model;
 }
 
+/**
+ * The most one call may spend: the smaller of the run's remainder and the tier's cap for a call, less what an earlier
+ * attempt of the same call already spent against that cap. Null when neither limit is set; never below zero.
+ */
+export function callBudget(runLeft: number | null, tierCap: number | null, spentOnCall = 0): number | null {
+  const capLeft = tierCap === null ? null : Math.max(0, tierCap - (Number.isFinite(spentOnCall) ? spentOnCall : 0));
+  if (runLeft === null) return capLeft;
+  if (capLeft === null) return runLeft;
+  return Math.min(runLeft, capLeft);
+}
+
 /** Token totals over every model a call used, from the SDK's per-model usage. */
 export function tokensFrom(usage: Record<string, { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number }> | undefined): TokenCount {
   const total: TokenCount = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
@@ -278,9 +289,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
 
   const chosen = resolveModel(spec.role, { models: config.models, tiers: config.tiers });
   // The run's budget left, and the tier's cap for one call: the smaller of the two applies.
-  const runLeft = budgetLeft();
   const tierCap = config.budget.maxUsdPerAgent[chosen.tier] || null;
-  const left = runLeft === null ? tierCap : tierCap === null ? runLeft : Math.min(runLeft, tierCap);
+  const left = callBudget(budgetLeft(), tierCap);
   // Every role answers with a handoff next to its answer: what it did, the calls it made, what a person must check.
   const outputSchema = withHandoff(spec.schema);
   const handsOff = outputSchema !== spec.schema;
@@ -365,7 +375,8 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   // the fallback, from the start. Never for a role that writes and has already used a tool: the files may be half
   // edited, and a second agent starting over on them would not know.
   const touched = spec.access === 'write' && calls.size > 0;
-  if (chosen.fallback && !touched && isModelUnavailable(failureText(message))) {
+  const affordable = (callBudget(budgetLeft(), tierCap, message.total_cost_usd) ?? 1) > 0;
+  if (chosen.fallback && !touched && affordable && isModelUnavailable(failureText(message))) {
     console.log(`  ${chosen.model} is not available (${firstLine(failureText(message))}). Running on ${chosen.fallback}.`);
     // The first attempt is in the ledger as its own failed call, with whatever it cost.
     recordRun({
@@ -387,12 +398,14 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     commands.length = 0;
     browserCalls.calls = 0;
     browserCalls.worked = 0;
-    const again = budgetLeft();
+    // The fallback gets what is left of both limits, after what the first attempt spent.
+    const again = callBudget(budgetLeft(), tierCap, message.total_cost_usd);
     current = { ...options, model: chosen.fallback, fallbackModel: undefined, ...(again === null ? {} : { maxBudgetUsd: again }) };
     fellBack = true;
     message = await converse(spec.task);
   }
   let turns = message.num_turns;
+  let nudgeTurns = 0;
   if (message.subtype === 'success' && !message.is_error && message.structured_output === undefined) {
     // The agent did its work and wrote a summary instead of calling the answer tool. Smaller models do this. The
     // session is resumed with everything it did in context, and asked for the answer alone: a turn or two, not a
@@ -400,6 +413,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     console.log(`  ${spec.role} finished without handing in its answer. Asking for it.`);
     message = await converse(ANSWER_NUDGE, message.session_id);
     turns += message.num_turns;
+    nudgeTurns = message.num_turns;
   }
 
   const seconds = Math.round((Date.now() - started) / 1000);
@@ -411,6 +425,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     // A resumed session's result carries the cost of the whole session, so the latest result is the total.
     costUsd: message.total_cost_usd,
     maxTurns,
+    ...(nudgeTurns ? { nudgeTurns } : {}),
     tier: chosen.tier,
     model: fellBack ? chosen.fallback : chosen.model,
     modelSource: chosen.source,

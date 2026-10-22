@@ -64,7 +64,7 @@ describe('agent rules', () => {
       assert.equal(/\bEdit\b/.test(tools), policy.access === 'write', `${role}: Edit in the card iff it may write`);
       if (policy.browser) assert.match(tools, new RegExp(`\\(${policy.browser} level\\)`), `${role}: the browser level`);
       else assert.match(tools, /No browser/, `${role}: no browser`);
-      assert.equal(/other layers|old project/.test(tools), policy.otherRepos, `${role}: other repositories`);
+      assert.equal(/other layers/.test(tools), policy.otherRepos, `${role}: other repositories`);
       const output = /^- \*\*Output contract:\*\* `(\w+)`/m.exec(text)?.[1];
       assert.equal(output, ROLE_ANSWERS[role].name, `${role}: the output contract names its schema`);
     }
@@ -115,8 +115,9 @@ describe('the clean room', () => {
     }
     const dirty = files.filter((file) => {
       const full = path.join(ROOT, file);
+      // A symlink or a directory has no content of its own to read, but its name is still checked.
       const stat = fs.existsSync(full) ? fs.lstatSync(full) : null;
-      if (!stat?.isFile() || stat.size > 2_000_000) return false;
+      if (!stat?.isFile() || stat.size > 2_000_000) return blockedNames(file) > 0;
       const buffer = fs.readFileSync(full);
       if (buffer.includes(0)) return false; // binary
       return blockedNames(`${file}\n${buffer.toString('utf8')}`) > 0;

@@ -89,8 +89,8 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `budget.maxUsdPerRun` | 0 | no cap | The most a run may spend on agents. A run stops at the cap; each agent is given what is left |
 | `gates.retryExistingOnce` | true | true | The full-suite gate gives an existing test that fails one retry by itself. Passing then is reported as flaky, not blocked. New tests never get a retry. Off, any failure blocks |
 | `gates.shuffle` | true | true | The full-suite and stability gates run in a random order (Playwright 1.64 `--shuffle`), one seed per run, printed in the gate summary with the command that repeats it. Ignored on an older Playwright. Off, tests run in file order |
-| `budget.maxUsdPerAgent` | `{ "build": 5 }` | no cap | The most one agent call may cost, by tier. The smaller of this and what is left of `maxUsdPerRun` applies |
-| `bigItem.criteria`, `bigItem.highRisk` | 10, true | 10, true | A requirement with this many criteria, or a high risk, is a big item: the analysis says so and its tests never start by themselves |
+| `budget.maxUsdPerAgent` | none | no cap | The most one agent call may cost, by tier. The smaller of this and what is left of `maxUsdPerRun` applies |
+| `bigItem.criteria`, `bigItem.highRisk` | 10, true | 10, true | A requirement with this many criteria, or a high ticket risk, is a big item: the analysis says so and its tests never start by themselves |
 | `budget.maxUsdPerDay` | 0 | 0 | The history page shows today's spend against this, and the history workflow warns when it is over. It stops nothing by itself: the history is written after a run. Pair it with `budget.maxUsdPerRun`, which does stop a run |
 | `browser.allowedOrigins` | [] | [] | When set, the agents' browser may request only these origins and the app's own; anything else fails at the network. Empty allows all, because an app's CDN and third-party scripts are not knowable in advance. Fill it in once they are |
 | `browser.blockedOrigins` | [] | [] | Origins the agents' browser never requests (analytics, chat widgets). Wins over the allowlist |

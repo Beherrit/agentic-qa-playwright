@@ -42,6 +42,8 @@ export type RunRecord = {
   costUsd: number;
   /** The turn limit the call ran under. */
   maxTurns?: number;
+  /** Turns spent asking for an answer the agent forgot to hand in; counted in `turns`, not against the limit. */
+  nudgeTurns?: number;
   tier?: Tier;
   /** The model asked for, and where that choice came from. */
   model?: string;

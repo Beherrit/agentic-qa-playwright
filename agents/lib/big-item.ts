@@ -10,6 +10,6 @@ export function bigItem(req: { criteria: unknown[]; risk: string } | null, setti
   if (!req) return null;
   const why: string[] = [];
   if (req.criteria.length >= settings.criteria) why.push(`${req.criteria.length} criteria (${settings.criteria} or more)`);
-  if (settings.highRisk && req.risk === 'high') why.push('high risk');
+  if (settings.highRisk && req.risk === 'high') why.push('high ticket risk');
   return why.length ? why.join(' and ') : null;
 }

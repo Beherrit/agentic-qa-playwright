@@ -14,7 +14,10 @@ export type RolePolicy = {
   browser: BrowserAccess | null;
   /** The most turns a stage may give it. */
   maxTurns: number;
-  /** May read the checkouts of the project's other test layers, or the old project in a migration. */
+  /**
+   * May be given other checkouts to read (`readDirs`): the architect, for the other test layers. A migration names the
+   * old project's files in its task by absolute path instead.
+   */
   otherRepos: boolean;
   /** What the lead hands it. */
   reads: string[];
@@ -149,7 +152,7 @@ export const ROLE_POLICY: Record<string, RolePolicy> = {
     access: 'read',
     browser: null,
     maxTurns: 25,
-    otherRepos: true,
+    otherRepos: false,
     reads: ["the old project's configuration"],
     feeds: ['the new Playwright config, written by code'],
   },
@@ -157,7 +160,7 @@ export const ROLE_POLICY: Record<string, RolePolicy> = {
     access: 'write',
     browser: 'test',
     maxTurns: 80,
-    otherRepos: true,
+    otherRepos: false,
     reads: ["the wave's old files", 'the test conventions'],
     feeds: ['the new specs and the mapping: the migration gates'],
   },

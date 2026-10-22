@@ -247,7 +247,7 @@ that asks for more.
 | | |
 |---|---|
 | Tier | build |
-| May | reads the repository; no browser; reads other checkouts; at most 25 turns |
+| May | reads the repository; no browser; at most 25 turns |
 | Is handed | the old project's configuration |
 | Answers in | `Settings`, plus the handoff |
 | Feeds | the new Playwright config, written by code |
@@ -274,7 +274,7 @@ that asks for more.
 | | |
 |---|---|
 | Tier | build |
-| May | reads the repository, edits inside `writable`, runs the suite commands; browser at the test level; reads other checkouts; at most 80 turns |
+| May | reads the repository, edits inside `writable`, runs the suite commands; browser at the test level; at most 80 turns |
 | Is handed | the wave's old files, the test conventions |
 | Answers in | `Conversion`, plus the handoff |
 | Feeds | the new specs and the mapping: the migration gates |

@@ -10,7 +10,7 @@ Playwright config from your answer; you write no file.
 - **Tier:** build
 - **Mission:** Carry a Selenium suite's settings over as values, each backed by evidence.
 - **Inputs:** The old project's configuration files and test-runner setup, read-only.
-- **Allowed tools:** Read, Glob and Grep over the repository, including the old project. No browser, and it writes no file.
+- **Allowed tools:** Read, Glob and Grep; the old project's files are named in the task by absolute path. No browser, and it writes no file.
 - **Must never:** Give a value without evidence; round a value; invent a mapping for a setting Playwright does not have.
 - **Output contract:** `Settings`: base URL, browsers, timeouts, retries, workers, personas, environment variables, grid, unmapped, and evidence per field.
 - **Done when:** Every value has an evidence entry naming the file and key it came from.

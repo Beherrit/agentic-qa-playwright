@@ -77,15 +77,15 @@ card's allowed tools or output contract disagree with the policy.
 | Limit | Set by | What happens |
 |---|---|---|
 | per run | `budget.maxUsdPerRun` | each agent gets what is left; the run stops once it is spent |
-| per agent call, by tier | `budget.maxUsdPerAgent` | the call stops at the cap (the smaller of this and the run's remainder) and is reported as failed |
-| turns | the role's policy, or less from the stage | the call ends at the limit; one that used nine tenths or more is escalated in the report, since the limit and not the work may have ended it |
+| per agent call, by tier | `budget.maxUsdPerAgent` | the call stops at the cap (the smaller of this and the run's remainder) and is reported as failed; a fallback attempt shares the cap with the first |
+| turns | the role's policy, or less from the stage | the call ends at the limit; one that used nine tenths or more is escalated in the report, since the limit and not the work may have ended it (the turns spent asking for a forgotten answer do not count) |
 | per day | `budget.maxUsdPerDay` | the history page and workflow warn; nothing stops |
 
 ## Big items
 
-A requirement with `bigItem.criteria` criteria or more (10 by default), or a high risk, is a big item. The analysis
-says so on the ticket and in the lead's card, and its tests never start by themselves, whatever
-`autoRun.testsWhenPlanIsReady` says: a person reads the plan and adds the label.
+A requirement with `bigItem.criteria` criteria or more (10 by default), or a high ticket risk (the analyst's rating),
+is a big item. The analysis says so on the ticket and in the lead's card, and its tests never start by themselves,
+even with `autoRun.testsWhenPlanIsReady` on: a person reads the plan and adds the label.
 
 ## The persona card
 
