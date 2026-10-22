@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyPatch, currentPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
+import { contextMd, contextText, type Context } from './lib/context.ts';
 import { checkedRisks } from './lib/draft.ts';
 import { checkCoverage, coverageRoots, isE2e, layerIds, layersText, placeCases } from './lib/layers.ts';
 import { branchFor } from './lib/keys.ts';
@@ -52,8 +53,12 @@ const design = (): string => `<test-design-notes>\n${projectDoc('docs/test-desig
 const layers = (): string => layersText(config.layers, ROOT);
 /** The plan's schemas, narrowed to this project's layer ids. */
 const schemas = () => strategySchemas(layerIds(config.layers));
-const requirementText = (r: Request): string =>
-  `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>${r.answers ? `\n\n<answers>\n${r.answers}\n</answers>` : ''}`;
+/** The tickets and designs read with the ticket at intake, when there were any. */
+const context = (): Context | null => (exists('context.json') ? load<Context>('context.json') : null);
+const requirementText = (r: Request): string => {
+  const around = contextText(context());
+  return `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>${r.answers ? `\n\n<answers>\n${r.answers}\n</answers>` : ''}${around ? `\n\n${around}` : ''}`;
+};
 
 const TEST_FIRST_PLAN = `
 This requirement is in test-first mode: the feature is not built yet, so you will not find it in the app. Use the
@@ -131,7 +136,8 @@ export async function requirements(): Promise<boolean> {
   // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
   const filed = requirementsFromTicket(req.title, req.body);
   if (filed) {
-    const markdown = requirementsMd(req, filed, null, 2, asked, true);
+    const around = contextMd(context());
+    const markdown = `${requirementsMd(req, filed, null, 2, asked, true)}${around ? `\n${around}` : ''}`;
     save('requirements.json', filed);
     save('requirements.md', markdown);
     jobSummary(markdown);
@@ -143,7 +149,8 @@ export async function requirements(): Promise<boolean> {
   const { requirements: output, dropped } = foldQuestions(await analyse(req, asked), asked);
   if (dropped) console.log(`${dropped} non-blocking open question(s) dropped: the skeptic's list is where they live.`);
   const ready = !output.openQuestions.some((question) => question.blocking);
-  const markdown = requirementsMd(req, output, null, 2, asked);
+  const read = contextMd(context());
+  const markdown = `${requirementsMd(req, output, null, 2, asked)}${read ? `\n${read}` : ''}`;
   save('requirements.json', output);
   save('requirements.md', markdown);
   jobSummary(markdown);
@@ -424,7 +431,7 @@ ${conventions()}`;
  * before the engineer started. These files are also written back afterwards, so nothing a test does to them
  * reaches the reviewer or the pull request in a later job.
  */
-const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md', 'sabotage.json'];
+const PROTECTED = ['request.json', 'context.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md', 'sabotage.json'];
 
 async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   const saved = PROTECTED.filter(exists).map((name) => [name, loadText(name)] as const);

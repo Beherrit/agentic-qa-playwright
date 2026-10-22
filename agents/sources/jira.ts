@@ -1,6 +1,6 @@
 import { config } from '../lib/paths.ts';
 import { adfToMarkdown, markdownToAdf } from './adf.ts';
-import type { Source, Ticket } from './types.ts';
+import type { ChildTask, RelatedTicket, Source, Ticket } from './types.ts';
 
 /**
  * Jira Cloud, through its REST API (v3). Needs three settings in the environment:
@@ -40,6 +40,37 @@ function fieldText(value: unknown): string {
   if (typeof value === 'object' && 'value' in value) return String((value as { value: unknown }).value);
   return JSON.stringify(value);
 }
+
+type JiraRef = { key: string; fields?: { summary?: string; status?: { name?: string } } };
+type JiraLink = { type?: { inward?: string; outward?: string }; inwardIssue?: JiraRef; outwardIssue?: JiraRef };
+
+/**
+ * The tickets around one, from its fields: the parent (an epic or a story), its subtasks and every issue link, with the
+ * link's own wording ("blocks", "is blocked by"). Each key once, the first relation found winning. Exported for the tests.
+ */
+export function relationsOf(key: string, fields: { parent?: JiraRef; subtasks?: JiraRef[]; issuelinks?: JiraLink[] }): { key: string; relation: string; title: string; status: string | null }[] {
+  const found = new Map<string, { key: string; relation: string; title: string; status: string | null }>();
+  const add = (ref: JiraRef | undefined, relation: string) => {
+    if (!ref?.key || ref.key === key || found.has(ref.key)) return;
+    found.set(ref.key, { key: ref.key, relation, title: ref.fields?.summary ?? '', status: ref.fields?.status?.name ?? null });
+  };
+  add(fields.parent, 'parent');
+  for (const sub of fields.subtasks ?? []) add(sub, 'subtask');
+  for (const link of fields.issuelinks ?? []) {
+    if (link.outwardIssue) add(link.outwardIssue, link.type?.outward ?? 'linked');
+    if (link.inwardIssue) add(link.inwardIssue, link.type?.inward ?? 'linked');
+  }
+  return [...found.values()];
+}
+
+/** Runs a JQL search and returns the issues with the fields asked for. */
+async function search(jql: string, fields: string[], max = 50): Promise<{ key: string; fields: Record<string, unknown> }[]> {
+  const route = `/rest/api/3/search/jql?jql=${encodeURIComponent(jql)}&fields=${fields.join(',')}&maxResults=${max}`;
+  const result = (await call('GET', route)) as { issues?: { key: string; fields: Record<string, unknown> }[] };
+  return result.issues ?? [];
+}
+
+const quoted = (value: string): string => `"${value.replace(/["\\]/g, '\\$&')}"`;
 
 // Jira rejects comments over 32,767 characters.
 const LIMIT = 30_000;
@@ -96,5 +127,69 @@ export const jira: Source = {
 
   async create() {
     throw new Error('Creating Jira tickets is not built yet. File the ticket by hand, or use --source github.');
+  },
+
+  async related(ref, limit) {
+    const issue = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(ref)}?fields=parent,subtasks,issuelinks`)) as {
+      key: string;
+      fields: { parent?: JiraRef; subtasks?: JiraRef[]; issuelinks?: JiraLink[] };
+    };
+    const refs = relationsOf(issue.key, issue.fields);
+    // An epic's or a story's children are not on the issue itself; they point at it as their parent.
+    try {
+      for (const child of await search(`parent = ${quoted(issue.key)}`, ['summary', 'status'])) {
+        if (!refs.some((r) => r.key === child.key)) {
+          refs.push({ key: child.key, relation: 'child', title: String(child.fields.summary ?? ''), status: (child.fields.status as { name?: string } | undefined)?.name ?? null });
+        }
+      }
+    } catch {
+      // A site without the search API leaves the children out; the rest still counts.
+    }
+    const related: RelatedTicket[] = [];
+    for (const [i, r] of refs.entries()) {
+      let body = '';
+      if (i < limit) {
+        try {
+          const full = (await call('GET', `/rest/api/3/issue/${encodeURIComponent(r.key)}?fields=description`)) as { fields: { description?: unknown } };
+          body = fieldText(full.fields.description);
+        } catch {
+          // Not readable with this token: listed by title only.
+        }
+      }
+      related.push({ ref: r.key, relation: r.relation, title: r.title, status: r.status, url: `${settings().base}/browse/${r.key}`, body });
+    }
+    return related;
+  },
+
+  async children(ref, label) {
+    const issues = await search(`parent = ${quoted(ref)} AND labels = ${quoted(label)}`, ['summary', 'description', 'labels'], 100);
+    return issues.map(
+      (i): ChildTask => ({
+        ref: i.key,
+        title: String(i.fields.summary ?? ''),
+        body: fieldText(i.fields.description),
+        labels: (i.fields.labels as string[] | undefined) ?? [],
+        url: `${settings().base}/browse/${i.key}`,
+      }),
+    );
+  },
+
+  async createChild(parent, task) {
+    const project = parent.split('-')[0];
+    const created = (await call('POST', '/rest/api/3/issue', {
+      fields: {
+        project: { key: project },
+        parent: { key: parent },
+        issuetype: { name: config.jira.subtaskType },
+        summary: task.title,
+        description: markdownToAdf(task.body),
+        labels: task.labels,
+      },
+    })) as { key: string };
+    return { ref: created.key, url: `${settings().base}/browse/${created.key}` };
+  },
+
+  async updateChild(ref, task) {
+    await call('PUT', `/rest/api/3/issue/${encodeURIComponent(ref)}`, { fields: { summary: task.title, description: markdownToAdf(task.body) } });
   },
 };

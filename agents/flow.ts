@@ -1,5 +1,8 @@
 import fs from 'node:fs';
+import { contextMd, gatherContext } from './lib/context.ts';
 import { artifactFor, keyFor, type SourceName } from './lib/keys.ts';
+import { config } from './lib/paths.ts';
+import { appHosts } from './lib/safety.ts';
 import { Request } from './lib/schemas.ts';
 import { exists, load, reset, save, setOutput } from './lib/store.ts';
 import { intakeTicket, sourceFor } from './sources/index.ts';
@@ -52,6 +55,21 @@ export async function intake(input: RequirementInput): Promise<Request> {
     save('open-tickets.json', await sourceFor(request.source).list());
   } catch (error) {
     console.warn(`Could not list the open tickets, so no related ticket will be kept: ${error instanceof Error ? error.message : error}`);
+  }
+  // The tickets and designs around this one, read now for the same reason: later jobs have no tracker or Figma token.
+  const context = await gatherContext({
+    ref: request.source === 'local' ? null : request.ref,
+    body: request.body,
+    source: request.source === 'local' ? null : sourceFor(request.source),
+    settings: config.context,
+    figmaToken: process.env.FIGMA_TOKEN,
+    hosts: appHosts(),
+  });
+  save('context.json', context);
+  const read = contextMd(context);
+  if (read) {
+    save('context.md', read);
+    console.log(`Context: ${context.related.length} related ticket(s), ${context.designs.length} design(s)${context.notes.length ? `, ${context.notes.length} note(s)` : ''}.`);
   }
   setOutput('key', request.key);
   setOutput('artifact', artifactFor(request.key));
