@@ -396,7 +396,9 @@ export function pullRequestMd(input: {
     return [`${c.id} (${c.kind})`, cell(c.then), testsFor(c.id), verdict ? mark(verdict.verified) : 'not checked'];
   });
 
-  const compose = (shortReport: boolean): string => `${heading(2, `Tests for ${req.title} (${request.key})`)}
+  // Each level gives up a little more detail to fit GitHub's limit: the agents' cards, then the plan's detail, then
+  // the requirements, which are on the ticket anyway. Every full version stays in the run's artifact.
+  const compose = (level: number): string => `${heading(2, `Tests for ${req.title} (${request.key})`)}
 
 ${
   approved
@@ -442,16 +444,15 @@ ${table(
 
 ${gatesMd(gates, 3).trim()}
 
-${fold('Requirements', requirementsMd(request, req, technical, 3))}
+${level >= 3 ? `_The requirements are on ${ticketRef(request)}._` : fold('Requirements', requirementsMd(request, req, technical, 3))}
 
-${fold('Test strategy', strategyMd(request, strategy, false, 3))}
+${fold('Test strategy', strategyMd(request, strategy, level >= 2, 3))}
 
 ${fold('Code review', reviewMd(review, round, 3))}
 
-${reportFold(ledger, testsNotes(request, gates, round, approved), shortReport)}
+${reportFold(ledger, testsNotes(request, gates, round, approved), level >= 1)}
 ${request.source === 'github' ? `\nCloses #${request.ref}\n` : ''}`;
-  const full = compose(false);
-  return full.length > COMMENT_LIMIT ? compose(true) : full;
+  return fitted(compose, 3);
 }
 
 // ── Regression ───────────────────────────────────────────────────────────────
@@ -550,21 +551,36 @@ export function analysisMd(input: {
         .join('; ')
     : '';
 
-  const compose = (shortReport: boolean): string => {
+  const compose = (level: number): string => {
     const body = `${heading(2, `QA analysis: ${request.title} (${request.key})`)}
 
 ${status}
 
 ${facts ? `${facts}.` : ''}
 ${req ? requirementsMd(request, req, technical, 3, doubts, fromWriter) : ''}
-${strategy ? strategyMd(request, strategy, compact, 3) : ''}
-${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), shortReport) : ''}
+${strategy ? strategyMd(request, strategy, compact || level >= 2, 3) : ''}
+${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), compact || level >= 1) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
     return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
   };
   // A big plan leaves less room for the report: the whole comment has to fit, so the agents' cards go first.
-  const full = compose(compact);
-  return full.length > COMMENT_LIMIT ? compose(true) : full;
+  return fitted(compose, 2);
+}
+
+/**
+ * The first level of detail that fits under COMMENT_LIMIT, from 0 (everything) to `last`. When even the last one does
+ * not fit, it is cut at a line and says so, rather than being refused by GitHub after the work is done.
+ */
+export function fitted(compose: (level: number) => string, last: number): string {
+  for (let level = 0; level <= last; level++) {
+    const text = compose(level);
+    if (text.length <= COMMENT_LIMIT || level === last) {
+      if (text.length <= COMMENT_LIMIT) return text;
+      const cut = text.slice(0, COMMENT_LIMIT - 400);
+      return `${cut.slice(0, cut.lastIndexOf('\n'))}\n\n</details>\n\n_Cut short to fit GitHub's size limit. The full text is in the run's artifact (qa-run/)._\n`;
+    }
+  }
+  return compose(last);
 }
 
 /** The longest comment or pull request the pipeline posts with every agent's card in it; GitHub refuses over 65,536. */

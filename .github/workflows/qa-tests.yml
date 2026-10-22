@@ -543,21 +543,24 @@ jobs:
           # A requirement that arrived as a pull request gets its tests on that pull request's branch.
           BASE: ${{ steps.report.outputs.base || github.event.repository.default_branch }}
         run: |
+          # A failure here comes after all the work, so it says why on the check itself, not only in the log.
+          say() { local out; if ! out=$("$@" 2>&1); then printf '%s\n' "$out"; echo "::error title=$1 $2 $3::$(printf '%s' "$out" | tail -3 | tr '\n' ' ')"; return 1; fi; printf '%s\n' "$out"; }
+          echo "::notice title=Pull request description::$(wc -c < qa-run/pull-request.md) characters (GitHub takes at most 65536)"
           existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
-            gh pr edit "$existing" --title "$TITLE" --body-file qa-run/pull-request.md
+            say gh pr edit "$existing" --title "$TITLE" --body-file qa-run/pull-request.md
             # A second run can change the verdict: a draft becomes ready, or the other way round. Draft state
             # is not part of `gh pr edit`, and private repositories on the free plan may refuse drafts.
             if [ "$DRAFT" != "true" ]; then gh pr ready "$existing" || true; else gh pr ready --undo "$existing" || true; fi
           else
             args=(--body-file qa-run/pull-request.md --base "$BASE" --head "$BRANCH")
             if [ "$DRAFT" != "true" ]; then
-              gh pr create --title "$TITLE" "${args[@]}"
+              say gh pr create --title "$TITLE" "${args[@]}"
             else
               # A draft when the reviewer still wanted changes after the rework round. Private
               # repositories on the free plan have no drafts, so fall back to saying it in the title.
               gh pr create --draft --title "$TITLE" "${args[@]}" ||
-                gh pr create --title "[open review findings] $TITLE" "${args[@]}"
+                say gh pr create --title "[open review findings] $TITLE" "${args[@]}"
             fi
           fi
           echo "url=$(gh pr view "$BRANCH" --json url --jq .url)" >> "$GITHUB_OUTPUT"
