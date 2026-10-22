@@ -3,6 +3,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { DEFAULT_LAYERS, LayersSchema } from './layers.ts';
 import { PerfSchema } from './perf/schema.ts';
+import { TiersSchema } from './tiers.ts';
 import { PKG_ROOT } from './pkg.ts';
 
 export const CONFIG_FILE = 'qa.config.json';
@@ -207,8 +208,13 @@ export const ConfigSchema = z.object({
       layers: z.array(z.string()).default([]),
     })
     .prefault({}),
-  /** A model per agent role, e.g. { "plan-critic": "haiku" }; "*" is every role not named. Falls back to QA_AGENT_MODEL, then sonnet. */
+  /**
+   * A model per agent role, e.g. { "plan-critic": "haiku" }; "*" is every role not named. Either one overrides the
+   * role's tier, and so does the repository variable QA_AGENT_MODEL. Leave it empty to run every role on its tier.
+   */
   models: z.record(z.string(), z.string()).default({}),
+  /** The model of each tier (decide, build, research, read) and its fallback. agents/lib/tiers.ts has the defaults. */
+  tiers: TiersSchema,
   jira: z
     .object({
       /** Custom fields to read along with the description, by display name, e.g. acceptance criteria. */

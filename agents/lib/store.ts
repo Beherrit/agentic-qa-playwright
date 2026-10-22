@@ -1,3 +1,5 @@
+import type { Handoff } from './handoff.ts';
+import type { ModelSource, Tier } from './tiers.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PROMPTS_DIR, RUN_DIR } from './paths.ts';
@@ -27,7 +29,29 @@ export const loadText = (name: string): string => fs.readFileSync(file(name), 'u
 
 export const prompt = (role: string): string => fs.readFileSync(path.join(PROMPTS_DIR, `${role}.md`), 'utf8');
 
-export type RunRecord = { role: string; turns: number; seconds: number; costUsd: number };
+export type TokenCount = { input: number; output: number; cacheRead: number; cacheWrite: number };
+
+/**
+ * One agent call. The first four fields are all a ledger from before tiers had; the rest are optional so an old
+ * run folder or history entry still reads.
+ */
+export type RunRecord = {
+  role: string;
+  turns: number;
+  seconds: number;
+  costUsd: number;
+  tier?: Tier;
+  /** The model asked for, and where that choice came from. */
+  model?: string;
+  modelSource?: ModelSource;
+  /** Every model that actually answered, from the SDK's usage. More than one when a fallback took over. */
+  modelsUsed?: string[];
+  fellBack?: boolean;
+  tokens?: TokenCount;
+  outcome?: 'ok' | 'failed';
+  error?: string;
+  handoff?: Handoff | null;
+};
 
 /** Every agent call is logged here, so the pull request can say what the run took. Returns the run's total so far. */
 export function recordRun(run: RunRecord): number {

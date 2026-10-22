@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { providerName } from './lib/agent.ts';
 import { coverageRoots, inThisRepo } from './lib/layers.ts';
+import { DEFAULT_TIER_MODELS, resolveModel, ROLE_TIERS, Tier } from './lib/tiers.ts';
 import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 
 /**
@@ -16,19 +17,7 @@ import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 type Level = 'ok' | 'warn' | 'fail';
 export type Check = { name: string; level: Level; detail: string };
 
-const ROLES = [
-  'requirements-analyst',
-  'technical-reviewer',
-  'test-architect',
-  'plan-critic',
-  'plan-reconciler',
-  'automation-engineer',
-  'code-reviewer',
-  'failure-triager',
-  'test-healer',
-  'ticket-writer',
-  'suite-surveyor',
-];
+const ROLES = Object.keys(ROLE_TIERS);
 
 const runs = (command: string): boolean => spawnSync(command, { cwd: ROOT, shell: true, stdio: 'ignore' }).status === 0;
 
@@ -164,6 +153,29 @@ export function layerChecks(
   ];
 }
 
+/**
+ * What each tier runs on, and whether a person overrode the tiers. An override for every role (`models["*"]` or
+ * QA_AGENT_MODEL) is a warning: it is allowed, but the decide tier then runs on the same model as everything else.
+ */
+export function tierChecks(cfg: Pick<typeof config, 'models' | 'tiers'>, env: NodeJS.ProcessEnv): Check[] {
+  const tiers = Tier.options.map((tier) => {
+    const own = { ...DEFAULT_TIER_MODELS[tier], ...(cfg.tiers[tier] ?? {}) };
+    return `${tier} ${own.model}${own.fallback ? ` (then ${own.fallback})` : ''}`;
+  });
+  const everyRole = cfg.models['*'] ? 'models["*"] in qa.config.json' : env.QA_AGENT_MODEL ? 'QA_AGENT_MODEL' : null;
+  const perRole = Object.keys(cfg.models).filter((role) => role !== '*');
+  const sample = resolveModel('plan-reconciler', cfg, env).model;
+  return [
+    {
+      name: 'Model tiers',
+      level: everyRole ? 'warn' : 'ok',
+      detail: everyRole
+        ? `every role runs on ${sample}, set by ${everyRole}; remove it to run each role on its tier (${tiers.join(', ')})`
+        : `${tiers.join(', ')}${perRole.length ? `; set per role: ${perRole.join(', ')}` : ''}`,
+    },
+  ];
+}
+
 /** Every check, with no output. */
 export async function doctorChecks(): Promise<Check[]> {
   const has = (file: string): boolean => fs.existsSync(path.join(ROOT, file));
@@ -207,6 +219,7 @@ export async function doctorChecks(): Promise<Check[]> {
       detail: jira ? process.env.JIRA_BASE_URL! : 'not configured: only needed for Jira tickets',
     },
     ...layerChecks(config, ROOT, fs.existsSync, process.env),
+    ...tierChecks(config, process.env),
     {
       name: 'Clean test folders',
       level: dirty ? 'warn' : 'ok',

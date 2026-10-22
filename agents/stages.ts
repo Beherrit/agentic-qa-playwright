@@ -7,7 +7,8 @@ import { checkedRisks } from './lib/draft.ts';
 import { checkCoverage, coverageRoots, isE2e, layerIds, layersText, placeCases } from './lib/layers.ts';
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
-import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
+import { analysisMd, analysisNotes, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
+import { runReportMd } from './lib/report.ts';
 import {
   Checklist,
   Generation,
@@ -719,8 +720,11 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
     runUrl,
     compact: req.source === 'jira',
     fromWriter,
+    ledger: exists('ledger.json') ? load<RunRecord[]>('ledger.json') : [],
   });
   save('analysis.md', markdown);
+  // The full report, every agent's card included, stays with the run whatever the ticket shows.
+  save('run-report.md', runReportMd(exists('ledger.json') ? load<RunRecord[]>('ledger.json') : [], analysisNotes(req, requirementsDoc, strategy)));
   jobSummary(markdown);
   if (!options.post) return;
 

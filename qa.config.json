@@ -77,8 +77,9 @@
     "analysisWhenWriterFiles": true,
     "testsWhenPlanIsReady": true
   },
-  "models": {
-    "*": "sonnet"
+  "models": {},
+  "tasks": {
+    "enabled": true
   },
   "jira": {
     "fields": {}
