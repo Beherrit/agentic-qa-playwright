@@ -103,7 +103,16 @@ it, `BASE_URL` overrides the app address and `QA_PERSONA` picks the persona.
 
 The trackers read their settings from the `TRACKER` environment: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`;
 `AZURE_DEVOPS_ORG_URL`, `AZURE_DEVOPS_PROJECT`, `AZURE_DEVOPS_PAT`; `LINEAR_API_KEY`, `LINEAR_TEAM`. GitHub issues
-and pull requests use the workflow's own token.
+and pull requests use the workflow's own token. `FIGMA_TOKEN` (optional, read-only scope is enough) lets the intake
+read the designs a ticket links to; without it they are listed, not read.
+
+Related tickets are read in the intake job for the same reason the open tickets are: the agent jobs hold no tracker
+token. Per-layer tasks (`npx agentic-qa tasks`, or `tasks.enabled`) are filed from the report job, which already has
+`issues: write`; on Jira the token needs permission to create issues of `jira.subtaskType` in the ticket's project.
+
+A layer's `repo` is only searched where it is checked out. On your machine that is a sibling folder; in the
+analysis workflow, the architect's job sees the checkout of this repository alone, so a layer repository there is
+reported by the doctor as not checked out and the plan still names the layer without searching it.
 
 ## When a stage fails
 

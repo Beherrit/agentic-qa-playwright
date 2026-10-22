@@ -2,20 +2,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { applyPatch, currentPatch, runGates, savePatch, type GateReport } from './gates.ts';
 import { runAgent } from './lib/agent.ts';
+import { contextMd, contextText, type Context } from './lib/context.ts';
 import { checkedRisks } from './lib/draft.ts';
+import { checkCoverage, coverageRoots, isE2e, layerIds, layersText, placeCases } from './lib/layers.ts';
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
 import { analysisMd, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
 import {
   Checklist,
   Generation,
-  Plan,
-  Reconciled,
   Requirements,
   Review,
   Sabotage,
   Skepticism,
+  strategySchemas,
   TechnicalReview,
+  type Plan,
   type Request,
   type Strategy,
 } from './lib/schemas.ts';
@@ -47,8 +49,16 @@ const appUrl = (r: Request): string => r.baseUrl ?? config.app.baseUrl;
 const brief = (): string => `<product-brief>\n${projectDoc(config.app.brief)}\n</product-brief>`;
 const conventions = (): string => `<test-conventions>\n${projectDoc(config.conventions)}\n</test-conventions>`;
 const design = (): string => `<test-design-notes>\n${projectDoc('docs/test-design.md')}\n</test-design-notes>`;
-const requirementText = (r: Request): string =>
-  `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>${r.answers ? `\n\n<answers>\n${r.answers}\n</answers>` : ''}`;
+/** The project's test layers, cheapest first, with where each one's tests live. */
+const layers = (): string => layersText(config.layers, ROOT);
+/** The plan's schemas, narrowed to this project's layer ids. */
+const schemas = () => strategySchemas(layerIds(config.layers));
+/** The tickets and designs read with the ticket at intake, when there were any. */
+const context = (): Context | null => (exists('context.json') ? load<Context>('context.json') : null);
+const requirementText = (r: Request): string => {
+  const around = contextText(context());
+  return `<requirement key="${r.key}">\n# ${r.title}\n\n${r.body}\n</requirement>${r.answers ? `\n\n<answers>\n${r.answers}\n</answers>` : ''}${around ? `\n\n${around}` : ''}`;
+};
 
 const TEST_FIRST_PLAN = `
 This requirement is in test-first mode: the feature is not built yet, so you will not find it in the app. Use the
@@ -126,7 +136,8 @@ export async function requirements(): Promise<boolean> {
   // A ticket from the ticket writer already has criteria and a risk rating. Analysing it again would only reword it.
   const filed = requirementsFromTicket(req.title, req.body);
   if (filed) {
-    const markdown = requirementsMd(req, filed, null, 2, asked, true);
+    const around = contextMd(context());
+    const markdown = `${requirementsMd(req, filed, null, 2, asked, true)}${around ? `\n${around}` : ''}`;
     save('requirements.json', filed);
     save('requirements.md', markdown);
     jobSummary(markdown);
@@ -138,7 +149,8 @@ export async function requirements(): Promise<boolean> {
   const { requirements: output, dropped } = foldQuestions(await analyse(req, asked), asked);
   if (dropped) console.log(`${dropped} non-blocking open question(s) dropped: the skeptic's list is where they live.`);
   const ready = !output.openQuestions.some((question) => question.blocking);
-  const markdown = requirementsMd(req, output, null, 2, asked);
+  const read = contextMd(context());
+  const markdown = `${requirementsMd(req, output, null, 2, asked)}${read ? `\n${read}` : ''}`;
   save('requirements.json', output);
   save('requirements.md', markdown);
   jobSummary(markdown);
@@ -231,11 +243,14 @@ ${requirementText(req)}
 ${review ? `\n${TECHNICAL_REVIEW_NOTE}\n<technical-review>\n${JSON.stringify(review, null, 2)}\n</technical-review>\n` : ''}
 ${brief()}
 
+${layers()}
+
 ${design()}`,
-    schema: Plan,
+    schema: schemas().Plan,
     access: 'read',
     browser: true,
     maxTurns: 60,
+    readDirs: coverageRoots(config.layers, ROOT).map((r) => r.dir),
   });
   save('plan.json', output);
 }
@@ -244,7 +259,7 @@ export async function critic(): Promise<void> {
   const { output } = await runAgent({
     role: 'plan-critic',
     instructions: prompt('plan-critic'),
-    task: `Write the checklist a test plan for this requirement must satisfy.\n\n${criteriaText()}\n\n${brief()}\n\n${design()}`,
+    task: `Write the checklist a test plan for this requirement must satisfy.\n\n${criteriaText()}\n\n${brief()}\n\n${layers()}\n\n${design()}`,
     schema: Checklist,
     access: 'read',
     maxTurns: 15,
@@ -260,17 +275,23 @@ export async function reconcile(): Promise<boolean> {
   const { output } = await runAgent({
     role: 'plan-reconciler',
     instructions: prompt('plan-reconciler'),
-    task: `Reconcile the plan with the critic's checklist.\n\n${criteriaText()}\n\n<plan>\n${JSON.stringify(draft.cases, null, 2)}\n</plan>\n\n<checklist>\n${JSON.stringify(checklist.items, null, 2)}\n</checklist>\n\n${design()}`,
-    schema: Reconciled,
+    task: `Reconcile the plan with the critic's checklist.\n\n${criteriaText()}\n\n<plan>\n${JSON.stringify(draft.cases, null, 2)}\n</plan>\n\n<checklist>\n${JSON.stringify(checklist.items, null, 2)}\n</checklist>\n\n${layers()}\n\n${design()}`,
+    schema: schemas().Reconciled,
     access: 'read',
     maxTurns: 10,
   });
 
   // Do not take the agent's word for the mapping: drop references to cases or criteria that do not exist.
   const criterionIds = new Set(req.criteria.map((c) => c.id));
-  const cases = output.cases
-    .map((c) => ({ ...c, criteria: c.criteria.filter((id) => criterionIds.has(id)) }))
-    .filter((c) => c.criteria.length > 0);
+  const placed = placeCases(
+    output.cases.map((c) => ({ ...c, criteria: c.criteria.filter((id) => criterionIds.has(id)) })).filter((c) => c.criteria.length > 0),
+    config.layers,
+  );
+  const cases = placed.cases;
+  // Existing coverage is only kept when its file is really there, here or in the named layer's checkout.
+  const coverage = checkCoverage(draft.existingCoverage, config.layers, ROOT);
+  const adjustments = [...placed.moved, ...coverage.dropped];
+  for (const line of adjustments) console.log(`  checked: ${line}`);
   const caseIds = new Set(cases.map((c) => c.id));
   const mapping = checklist.items.map((item) => {
     const answer = output.checklist.find((entry) => entry.id === item.id);
@@ -278,7 +299,7 @@ export async function reconcile(): Promise<boolean> {
   });
 
   const strategy: Strategy = {
-    existingCoverage: draft.existingCoverage,
+    existingCoverage: coverage.kept,
     siteNotes: draft.siteNotes,
     contract: draft.contract,
     // The review's nearby behaviour comes first; the architect's own finds are added after it.
@@ -289,8 +310,9 @@ export async function reconcile(): Promise<boolean> {
     checklist: mapping,
     checklistItems: checklist.items,
     health: { score: 0, parts: [] },
+    ...(adjustments.length ? { adjustments } : {}),
   };
-  strategy.health = planHealth(req, strategy);
+  strategy.health = planHealth(req, strategy, config.layers);
 
   const markdown = strategyMd(request(), strategy);
   save('strategy.json', strategy);
@@ -379,8 +401,8 @@ function readBrief(): Brief {
 }
 
 function engineerBrief(req: Request, strategy: Strategy, review: TechnicalResult | null): string {
-  const cases = strategy.cases.filter((c) => c.layer === 'e2e');
-  const others = strategy.cases.filter((c) => c.layer !== 'e2e').map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
+  const cases = strategy.cases.filter((c) => isE2e(config.layers, c));
+  const others = strategy.cases.filter((c) => !isE2e(config.layers, c)).map((c) => `${c.id} (${c.layer}): ${c.title}. ${c.layerReason}`);
   return `The app is ${config.app.name} at ${appUrl(req)}. The requirement key is ${req.key}: tag the describe block \`@${req.key}\` and each test with its \`@AC-n\` criteria.
 
 You may write only inside: ${config.writable.join(', ')}
@@ -409,7 +431,7 @@ ${conventions()}`;
  * before the engineer started. These files are also written back afterwards, so nothing a test does to them
  * reaches the reviewer or the pull request in a later job.
  */
-const PROTECTED = ['request.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md', 'sabotage.json'];
+const PROTECTED = ['request.json', 'context.json', 'requirements.json', 'requirements.md', 'technical.json', 'technical.md', 'strategy.json', 'strategy.md', 'sabotage.json'];
 
 async function protectingRunFiles<T>(work: () => Promise<T>): Promise<T> {
   const saved = PROTECTED.filter(exists).map((name) => [name, loadText(name)] as const);
@@ -587,7 +609,7 @@ async function reviewer(round: number): Promise<Review> {
   const req = request();
   const strategy = load<Strategy>('strategy.json');
   const generation = load<Generation>('generation.json');
-  const e2e = strategy.cases.filter((c) => c.layer === 'e2e');
+  const e2e = strategy.cases.filter((c) => isE2e(config.layers, c));
   const { output } = await runAgent({
     role: 'code-reviewer',
     instructions: prompt('code-reviewer'),
@@ -708,6 +730,16 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
     add: blocked ? [LABELS.needsInfo] : ready ? [LABELS.analyzed] : [],
     remove: [LABELS.analyze, ...(blocked ? [] : [LABELS.needsInfo])],
   });
+
+  // One task per layer under the ticket, when the project wants them. A tracker hiccup here never undoes the report.
+  if (ready && !blocked && config.tasks.enabled) {
+    try {
+      const { syncTasks } = await import('./tasks.ts');
+      await syncTasks();
+    } catch (error) {
+      console.warn(`The per-layer tasks were not filed: ${error instanceof Error ? error.message : error}`);
+    }
+  }
 
   // The workflow starts the test half on this when the configuration says a good plan may go straight on.
   setOutput('autorun', ready && !blocked && (config.autoRun?.testsWhenPlanIsReady ?? false));

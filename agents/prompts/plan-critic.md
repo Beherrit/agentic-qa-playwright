@@ -19,6 +19,9 @@ criteria and the product brief.
    - personas named in the product brief that this feature touches
    - neighbouring behaviour the feature could break
    - whether a test could pass while the feature is in fact broken
+   - the failure lenses in the test design notes: go through all ten and keep the ones that find something real
+   - settings that combine: does the plan need a decision table or a pairwise set rather than a few hand-picked cases
+   - the layer: a rule that a cheaper layer could prove should not be planned only as a browser test
 3. Number the items CK-1, CK-2, and so on. For each, say what must be covered and why it matters.
 4. Mark an item `must` if a plan without it should not go ahead, and `should` if it is good practice but not fatal.
 

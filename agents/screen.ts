@@ -1,4 +1,5 @@
 import { runAgent } from './lib/agent.ts';
+import { contextText, type Context } from './lib/context.ts';
 import { config, projectDoc } from './lib/paths.ts';
 import { refusedByRules, screenRules, screeningMd, type Screened } from './lib/safety.ts';
 import { Screening, type Request } from './lib/schemas.ts';
@@ -62,7 +63,10 @@ export const screenedText = (req: Pick<Request, 'title' | 'body' | 'answers'>): 
  */
 export async function screen(req: Request): Promise<Screened> {
   if (exists('screening.json')) return load<Screened>('screening.json');
-  const screened = await screenText(screenedText(req));
+  // The tickets and designs read around this one reach the same agents, so they are screened with it. The rules
+  // already ran over each piece at intake; this puts the whole of it in front of the screener as well.
+  const around = exists('context.json') ? contextText(load<Context>('context.json')) : '';
+  const screened = await screenText(`${screenedText(req)}${around ? `\n\n${around}` : ''}`);
   save('screening.json', screened);
   save('screening.md', screeningMd(screened));
   return screened;

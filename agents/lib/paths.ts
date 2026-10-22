@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { DEFAULT_LAYERS, LayersSchema } from './layers.ts';
 import { PerfSchema } from './perf/schema.ts';
 import { PKG_ROOT } from './pkg.ts';
 
@@ -174,6 +175,38 @@ export const ConfigSchema = z.object({
    * runs may add up to on the history page before it warns. 0 is no cap.
    */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0), maxUsdPerDay: z.number().min(0).default(0) }).prefault({}),
+  /**
+   * Where test cases can live, cheapest first: the browser suite this pipeline writes, and the layers other people own
+   * (unit, component, API, contract) and manual. The fields are in agents/lib/layers.ts. Without a list, the plan uses
+   * e2e, lower-layer and manual.
+   */
+  layers: LayersSchema.default(DEFAULT_LAYERS),
+  /**
+   * What the analysis reads beyond the ticket itself, in the intake job (which holds the tracker token): the parent,
+   * child and linked tickets, and the Figma frames the ticket links to when FIGMA_TOKEN is set. All of it reaches the
+   * agents as material to analyse, never as instructions, and only after the same fixed safety rules as the ticket.
+   */
+  context: z
+    .object({
+      related: z.boolean().default(true),
+      /** The most related tickets read in full; the rest are listed by title. */
+      maxRelated: z.number().int().min(0).max(20).default(8),
+      /** The most characters kept from each related ticket or design. */
+      maxChars: z.number().int().min(500).max(20_000).default(3_000),
+      figma: z.boolean().default(true),
+    })
+    .prefault({}),
+  /**
+   * One task per layer under the ticket, holding that layer's test cases as a checklist (`npx agentic-qa tasks`).
+   * Created again only when the plan changed, never duplicated. With `enabled` it happens when the analysis is posted.
+   */
+  tasks: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Only these layer ids. Empty is every layer that has cases. */
+      layers: z.array(z.string()).default([]),
+    })
+    .prefault({}),
   /** A model per agent role, e.g. { "plan-critic": "haiku" }; "*" is every role not named. Falls back to QA_AGENT_MODEL, then sonnet. */
   models: z.record(z.string(), z.string()).default({}),
   jira: z
@@ -182,6 +215,8 @@ export const ConfigSchema = z.object({
       fields: z.record(z.string(), z.string()).default({}),
       /** The project new tickets are filed in and open tickets are listed from. */
       project: z.string().optional(),
+      /** The issue type of the per-layer tasks, as the project calls it: Subtask, Sub-task, or a team's own. */
+      subtaskType: z.string().default('Subtask'),
     })
     .prefault({}),
 });

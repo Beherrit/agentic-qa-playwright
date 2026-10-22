@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { targetEnv } from './lib/fault.ts';
 import { tagGrep } from './lib/keys.ts';
+import { isE2e, type Layer } from './lib/layers.ts';
 import { config, ROOT, RUN_DIR, type Target } from './lib/paths.ts';
 import { anyVisible, sabotageSummary, verdicts, type FaultRun } from './lib/sabotage.ts';
 import type { Generation, Request, Sabotage, Strategy } from './lib/schemas.ts';
@@ -390,11 +391,12 @@ export function missingCriteria(
   specs: { tags: string[] }[],
   key: string,
   strategy: Pick<Strategy, 'cases'>,
+  layers: Layer[] = config.layers,
 ): { mine: number; wanted: string[]; missing: string[] } {
   const strip = (tag: string): string => tag.replace(/^@/, '');
   const mine = specs.filter((spec) => spec.tags.map(strip).includes(key));
   const claimed = new Set(mine.flatMap((spec) => spec.tags.map(strip)));
-  const wanted = [...new Set(strategy.cases.filter((c) => c.layer === 'e2e').flatMap((c) => c.criteria))];
+  const wanted = [...new Set(strategy.cases.filter((c) => isE2e(layers, c)).flatMap((c) => c.criteria))];
   return { mine: mine.length, wanted, missing: wanted.filter((criterion) => !claimed.has(criterion)) };
 }
 

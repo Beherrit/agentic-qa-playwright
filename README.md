@@ -53,7 +53,11 @@ Two workflows, so the cheap, fast half is not held hostage by the slow one.
 **QA analysis** (`qa-analysis.yml`) starts when a ticket gets the `qa-pipeline` label. No test code is written.
 What comes back on the ticket is what a QA lead would want to say about a story before anyone builds or tests it.
 
-1. **Requirements.** First a skeptic reads the story alone and lists every question a developer would have to
+1. **Requirements.** Before any agent runs, the intake job reads what sits around the ticket: its parent or epic,
+   its children and subtasks, its linked issues (in the tracker's own words: blocks, is blocked by) and, with a
+   `FIGMA_TOKEN`, the frames of the designs it links to, names and on-screen words included. Each piece passes the
+   same fixed safety rules as the ticket or is left out with a note. The agents get it as material, and the report
+   lists what was read. Then a skeptic reads the story alone and lists every question a developer would have to
    guess the answer to, from three angles: what a developer would guess, what a frustrated user would try, and what
    breaks if it happens twice. Each question comes with the answer the tests will assume if nobody answers. Then an
    analyst turns the ticket into a user story and Given / When / Then acceptance criteria, each marked happy,
@@ -71,8 +75,10 @@ What comes back on the ticket is what a QA lead would want to say about a story 
    every ticket must be open. What fails a check is taken out and listed. The architect and the engineer get the
    result.
 3. **Strategy.** A test architect opens the app in a real browser (through the Playwright MCP server), starts from
-   the technical review, and designs test cases, each with a design technique, a level (e2e, lower-layer or
-   manual), a priority and a persona. "Nearby behaviour at risk" starts from the review's list; the architect adds
+   the technical review, and designs test cases, each with a design technique (pairwise sets and exploratory
+   charters included), a layer from the project's own list, a priority and a persona. The layers are the whole team's
+   (component, service, API, browser, manual, or whatever the project declares), so the plan says who proves what, and
+   the architect may search the other layers' checkouts for tests that already exist. "Nearby behaviour at risk" starts from the review's list; the architect adds
    what it missed, naming the test that guards each one or saying that nothing does, so the team can see where the
    suite is thin around the change. At the same time a critic, who never sees the plan, writes the checklist a good
    plan must satisfy. A reconciler merges the two and adds test cases where the checklist found a gap. Then the plan
@@ -227,6 +233,34 @@ with a YAML config, a conftest with a hub and a class-scoped shared session, uti
 with a retry loop, and four test modules, one of them an ordered checkout flow on the shared session. The
 migration moves it to a Playwright project that then runs against the live shop with four workers.
 
+### Layers, context and per-layer tasks
+
+A plan is only as good as what it knows and who it is for. Three settings in `qa.config.json`, all optional:
+
+```jsonc
+"layers": [
+  { "id": "component", "name": "Component tests", "kind": "lower", "proves": "Rendering and form rules",
+    "tools": "Vitest", "owner": "Frontend developers", "repo": "../web" },
+  { "id": "service", "name": "Service tests", "kind": "lower", "proves": "Business rules with a database",
+    "tools": "JUnit", "owner": "Backend developers", "repo": "../api" },
+  { "id": "e2e", "name": "Browser suite", "kind": "e2e", "proves": "Journeys across pages", "tools": "Playwright", "owner": "QA" },
+  { "id": "manual", "name": "Manual", "kind": "manual", "proves": "Judgement and exploratory charters", "owner": "QA" }
+],
+"context": { "related": true, "maxRelated": 8, "maxChars": 3000, "figma": true },
+"tasks": { "enabled": false, "layers": [] }
+```
+
+- **Layers**, cheapest first. Exactly one has kind `e2e`: the browser suite this pipeline writes. The agents may only
+  answer with these ids. A layer with a `repo` is searched (read-only) for tests that already cover the requirement,
+  and the plan names them as `component:src/cart/Total.test.tsx`; code then checks each one exists. The report hands
+  each layer's cases to its owner. Without a list, the plan uses `lower-layer`, `e2e` and `manual` as it always has.
+- **Context**: how many related tickets are read in full and how much of each, and whether linked Figma designs are
+  read (with `FIGMA_TOKEN` in the tracker environment). Wiki and document links are listed, not read.
+- **Tasks**: `npx agentic-qa tasks` files one task per layer under the ticket (GitHub sub-issues, Jira subtasks of
+  `jira.subtaskType`), each holding that layer's cases as a checklist. Running it again rewrites a task only when its
+  layer's part of the plan changed, and never closes one. `--layers component,manual` picks layers, `--dry` shows what
+  would change. With `tasks.enabled` it runs whenever an analysis is posted.
+
 ### The plan health score
 
 Arithmetic over facts, so a plan cannot talk its way to a pass.
@@ -236,7 +270,7 @@ Arithmetic over facts, so a plan cannot talk its way to a pass.
 | Acceptance criteria that have a test case | 40 |
 | Critic's checklist items covered (`must` items count double) | 30 |
 | Negative and edge criteria that have a test case (none in the requirement scores 0) | 20 |
-| Test cases that are automated rather than manual | 10 |
+| Test cases that are automated rather than manual (by the layer's kind) | 10 |
 
 ### Regression, triage and self-healing
 
@@ -441,6 +475,10 @@ QA_PERSONA=problem_user npx agentic-qa suite --grep @REQ-1
 
 # After a failed run: classify the failures in test-results/results.json
 npx agentic-qa triage
+
+# One task per layer under the ticket, from the plan in qa-run/ (GitHub sub-issues, Jira subtasks)
+npx agentic-qa tasks --dry
+npx agentic-qa tasks --layers component,manual
 
 # Which ticket each test exists for, and how it did in the last run; also as JUnit, Xray or TestRail
 npx agentic-qa coverage

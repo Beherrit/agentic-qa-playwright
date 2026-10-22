@@ -86,7 +86,7 @@ to request any origin but the app's own and the listed ones. `browser.blockedOri
 | `skeptic` | QA analysis, 1 | read | Read | `Skepticism` |
 | `requirements-analyst` | QA analysis, 1 | read | Read | `Requirements` |
 | `technical-reviewer` | QA analysis, 1b | read | Read, browser | `TechnicalReview` |
-| `test-architect` | QA analysis, 2a | read | Read, browser | `Plan` |
+| `test-architect` | QA analysis, 2a | read | Read (and the other layers' checkouts, read-only), browser | `Plan` |
 | `plan-critic` | QA analysis, 2b | read | Read | `Checklist` |
 | `plan-reconciler` | QA analysis, 2c | read | Read | `Reconciled` |
 | `automation-engineer` | QA tests, 1, 1c and 2b | write | Read, browser (test), Write and Edit in the writable folders, Bash for the suite's test, typecheck and lint commands only | `Generation` |
@@ -169,3 +169,7 @@ dropped. `Publish` (contents: write, no Claude token) downloads the run's folder
 | Ticket reference | `validateRef` | Only an issue, pull request or work item number, or a Jira or Linear key, reaches a shell, an API path or a branch name |
 | Survey claims | `checkSurvey` | A glob, import, folder or command the surveyor names that does not exist or is not Playwright is dropped and listed |
 | Run budget | `budgetLeft` | A run that reached `budget.maxUsdPerRun` starts no more agents |
+| Context around the ticket | `gatherContext` | A related ticket or design that trips a safety rule is left out and noted; nothing here can fail the run |
+| Layer of each case | `placeCases`, `strategySchemas` | Agents can only answer with the project's layer ids; a stray id moves to the nearest fit and an exploratory charter to a manual layer, with a note |
+| Existing coverage at any layer | `checkCoverage` | A file that is not in this repository or the named layer's checkout is taken out and listed |
+| Per-layer tasks | `planSync` | A task is rewritten only when its fingerprint changed, found again by label, and never closed |
