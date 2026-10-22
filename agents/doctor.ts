@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { providerName } from './lib/agent.ts';
+import { coverageRoots } from './lib/layers.ts';
 import { config, PROMPTS_DIR, ROOT } from './lib/paths.ts';
 
 /**
@@ -125,6 +126,44 @@ async function reachable(url: string): Promise<Check> {
   }
 }
 
+/**
+ * The test layers, the context the analysis reads, and the per-layer tasks. A layer repository that is not checked
+ * out is a warning: the plan still names the layer, the architect just cannot search it for existing tests.
+ */
+export function layerChecks(
+  cfg: Pick<typeof config, 'layers' | 'context' | 'tasks'>,
+  root: string,
+  exists: (dir: string) => boolean,
+  env: NodeJS.ProcessEnv,
+): Check[] {
+  const withRepo = cfg.layers.filter((layer) => layer.repo);
+  const found = coverageRoots(cfg.layers, root, exists).map((r) => r.id);
+  const missing = withRepo.filter((layer) => !found.includes(layer.id)).map((layer) => `${layer.id} (${layer.repo})`);
+  return [
+    {
+      name: 'Test layers',
+      level: missing.length ? 'warn' : 'ok',
+      detail: `${cfg.layers.map((l) => l.id).join(', ')}${
+        missing.length ? `; not checked out, so not searched for existing tests: ${missing.join(', ')}` : withRepo.length ? `; searching ${found.join(', ')} for existing tests` : ''
+      }`,
+    },
+    {
+      name: 'Context',
+      level: 'ok',
+      detail: !cfg.context.related
+        ? 'reads the ticket alone (context.related is off)'
+        : `reads up to ${cfg.context.maxRelated} related ticket(s)${cfg.context.figma ? (env.FIGMA_TOKEN ? ' and the Figma designs they link to' : '; Figma links are listed but not read without FIGMA_TOKEN') : ''}`,
+    },
+    {
+      name: 'Per-layer tasks',
+      level: 'ok',
+      detail: cfg.tasks.enabled
+        ? `filed with each analysis${cfg.tasks.layers.length ? ` for ${cfg.tasks.layers.join(', ')}` : ''} (GitHub sub-issues or Jira subtasks)`
+        : 'on demand: npx agentic-qa tasks',
+    },
+  ];
+}
+
 /** Every check, with no output. */
 export async function doctorChecks(): Promise<Check[]> {
   const has = (file: string): boolean => fs.existsSync(path.join(ROOT, file));
@@ -167,6 +206,7 @@ export async function doctorChecks(): Promise<Check[]> {
       level: jira ? 'ok' : 'warn',
       detail: jira ? process.env.JIRA_BASE_URL! : 'not configured: only needed for Jira tickets',
     },
+    ...layerChecks(config, ROOT, fs.existsSync, process.env),
     {
       name: 'Clean test folders',
       level: dirty ? 'warn' : 'ok',

@@ -731,6 +731,16 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
     remove: [LABELS.analyze, ...(blocked ? [] : [LABELS.needsInfo])],
   });
 
+  // One task per layer under the ticket, when the project wants them. A tracker hiccup here never undoes the report.
+  if (ready && !blocked && config.tasks.enabled) {
+    try {
+      const { syncTasks } = await import('./tasks.ts');
+      await syncTasks();
+    } catch (error) {
+      console.warn(`The per-layer tasks were not filed: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
   // The workflow starts the test half on this when the configuration says a good plan may go straight on.
   setOutput('autorun', ready && !blocked && (config.autoRun?.testsWhenPlanIsReady ?? false));
 }

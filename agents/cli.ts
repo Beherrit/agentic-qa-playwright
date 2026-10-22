@@ -22,6 +22,7 @@ On your machine
   intake                 Talk it through first: a safety screen, then the questions a developer would guess at, then the ticket
   analyze                The analysis half: requirements, technical review, plan and score
   tests                  The test half, from the analysis in qa-run/: code, gates, review, pull request text
+  tasks                  One task per test layer under the ticket, from the plan in qa-run/; --layers to choose, --dry to preview
   all                    Both halves, start to finish. Start from a clean working tree
   suite [args]           Run the suite with the configured command, signed in and as QA_PERSONA; args go to Playwright
   check                  The configured typecheck and lint commands
@@ -56,7 +57,8 @@ Options
   --test-first           The feature is not built yet (a ticket says so itself)
   --answers <path>       draft: answers to the writer's blocking questions
   --rounds <n>           intake: at most this many rounds of questions (1 to 6; default from qa.config.json, 3)
-  --dry                  intake: do everything except file the ticket
+  --dry                  intake: do everything except file the ticket; tasks: say what would change, change nothing
+  --layers <ids>         tasks: only these layers, comma-separated, e.g. component,manual
   --yes                  draft, intake: file the ticket without asking; survey: write the drafts over existing documents
   --force                init: overwrite files that exist
   -h, --help             This text
@@ -106,7 +108,8 @@ function parse() {
         answers: { type: 'string' }, // draft: a file with answers to the writer's questions
         yes: { type: 'boolean', default: false }, // draft, intake: file the ticket without asking; survey: overwrite
         rounds: { type: 'string' }, // intake: the most rounds of questions
-        dry: { type: 'boolean', default: false }, // intake: file nothing
+        dry: { type: 'boolean', default: false }, // intake: file nothing; tasks: change nothing
+        layers: { type: 'string' }, // tasks: only these layer ids
         force: { type: 'boolean', default: false }, // init: overwrite
         export: { type: 'string' }, // coverage: junit, xray or testrail
         scope: { type: 'string' }, // perf run: all or critical
@@ -229,6 +232,11 @@ const commands: Record<string, () => Promise<unknown>> = {
     if (!(await analyze())) stop('The analysis did not reach a usable plan. See qa-run/analysis.md.');
   },
   tests,
+  tasks: async () => {
+    const { syncTasks } = await import('./tasks.ts');
+    const layers = values.layers?.split(',').map((id) => id.trim()).filter(Boolean);
+    await syncTasks({ layers, dry: values.dry });
+  },
   all: async () => {
     if (!(await analyze())) stop('The analysis did not reach a usable plan. See qa-run/analysis.md.');
     await tests();

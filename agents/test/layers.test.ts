@@ -184,3 +184,20 @@ describe('test layers', () => {
     assert.equal(automated?.detail, '1 of 2 cases');
   });
 });
+
+describe('doctor on layers, context and tasks', async () => {
+  const { layerChecks } = await import('../doctor.ts');
+  it('warns when a layer\'s repository is not checked out, and says what the context will read', () => {
+    const checks = layerChecks(
+      { layers: TEAM, context: { related: true, maxRelated: 8, maxChars: 3000, figma: true }, tasks: { enabled: false, layers: [] } },
+      ROOT,
+      (dir) => dir === path.resolve(ROOT, '../web'),
+      {},
+    );
+    const layers = checks.find((c) => c.name === 'Test layers');
+    assert.equal(layers?.level, 'warn');
+    assert.match(layers?.detail ?? '', /service \(\.\.\/api\)/);
+    assert.match(checks.find((c) => c.name === 'Context')?.detail ?? '', /without FIGMA_TOKEN/);
+    assert.match(checks.find((c) => c.name === 'Per-layer tasks')?.detail ?? '', /on demand/);
+  });
+});
