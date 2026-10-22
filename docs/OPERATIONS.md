@@ -89,6 +89,8 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `budget.maxUsdPerRun` | 0 | no cap | The most a run may spend on agents. A run stops at the cap; each agent is given what is left |
 | `gates.retryExistingOnce` | true | true | The full-suite gate gives an existing test that fails one retry by itself. Passing then is reported as flaky, not blocked. New tests never get a retry. Off, any failure blocks |
 | `gates.shuffle` | true | true | The full-suite and stability gates run in a random order (Playwright 1.64 `--shuffle`), one seed per run, printed in the gate summary with the command that repeats it. Ignored on an older Playwright. Off, tests run in file order |
+| `budget.maxUsdPerAgent` | none | no cap | The most one agent call may cost, by tier. The smaller of this and what is left of `maxUsdPerRun` applies |
+| `bigItem.criteria`, `bigItem.highRisk` | 10, true | 10, true | A requirement with this many criteria, or a high ticket risk, is a big item: the analysis says so and its tests never start by themselves |
 | `budget.maxUsdPerDay` | 0 | 0 | The history page shows today's spend against this, and the history workflow warns when it is over. It stops nothing by itself: the history is written after a run. Pair it with `budget.maxUsdPerRun`, which does stop a run |
 | `browser.allowedOrigins` | [] | [] | When set, the agents' browser may request only these origins and the app's own; anything else fails at the network. Empty allows all, because an app's CDN and third-party scripts are not knowable in advance. Fill it in once they are |
 | `browser.blockedOrigins` | [] | [] | Origins the agents' browser never requests (analytics, chat widgets). Wins over the allowlist |
@@ -139,6 +141,7 @@ Every run says so on the ticket, whatever state it ended in, with a link to the 
 | What the log says | What to do |
 |---|---|
 | `No Claude credentials` | Add `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` to the `POC` environment, or `QA_PROVIDER_ENV` for Bedrock or Vertex |
+| `<role> was asked for more than its policy allows` | A stage gave a role more access, browser, turns or repositories than `agents/lib/policy.ts` allows. Fix the stage, or change the policy on purpose (docs/AGENT-RULES.md) |
 | `The run's budget of $N is spent` | The run reached `budget.maxUsdPerRun`. Raise it, or split the ticket |
 | `The sign-in command failed` | `auth.setup` could not save the storage state. Run it by hand and read its output |
 | `No qa.config.json in ...` | Run `npx agentic-qa init` in the project, or set `QA_PROJECT_ROOT` |

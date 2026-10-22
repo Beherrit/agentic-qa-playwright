@@ -61,6 +61,32 @@ The first three skip the tiers altogether, fallback included: an overridden role
 report says so on every agent it touched. `npx agentic-qa
 doctor` lists what each tier resolves to.
 
+## Policies and contracts
+
+`agents/lib/policy.ts` holds each role's policy: the most a stage may grant it (read or write, the strongest browser
+level, the turn limit, whether it may read other checkouts), what the lead hands it and where its answer goes.
+`runAgent` refuses a call that asks for more, before the agent starts; a stage may always ask for less. A role
+without a policy gets the least: read only, no browser.
+
+[CONTRACTS.md](CONTRACTS.md) is generated from the policies, the tiers and the answer schemas, one section per role.
+The rules test fails when it is out of date (`node agents/lib/contracts.ts --write` writes it again), and when a
+card's allowed tools or output contract disagree with the policy.
+
+## Budgets
+
+| Limit | Set by | What happens |
+|---|---|---|
+| per run | `budget.maxUsdPerRun` | each agent gets what is left; the run stops once it is spent |
+| per agent call, by tier | `budget.maxUsdPerAgent` | the call stops at the cap (the smaller of this and the run's remainder) and is reported as failed; a fallback attempt shares the cap with the first |
+| turns | the role's policy, or less from the stage | the call ends at the limit; one that used nine tenths or more is escalated in the report, since the limit and not the work may have ended it (the turns spent asking for a forgotten answer do not count) |
+| per day | `budget.maxUsdPerDay` | the history page and workflow warn; nothing stops |
+
+## Big items
+
+A requirement with `bigItem.criteria` criteria or more (10 by default), or a high ticket risk (the analyst's rating),
+is a big item. The analysis says so on the ticket and in the lead's card, and its tests never start by themselves,
+even with `autoRun.testsWhenPlanIsReady` on: a person reads the plan and adds the label.
+
 ## The persona card
 
 Every prompt in `agents/prompts/` opens with a card, in this order. `agents/test/rules.test.ts` fails for a prompt
@@ -118,6 +144,7 @@ The rules above are enforced in code, not left to the prompts:
 | Guardrail | Where |
 |---|---|
 | Each role's tools are an allowlist; anything else is refused outright, never prompted for | `agents/lib/agent.ts` |
+| No stage can grant a role more than its policy | `agents/lib/policy.ts` |
 | Writes only inside `writable`; shell only for the suite's test, typecheck and lint commands | `agents/lib/agent.ts` |
 | No user settings, hooks or MCP servers leak into an agent | `settingSources: []`, `strictMcpConfig` |
 | Every requirement and the context around it is screened before any agent reads it | `agents/screen.ts`, `agents/lib/safety.ts` |
@@ -131,7 +158,8 @@ The rules above are enforced in code, not left to the prompts:
 
 1. Write its prompt in `agents/prompts/<role>.md`, card first.
 2. Give it a tier in `ROLE_TIERS` (`agents/lib/tiers.ts`) and a row above.
-3. Give it the least access that does the job in its `runAgent` call: `read` unless it must write, no browser
-   unless it must look.
+3. Give it a policy in `ROLE_POLICY` (`agents/lib/policy.ts`) with the least that does the job: `read` unless it
+   must write, no browser unless it must look. Its `runAgent` call may ask for that or less.
 4. Answer in a `z.object` schema, so it gets the handoff.
-5. Run `npm run -s test:unit`; the rules test says what is missing.
+5. Add its answer to `ROLE_ANSWERS` in `agents/lib/contracts.ts` and run `node agents/lib/contracts.ts --write`.
+6. Run `npm run -s test:unit`; the rules test says what is missing.

@@ -69,8 +69,9 @@ the pull request.
 
 ## 7. Agents and prompts
 
-A new role gets a prompt that opens with its card, a tier in `ROLE_TIERS`, a row in docs/AGENT-RULES.md, the least
-access that does the job, and a `z.object` answer schema. The rules test lists what is missing.
+A new role gets a prompt that opens with its card, a tier in `ROLE_TIERS`, a policy in `ROLE_POLICY` with the
+least access that does the job, a row in docs/AGENT-RULES.md, a `z.object` answer schema in `ROLE_ANSWERS`, and a
+regenerated docs/CONTRACTS.md. The rules test lists what is missing.
 
 ## 8. Voice
 

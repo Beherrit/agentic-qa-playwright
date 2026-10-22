@@ -47,6 +47,12 @@ export function byTier(ledger: RunRecord[]): { tier: string; calls: number; toke
   return [...rows.values()].sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier));
 }
 
+/** A call that used nine tenths of its turns or more: the limit, not the work, may have ended it. */
+export const nearLimit = (r: RunRecord): boolean => Boolean(r.maxTurns) && r.outcome !== 'failed' && workTurns(r) >= Math.ceil(r.maxTurns! * 0.9);
+
+/** The turns that count against the limit: the nudge for a forgotten answer runs under a limit of its own. */
+const workTurns = (r: RunRecord): number => r.turns - (r.nudgeTurns ?? 0);
+
 /** Everything a person should look at, from every agent's handoff and from the calls that went wrong. */
 export function escalations(ledger: RunRecord[]): string[] {
   const out: string[] = [];
@@ -55,6 +61,7 @@ export function escalations(ledger: RunRecord[]): string[] {
     if (r.fellBack) out.push(`**${r.role}** ran on its fallback model (${r.model}); its tier's model was not available.`);
     for (const e of r.handoff?.escalations ?? []) out.push(`**${r.role}**: ${e}`);
     if (r.handoff?.confidence === 'low') out.push(`**${r.role}** has low confidence: ${r.handoff.confidenceReason}`);
+    if (nearLimit(r)) out.push(`**${r.role}** used ${workTurns(r)} of its ${r.maxTurns} turns: it may have stopped short, so read its answer with that in mind.`);
   }
   return out;
 }
@@ -68,7 +75,7 @@ export function agentCard(r: RunRecord, index: number): string {
     `#### ${index}. ${r.role}${r.outcome === 'failed' ? ' (failed)' : ''}`,
     '',
     `- **Ran on:** ${model}${r.fellBack ? ', **fell back**' : ''}`,
-    `- **Took:** ${r.turns} turns, ${minutes(r.seconds)}, $${r.costUsd.toFixed(2)} est. Tokens: ${tokens}`,
+    `- **Took:** ${r.turns}${r.maxTurns ? ` of ${r.maxTurns}` : ''} turns, ${minutes(r.seconds)}, $${r.costUsd.toFixed(2)} est. Tokens: ${tokens}`,
   ];
   if (r.outcome === 'failed') lines.push(`- **Failed:** ${r.error ?? 'see the run log'}`);
   if (h) {

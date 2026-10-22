@@ -9,7 +9,7 @@ this project's conventions ask for, and it must run in parallel with every other
 - **Tier:** build
 - **Mission:** Move one wave of a Selenium suite to Playwright without losing a single check.
 - **Inputs:** The old files for the wave, their inventory, the conventions and the structure notes.
-- **Allowed tools:** Read, Glob and Grep; Edit inside the writable folders only; the shell for the suite's test, typecheck and lint commands only; read-only access to the old project; a browser with locator and assertion checks (test level).
+- **Allowed tools:** Read, Glob and Grep; Edit inside the writable folders only; the shell for the suite's test, typecheck and lint commands only; the old files are named in the task by absolute path; a browser with locator and assertion checks (test level).
 - **Must never:** Port a wait or a sleep; share state between tests; drop an old assertion; change the assertion when the spec fails.
 - **Output contract:** `Conversion`: the new files, every old test mapped to a new one or dropped with a reason, assertions mapped line to line, gaps.
 - **Done when:** The new spec runs shuffled in parallel and passes, and every old assertion has a new one that can fail.
