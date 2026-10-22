@@ -1,44 +1,52 @@
 ## QA run history
 
-**67 runs: 12 analysis, 12 tests, 43 regression.** Gates passed in 78% of tests runs; the review approved 25% at first review.
+**68 runs: 13 analysis, 12 tests, 43 regression.** Gates passed in 78% of tests runs; the review approved 25% at first review.
 
-Average plan score 98, estimated cost $0.31 per run, $20.71 in all.
+Average plan score 98, estimated cost $0.35 per run, $23.87 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 67 (12 analysis, 12 tests, 43 regression)
+- Runs: 68 (13 analysis, 12 tests, 43 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 78%
 - Approved at first review: 25%
 - Approved after rework: 8%
 - Not approved: 67%
 - Average plan score: 98
-- Total cost: $20.71
-- Average cost per run: $0.31
-- Average agent time: 2m 0s
+- Total cost: $23.87
+- Average cost per run: $0.35
+- Average agent time: 2m 7s
 - Gate failing most often: Full suite (2)
 
 ### Last 7 days
 
-**15 runs since 2026-10-15, $0.09 in all, $0.01 per run.** 1 failed. Today: $0.00.
+**16 runs since 2026-10-15, $3.25 in all, $0.20 per run.** 1 failed. Today: $3.16.
 
 | Role | Runs | Avg turns | Avg time | Est. cost |
 | --- | ---: | ---: | ---: | ---: |
+| plan-reconciler | 1 | 2 | 2m 42s | $1.27 |
+| test-architect | 1 | 61 | 4m 1s | $1.15 |
+| technical-reviewer | 1 | 25 | 1m 23s | $0.29 |
+| plan-critic | 1 | 2 | 40s | $0.22 |
+| requirements-analyst | 1 | 4 | 25s | $0.10 |
+| skeptic | 1 | 3 | 41s | $0.09 |
 | failure-triager | 1 | 6 | 15s | $0.09 |
+| request-screener | 1 | 2 | 8s | $0.05 |
 
-Most expensive tickets: (no ticket) $0.09 (15 runs).
+Most expensive tickets: REQ-57 $3.16 (1 run), (no ticket) $0.09 (15 runs).
 
 
 ### Runs
 
-67 runs, newest first.
+68 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-22 06:40 | REQ-57 | Requirement: Checkout overview price summary and finishing the order | analysis | 99 | - | - | 10m 0s | $3.16 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39733900991) |
 | 2026-10-22 06:28 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39733858133) |
 | 2026-10-22 06:11 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39732220690) |
 | 2026-10-21 15:05 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39621901433) |
