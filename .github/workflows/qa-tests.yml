@@ -93,7 +93,7 @@ jobs:
           cp qa-run/request.json "$RUNNER_TEMP/request.json"
 
       # Kept even if a later step fails, so the report job can tell the ticket why.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-run
           path: qa-run/
@@ -135,7 +135,7 @@ jobs:
           fi
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ${{ steps.intake.outputs.artifact }}
           path: qa-run
@@ -148,7 +148,7 @@ jobs:
           cp "$RUNNER_TEMP/request.json" qa-run/request.json
           npx agentic-qa check-plan
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-run
           path: qa-run/
@@ -173,7 +173,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -187,7 +187,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa write
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -212,7 +212,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -229,7 +229,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa sabotage
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -255,7 +255,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -268,14 +268,14 @@ jobs:
         id: stage
         run: npx agentic-qa gates
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
           path: qa-run/
           overwrite: true
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.stage.outputs.gates != 'passed'
         with:
           name: gates-playwright-output
@@ -302,7 +302,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -319,7 +319,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa fix
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -342,7 +342,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -354,14 +354,14 @@ jobs:
         id: stage
         run: npx agentic-qa gates
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
           path: qa-run/
           overwrite: true
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.stage.outputs.gates != 'passed'
         with:
           name: gates-playwright-output
@@ -399,7 +399,7 @@ jobs:
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -416,7 +416,7 @@ jobs:
           QA_PROVIDER_ENV: ${{ secrets.QA_PROVIDER_ENV }}
         run: npx agentic-qa review
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-run
           path: qa-run/
@@ -442,7 +442,7 @@ jobs:
 
       - uses: Beherrit/agentic-qa-playwright/.github/actions/setup@v1
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -460,7 +460,7 @@ jobs:
         run: npx agentic-qa rework
 
       # Uploaded on failure too, so the ticket gets the gate report of the reworked tests.
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always() && steps.stage.outcome != 'skipped'
         with:
           name: qa-run
@@ -495,7 +495,7 @@ jobs:
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-run
           path: qa-run
@@ -584,7 +584,7 @@ jobs:
         with:
           browser: 'false'
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
           name: qa-run
