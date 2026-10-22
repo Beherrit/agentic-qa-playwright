@@ -1,5 +1,6 @@
 import type { GateReport } from '../gates.ts';
 import { technicalSection } from './draft.ts';
+import { countByLayer, isE2e, layerById, type Layer } from './layers.ts';
 import { config, LABELS } from './paths.ts';
 import type { Doubt, Generation, Request, Requirements, Review, Skepticism, Strategy, Triage } from './schemas.ts';
 import type { RunRecord } from './store.ts';
@@ -165,10 +166,12 @@ ${list(req.outOfScope)}
 
 // ── The test plan ────────────────────────────────────────────────────────────
 
-export function strategyMd(request: Request, strategy: Strategy, compact = false, level = 2): string {
+export function strategyMd(request: Request, strategy: Strategy, compact = false, level = 2, layers: Layer[] = config.layers): string {
   const { health } = strategy;
   const added = new Set(strategy.added);
-  const byLayer = (layer: string): number => strategy.cases.filter((c) => c.layer === layer).length;
+  const perLayer = countByLayer(strategy.cases, layers)
+    .map(({ layer, count }) => `${count} ${layer.name.toLowerCase()}`)
+    .join(', ');
   const weights = new Map(strategy.checklistItems.map((item) => [item.id, item]));
   const sub = (text: string): string => heading(level + 1, text);
 
@@ -197,7 +200,7 @@ export function strategyMd(request: Request, strategy: Strategy, compact = false
 
 **Plan health: ${health.score}/100.** ${strategy.summary}
 
-${plural(strategy.cases.length, 'test case')}: ${byLayer('e2e')} e2e, ${byLayer('lower-layer')} lower layer, ${byLayer('manual')} manual.${
+${plural(strategy.cases.length, 'test case')}: ${perLayer || 'none placed'}.${
     added.size ? ` ${added.size} added after the critic's checklist.` : ''
   }
 
@@ -205,7 +208,7 @@ ${health.parts.length ? fold(`How the score is made up${weakest ? `: weakest is 
 
 ${sub('Test cases')}
 
-${fold(plural(strategy.cases.length, 'test case'), table(['', 'Case', 'Proves', 'Technique', 'Level', 'Priority', 'Persona'], caseRows), compact || caseRows.length <= LONG_TABLE)}
+${fold(plural(strategy.cases.length, 'test case'), table(['', 'Case', 'Proves', 'Technique', 'Layer', 'Priority', 'Persona'], caseRows), compact || caseRows.length <= LONG_TABLE)}
 ${added.size ? '\n\\* added after the independent critic found a gap.\n' : ''}
 ${contractMd(strategy, level + 1)}${
     compact
@@ -215,13 +218,13 @@ ${contractMd(strategy, level + 1)}${
           strategy.cases
             .map(
               (c) =>
-                `**${c.id}: ${c.title}**\n${c.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')}\n\nExpected: ${c.expected}\n\nLevel: ${c.layer}. ${c.layerReason}`,
+                `**${c.id}: ${c.title}**\n${c.steps.map((step, i) => `${i + 1}. ${step}`).join('\n')}\n\nExpected: ${c.expected}\n\nLayer: ${layerById(layers, c.layer)?.name ?? c.layer}. ${c.layerReason}`,
             )
             .join('\n\n'),
         )}
 
 `
-  }${handOver(strategy, level + 1)}${sub("Independent critic's checklist")}
+  }${handOver(strategy, level + 1, layers)}${sub("Independent critic's checklist")}
 
 ${fold(
   `${covered} of ${strategy.checklist.length} checklist items covered${mustMissed ? `, ${plural(mustMissed, 'must item')} not covered` : ''}.`,
@@ -232,7 +235,9 @@ ${fold(
 ${sub('Already covered by the suite')}
 
 ${list(strategy.existingCoverage.map((e) => `\`${e.file}\` "${e.test}": ${e.covers}`))}
-${regressionMd(strategy, level + 1)}${compact ? '' : `\n${fold('What the architect saw in the app', strategy.siteNotes)}\n`}`;
+${regressionMd(strategy, level + 1)}${compact ? '' : `\n${fold('What the architect saw in the app', strategy.siteNotes)}\n`}${
+    strategy.adjustments?.length ? `\n${fold('Corrected by the checks after the agents answered', list(strategy.adjustments))}\n` : ''
+  }`;
 }
 
 /** What the feature sits next to, and whether the suite would notice if it broke. */
@@ -268,17 +273,23 @@ ${table(
 `;
 }
 
-/** Test cases this pipeline will not automate, as a checklist for whoever owns that level. */
-function handOver(strategy: Strategy, level: number): string {
-  const section = (layer: string, label: string): string => {
-    const cases = strategy.cases.filter((c) => c.layer === layer);
-    if (cases.length === 0) return '';
-    const items = cases.map((c) => `- [ ] ${c.id} ${c.title} (${c.criteria.join(', ')}). ${c.layerReason}`);
-    return `**${label}**\n${items.join('\n')}\n\n`;
-  };
-  const body =
-    section('lower-layer', 'For the developers: cheaper to prove below the browser') + section('manual', 'For a person: needs human judgement');
-  return body ? `${heading(level, 'Handed over')}\n\nThe pipeline automates the e2e test cases. These are for people to pick up.\n\n${body}` : '';
+/** Test cases this pipeline will not automate, as a checklist per layer for whoever owns it. */
+function handOver(strategy: Strategy, level: number, layers: Layer[]): string {
+  const ownedBy = (layer: Layer): string => [layer.owner, layer.tools].filter(Boolean).join(', ');
+  const body = layers
+    .filter((layer) => !isE2e(layers, { layer: layer.id }))
+    .map((layer) => {
+      const cases = strategy.cases.filter((c) => c.layer === layer.id);
+      if (cases.length === 0) return '';
+      const items = cases.map((c) => `- [ ] ${c.id} ${c.title} (${c.criteria.join(', ')}). ${c.layerReason}`);
+      return `**${layer.name}**${ownedBy(layer) ? ` (${ownedBy(layer)})` : ''}\n${items.join('\n')}\n\n`;
+    })
+    .join('');
+  // A case on a layer the project no longer lists still goes to someone.
+  const known = new Set(layers.map((l) => l.id));
+  const stray = strategy.cases.filter((c) => !known.has(c.layer));
+  const rest = stray.length ? `**Other**\n${stray.map((c) => `- [ ] ${c.id} ${c.title} (${c.layer}). ${c.layerReason}`).join('\n')}\n\n` : '';
+  return body || rest ? `${heading(level, 'Handed over')}\n\nThe pipeline automates the browser cases. These are for the people who own each layer.\n\n${body}${rest}` : '';
 }
 
 // ── Gates and review ─────────────────────────────────────────────────────────
@@ -526,7 +537,7 @@ export function analysisMd(input: {
         doubts?.questions.length &&
           `${plural(doubts.questions.length, 'question')} a developer would have to guess, ${doubts.questions.filter((d) => d.answer).length} answered`,
         technical && `technical risk ${technical.risk}`,
-        strategy && `${plural(strategy.cases.length, 'test case')} (${strategy.cases.filter((c) => c.layer === 'e2e').length} e2e)`,
+        strategy && `${plural(strategy.cases.length, 'test case')} (${strategy.cases.filter((c) => isE2e(config.layers, c)).length} e2e)`,
         strategy?.regressionRisks?.length &&
           `${strategy.regressionRisks.filter((r) => !r.guardedBy).length} of ${strategy.regressionRisks.length} nearby behaviours unguarded`,
       ]

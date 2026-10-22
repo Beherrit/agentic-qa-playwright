@@ -204,9 +204,11 @@ export const Technique = z.enum([
   'equivalence-partitioning',
   'boundary-values',
   'decision-table',
+  'pairwise',
   'state-transition',
   'use-case',
   'error-guessing',
+  'exploratory-charter',
 ]);
 
 export const TestCase = z.object({
@@ -214,7 +216,7 @@ export const TestCase = z.object({
   title: z.string(),
   criteria: z.array(z.string().regex(/^AC-\d+$/)).min(1),
   technique: Technique,
-  layer: z.enum(['e2e', 'lower-layer', 'manual']),
+  layer: z.string().min(1).describe("One of the project's layer ids, as listed in the task"),
   layerReason: z.string().describe('Why this layer and not a cheaper one'),
   priority: z.enum(['P1', 'P2', 'P3']),
   persona: z.string(),
@@ -224,7 +226,15 @@ export const TestCase = z.object({
 export type TestCase = z.infer<typeof TestCase>;
 
 export const Plan = z.object({
-  existingCoverage: z.array(z.object({ file: z.string(), test: z.string(), covers: z.string() })),
+  existingCoverage: z
+    .array(
+      z.object({
+        file: z.string().describe('A path in this repository, or "<layer id>:<path>" for a test in another layer\'s repository'),
+        test: z.string(),
+        covers: z.string(),
+      }),
+    )
+    .describe('Tests that already prove part of the requirement, at any layer'),
   siteNotes: z.string().describe('What you saw in the browser that the engineer will need: controls, labels, behaviour'),
   contract: z
     .array(
@@ -276,8 +286,26 @@ export const Reconciled = z.object({
 });
 export type Reconciled = z.infer<typeof Reconciled>;
 
+/**
+ * The plan's schemas with the layer narrowed to this project's ids, so an agent cannot answer with a layer nobody
+ * has. The static TestCase, Plan and Reconciled above take any id; these are what the agents are given.
+ */
+export function strategySchemas(layerIds: [string, ...string[]]) {
+  const Case = TestCase.extend({ layer: z.enum(layerIds).describe("One of the project's layer ids, as listed in the task") });
+  return {
+    Plan: Plan.extend({ cases: z.array(Case).min(1) }),
+    Reconciled: Reconciled.extend({ cases: z.array(Case).min(1).describe('The final list: the original cases plus any added to close gaps') }),
+  };
+}
+
 export type Health = { score: number; parts: { name: string; weight: number; value: number; detail: string }[] };
-export type Strategy = Omit<Plan, 'cases'> & Reconciled & { checklistItems: Checklist['items']; health: Health };
+export type Strategy = Omit<Plan, 'cases'> &
+  Reconciled & {
+    checklistItems: Checklist['items'];
+    health: Health;
+    /** What the code changed or took out after the agents answered: a case moved to a layer the project has, coverage that did not exist. */
+    adjustments?: string[];
+  };
 
 // ── Stage 3: code generation ─────────────────────────────────────────────────
 

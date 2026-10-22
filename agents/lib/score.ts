@@ -1,7 +1,8 @@
+import { DEFAULT_LAYERS, kindOf, type Layer } from './layers.ts';
 import type { Health, Requirements, Strategy } from './schemas.ts';
 
 /** Scores the plan from facts, not from the planner's opinion of its own work. */
-export function planHealth(req: Requirements, strategy: Pick<Strategy, 'cases' | 'checklist' | 'checklistItems'>): Health {
+export function planHealth(req: Requirements, strategy: Pick<Strategy, 'cases' | 'checklist' | 'checklistItems'>, layers: Layer[] = DEFAULT_LAYERS): Health {
   const share = (part: number, whole: number): number => (whole === 0 ? 1 : part / whole);
   const covered = new Set(strategy.cases.flatMap((c) => c.criteria));
 
@@ -13,7 +14,7 @@ export function planHealth(req: Requirements, strategy: Pick<Strategy, 'cases' |
   const checklistTotal = strategy.checklist.reduce((sum, item) => sum + weight(item.id), 0);
   const checklistMet = strategy.checklist.filter((item) => item.coveredBy.length).reduce((sum, item) => sum + weight(item.id), 0);
 
-  const automated = strategy.cases.filter((c) => c.layer !== 'manual');
+  const automated = strategy.cases.filter((c) => kindOf(layers, c.layer) !== 'manual');
 
   const parts = [
     {
