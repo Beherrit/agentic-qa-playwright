@@ -16,6 +16,13 @@ export class CheckoutPage extends BasePage {
   readonly tax: Locator;
   readonly total: Locator;
   readonly confirmation: Locator;
+  readonly items: Locator;
+  readonly itemNames: Locator;
+  readonly itemQuantities: Locator;
+  readonly itemPrices: Locator;
+  readonly paymentInfo: Locator;
+  readonly shippingInfo: Locator;
+  readonly backHomeButton: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -30,6 +37,13 @@ export class CheckoutPage extends BasePage {
     this.tax = page.getByTestId('tax-label');
     this.total = page.getByTestId('total-label');
     this.confirmation = page.getByTestId('complete-header');
+    this.items = page.getByTestId('inventory-item');
+    this.itemNames = page.getByTestId('inventory-item-name');
+    this.itemQuantities = page.getByTestId('item-quantity');
+    this.itemPrices = page.getByTestId('inventory-item-price');
+    this.paymentInfo = page.getByTestId('payment-info-value');
+    this.shippingInfo = page.getByTestId('shipping-info-value');
+    this.backHomeButton = page.getByRole('button', { name: 'Back Home' });
   }
 
   async fillShopper(shopper: Shopper): Promise<void> {
@@ -44,5 +58,9 @@ export class CheckoutPage extends BasePage {
 
   async finish(): Promise<void> {
     await this.finishButton.click();
+  }
+
+  async backHome(): Promise<void> {
+    await this.backHomeButton.click();
   }
 }
