@@ -4,8 +4,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { z } from 'zod';
 import { config, ROOT } from './paths.ts';
-import { recordRun, spent } from './store.ts';
+import { HANDOFF_RULES, handoffIn, withHandoff } from './handoff.ts';
+import { recordRun, spent, type RunRecord, type TokenCount } from './store.ts';
 import { commands, prepareAuth, storageStatePath } from './suite.ts';
+import { isModelUnavailable, resolveModel } from './tiers.ts';
 
 /**
  * What an agent is allowed to touch. Every role gets the least it needs:
@@ -43,7 +45,7 @@ export type AgentSpec<S extends z.ZodType> = {
  */
 export type BrowserAccess = 'look' | 'test' | 'break';
 
-export type AgentResult<T> = { output: T; turns: number; seconds: number; costUsd: number; commands: string[] };
+export type AgentResult<T> = { output: T; turns: number; seconds: number; costUsd: number; commands: string[]; record: RunRecord };
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'];
 
@@ -199,12 +201,29 @@ export function budgetLeft(cap: number = config.budget.maxUsdPerRun, used: numbe
 }
 
 /**
- * The model a role runs on: its own entry in `models`, else the `*` entry, else the repository variable
- * QA_AGENT_MODEL, else sonnet. A proof of concept puts `{ "*": "haiku" }` in qa.config.json and runs on a
- * fraction of the tokens; a project keeps sonnet for the roles that write code and haiku for the rest.
+ * The model a role runs on: the role's tier (agents/lib/tiers.ts) unless a person chose otherwise with `models` in
+ * qa.config.json or the repository variable QA_AGENT_MODEL. A proof of concept puts `{ "*": "haiku" }` in
+ * qa.config.json and runs every role on a fraction of the tokens.
  */
-export function modelFor(role: string, models: Record<string, string> = config.models, env: NodeJS.ProcessEnv = process.env): string {
-  return models[role] || models['*'] || env.QA_AGENT_MODEL || 'sonnet';
+export function modelFor(
+  role: string,
+  models: Record<string, string> = config.models,
+  env: NodeJS.ProcessEnv = process.env,
+  tiers: typeof config.tiers = config.tiers,
+): string {
+  return resolveModel(role, { models, tiers }, env).model;
+}
+
+/** Token totals over every model a call used, from the SDK's per-model usage. */
+export function tokensFrom(usage: Record<string, { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number }> | undefined): TokenCount {
+  const total: TokenCount = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  for (const u of Object.values(usage ?? {})) {
+    total.input += u.inputTokens || 0;
+    total.output += u.outputTokens || 0;
+    total.cacheRead += u.cacheReadInputTokens || 0;
+    total.cacheWrite += u.cacheCreationInputTokens || 0;
+  }
+  return total;
 }
 
 function browserServer(access: BrowserAccess): NonNullable<Options['mcpServers']> {
@@ -253,14 +272,25 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   ];
 
   const left = budgetLeft();
+  const chosen = resolveModel(spec.role, { models: config.models, tiers: config.tiers });
+  // Every role answers with a handoff next to its answer: what it did, the calls it made, what a person must check.
+  const outputSchema = withHandoff(spec.schema);
+  const handsOff = outputSchema !== spec.schema;
   const options: Options = {
     cwd: ROOT,
     ...(spec.readDirs?.length && spec.access === 'read' ? { additionalDirectories: spec.readDirs } : {}),
     // The provider's settings (Bedrock, Vertex) travel in one variable and are unpacked here, for the SDK alone.
     env: { ...process.env, ...providerEnv() },
     ...(left === null ? {} : { maxBudgetUsd: left }),
-    model: modelFor(spec.role),
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: `${spec.instructions}\n${GROUND_RULES}${browser ? BROWSER_NOTE[browser] : ''}` },
+    model: chosen.model,
+    // The SDK switches to the fallback by itself when the model is overloaded; an account without the model at all
+    // is handled below, by running the task again on the fallback.
+    ...(chosen.fallback ? { fallbackModel: chosen.fallback } : {}),
+    systemPrompt: {
+      type: 'preset',
+      preset: 'claude_code',
+      append: `${spec.instructions}\n${GROUND_RULES}${handsOff ? HANDOFF_RULES : ''}${browser ? BROWSER_NOTE[browser] : ''}`,
+    },
     tools,
     allowedTools: allowed,
     // Not offered at all, so the agent does not spend a turn finding out they are refused.
@@ -272,11 +302,11 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     strictMcpConfig: true,
     mcpServers: browser ? browserServer(browser) : {},
     maxTurns: spec.maxTurns ?? 40,
-    outputFormat: { type: 'json_schema', schema: jsonSchema(spec.schema) },
+    outputFormat: { type: 'json_schema', schema: jsonSchema(outputSchema) },
   };
 
   const started = Date.now();
-  console.log(`\n=== ${spec.role} ===`);
+  console.log(`\n=== ${spec.role} (${chosen.tier}: ${chosen.model}${chosen.source === 'tier' ? '' : `, set by ${chosen.source}`}) ===`);
 
   // Which tool each call belongs to, so a failed result can be traced back to it.
   const calls = new Map<string, string>();
@@ -287,8 +317,9 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   const commands: string[] = [];
 
   /** One conversation with the agent, logged as it goes. Resolves with the result message. */
+  let current = options;
   async function converse(prompt: string, resume?: string): Promise<SDKResultMessage> {
-    const turn: Options = resume ? { ...options, resume, maxTurns: NUDGE_TURNS } : options;
+    const turn: Options = resume ? { ...current, resume, maxTurns: NUDGE_TURNS } : current;
     for await (const message of run({ prompt, options: turn })) {
       if (message.type === 'assistant') {
         for (const block of message.message.content) {
@@ -320,6 +351,39 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   }
 
   let message = await converse(spec.task);
+  let fellBack = false;
+  const failureText = (m: SDKResultMessage): string => (m.subtype === 'success' ? (m.is_error ? m.result : '') : m.errors.join('; '));
+  // The account cannot use this tier's model, or it is overloaded past what the SDK retried. The task goes once to
+  // the fallback, from the start. Never for a role that writes and has already used a tool: the files may be half
+  // edited, and a second agent starting over on them would not know.
+  const touched = spec.access === 'write' && calls.size > 0;
+  if (chosen.fallback && !touched && isModelUnavailable(failureText(message))) {
+    console.log(`  ${chosen.model} is not available (${firstLine(failureText(message))}). Running on ${chosen.fallback}.`);
+    // The first attempt is in the ledger as its own failed call, with whatever it cost.
+    recordRun({
+      role: spec.role,
+      turns: message.num_turns,
+      seconds: Math.round((Date.now() - started) / 1000),
+      costUsd: message.total_cost_usd,
+      tier: chosen.tier,
+      model: chosen.model,
+      modelSource: chosen.source,
+      modelsUsed: Object.keys(message.modelUsage ?? {}),
+      tokens: tokensFrom(message.modelUsage),
+      outcome: 'failed',
+      error: firstLine(failureText(message)),
+      handoff: null,
+    });
+    calls.clear();
+    asked.clear();
+    commands.length = 0;
+    browserCalls.calls = 0;
+    browserCalls.worked = 0;
+    const again = budgetLeft();
+    current = { ...options, model: chosen.fallback, fallbackModel: undefined, ...(again === null ? {} : { maxBudgetUsd: again }) };
+    fellBack = true;
+    message = await converse(spec.task);
+  }
   let turns = message.num_turns;
   if (message.subtype === 'success' && !message.is_error && message.structured_output === undefined) {
     // The agent did its work and wrote a summary instead of calling the answer tool. Smaller models do this. The
@@ -331,32 +395,53 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   }
 
   const seconds = Math.round((Date.now() - started) / 1000);
-  // A resumed session's result carries the cost of the whole session, so the latest result is the total.
-  const run_ = { role: spec.role, turns, seconds, costUsd: message.total_cost_usd };
-  const total = recordRun(run_);
+  const modelsUsed = Object.keys(message.modelUsage ?? {});
+  const record: RunRecord = {
+    role: spec.role,
+    turns,
+    seconds,
+    // A resumed session's result carries the cost of the whole session, so the latest result is the total.
+    costUsd: message.total_cost_usd,
+    tier: chosen.tier,
+    model: fellBack ? chosen.fallback : chosen.model,
+    modelSource: chosen.source,
+    modelsUsed,
+    fellBack: fellBack || modelsUsed.some((m) => chosen.fallback && m.startsWith(chosen.fallback)),
+    tokens: tokensFrom(message.modelUsage),
+    outcome: 'ok',
+    handoff: handsOff ? handoffIn(message.subtype === 'success' ? message.structured_output : undefined) : null,
+  };
+
+  // Why the call failed, if it did. Worked out before the ledger is written, so a failed agent is in the report too.
+  let failure: string | null = null;
+  let parsed: ReturnType<S['safeParse']> | null = null;
+  if (browser && browserCalls.calls > 0 && browserCalls.worked === 0) {
+    // An agent that could not see the app will still hand in confident work. Stop it here instead.
+    failure = `${spec.role} could not use the browser: every browser call failed. See the log above.`;
+  } else if (message.subtype !== 'success') {
+    failure = `${spec.role} did not finish (${message.subtype}): ${message.errors.join('; ')}`;
+  } else if (message.is_error) {
+    // Covers a missing or expired login: the CLI reports it as a "successful" turn whose text is the error.
+    failure = `${spec.role} failed: ${message.result}`;
+  } else {
+    parsed = spec.schema.safeParse(message.structured_output) as ReturnType<S['safeParse']>;
+    if (!parsed.success) failure = `${spec.role} answered in the wrong shape:\n${z.prettifyError(parsed.error)}`;
+  }
+  if (failure) {
+    record.outcome = 'failed';
+    record.error = firstLine(failure);
+  }
+
+  const total = recordRun(record);
   const cap = config.budget.maxUsdPerRun;
   if (cap && total > cap) {
     throw new Error(`${spec.role} took the run over its budget: $${total.toFixed(2)} of $${cap.toFixed(2)}. Raise budget.maxUsdPerRun in qa.config.json to go on.`);
   }
+  if (failure || !parsed?.success) throw new Error(failure ?? `${spec.role} gave no answer`);
 
-  if (browser && browserCalls.calls > 0 && browserCalls.worked === 0) {
-    // An agent that could not see the app will still hand in confident work. Stop it here instead.
-    throw new Error(`${spec.role} could not use the browser: every browser call failed. See the log above.`);
-  }
-
-  if (message.subtype !== 'success') {
-    throw new Error(`${spec.role} did not finish (${message.subtype}): ${message.errors.join('; ')}`);
-  }
-  if (message.is_error) {
-    // Covers a missing or expired login: the CLI reports it as a "successful" turn whose text is the error.
-    throw new Error(`${spec.role} failed: ${message.result}`);
-  }
-  const parsed = spec.schema.safeParse(message.structured_output);
-  if (!parsed.success) {
-    throw new Error(`${spec.role} answered in the wrong shape:\n${z.prettifyError(parsed.error)}`);
-  }
-  console.log(`=== ${spec.role} done: ${turns} turns, ${seconds}s ===`);
-  return { output: parsed.data, ...run_, commands };
+  const confidence = record.handoff ? `, ${record.handoff.confidence} confidence` : handsOff ? ', no handoff' : '';
+  console.log(`=== ${spec.role} done: ${turns} turns, ${seconds}s${confidence} ===`);
+  return { output: parsed.data as z.infer<S>, turns, seconds, costUsd: record.costUsd, commands, record };
 }
 
 function jsonSchema(schema: z.ZodType): Record<string, unknown> {

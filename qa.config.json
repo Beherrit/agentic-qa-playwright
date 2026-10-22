@@ -77,13 +77,14 @@
     "analysisWhenWriterFiles": true,
     "testsWhenPlanIsReady": true
   },
-  "models": {
-    "*": "sonnet"
+  "models": {},
+  "tasks": {
+    "enabled": true
   },
   "jira": {
     "fields": {}
   },
   "budget": {
-    "maxUsdPerRun": 0
+    "maxUsdPerRun": 20
   }
 }

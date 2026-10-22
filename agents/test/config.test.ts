@@ -99,12 +99,14 @@ describe('model providers and the budget', () => {
     assert.equal(providerName({ CLAUDE_CODE_OAUTH_TOKEN: 't' }), 'Claude subscription token');
   });
 
-  it('picks the model per role, then the wildcard, then the repository variable, then sonnet', () => {
-    assert.equal(modelFor('plan-critic', {}, {}), 'sonnet');
+  it('picks the model per role, then the wildcard, then the repository variable, then the role\'s tier', () => {
+    assert.equal(modelFor('plan-critic', {}, {}, {}), 'claude-opus-5-5');
+    assert.equal(modelFor('plan-reconciler', {}, {}, {}), 'claude-fable-5-1');
+    assert.equal(modelFor('requirements-analyst', {}, {}, { research: { model: 'sonnet', fallback: '' } }), 'sonnet');
     assert.equal(modelFor('plan-critic', {}, { QA_AGENT_MODEL: 'opus' }), 'opus');
     assert.equal(modelFor('plan-critic', { '*': 'haiku' }, { QA_AGENT_MODEL: 'opus' }), 'haiku');
     assert.equal(modelFor('automation-engineer', { '*': 'haiku', 'automation-engineer': 'sonnet' }, {}), 'sonnet');
-    assert.equal(modelFor('plan-critic', { 'automation-engineer': 'sonnet' }, {}), 'sonnet');
+    assert.equal(modelFor('plan-critic', { 'automation-engineer': 'sonnet' }, {}, {}), 'claude-opus-5-5');
     assert.equal(providerName({}), 'the signed-in Claude Code CLI');
   });
 

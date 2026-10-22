@@ -2,6 +2,7 @@ import type { GateReport } from '../gates.ts';
 import { technicalSection } from './draft.ts';
 import { countByLayer, isE2e, layerById, type Layer } from './layers.ts';
 import { config, LABELS } from './paths.ts';
+import { leadMd, runReportMd, type LeadNotes } from './report.ts';
 import type { Doubt, Generation, Request, Requirements, Review, Skepticism, Strategy, Triage } from './schemas.ts';
 import type { RunRecord } from './store.ts';
 import type { TechnicalResult } from './technical.ts';
@@ -447,7 +448,7 @@ ${fold('Test strategy', strategyMd(request, strategy, false, 3))}
 
 ${fold('Code review', reviewMd(review, round, 3))}
 
-${fold('Agent runs', ledgerMd(ledger))}
+${reportFold(ledger, testsNotes(request, gates, round, approved))}
 ${request.source === 'github' ? `\nCloses #${request.ref}\n` : ''}`;
 }
 
@@ -515,8 +516,10 @@ export function analysisMd(input: {
   compact?: boolean;
   /** The requirements were taken from a ticket the ticket writer filed, with no analyst run. */
   fromWriter?: boolean;
+  /** The agents of this run, for the run report at the bottom. */
+  ledger?: RunRecord[];
 }): string {
-  const { request, requirements: req, doubts = null, strategy, technical = null, runUrl, compact = false, fromWriter = false } = input;
+  const { request, requirements: req, doubts = null, strategy, technical = null, runUrl, compact = false, fromWriter = false, ledger = [] } = input;
   const run = runUrl ? ` [See the run](${runUrl}).` : '';
   const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
 
@@ -552,8 +555,55 @@ ${status}
 ${facts ? `${facts}.` : ''}
 ${req ? requirementsMd(request, req, technical, 3, doubts, fromWriter) : ''}
 ${strategy ? strategyMd(request, strategy, compact, 3) : ''}
+${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), compact) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
   return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
+}
+
+/** The longest run report a ticket comment or pull request carries in full. GitHub refuses a body over 65,536. */
+const REPORT_LIMIT = 20_000;
+
+/**
+ * The run report, folded, for a ticket or a pull request: the lead's card and every agent's, or the lead's card alone
+ * when the space is short (Jira) or the full report would be too long. The whole report is always in run-report.md.
+ */
+export function reportFold(ledger: RunRecord[], notes: LeadNotes, compact = false): string {
+  const full = runReportMd(ledger, notes).replace(/^## Run report\n\n/, '');
+  const body = compact || full.length > REPORT_LIMIT ? `${leadMd(ledger, notes)}\n\n_Every agent's card is in run-report.md in the run's artifact._` : full;
+  return fold('Run report: the lead and every agent', body);
+}
+
+/** The lead's notes for a test run: the verdict, the gates, the rework, the pull request. */
+export function testsNotes(request: Request, gates: GateReport, round: number, approved: boolean): LeadNotes {
+  return {
+    title: `tests for ${request.key}`,
+    verdict: `${approved ? 'Approved by the automated review' : 'A draft with open review findings'}; gates ${gates.passed ? 'passed' : 'failed'}.`,
+    decisions: [
+      `Gates: ${gates.results.map((g) => `${g.name} ${g.passed ? 'pass' : 'FAIL'}${g.advisory ? ' (advisory)' : ''}`).join(', ')}.`,
+      ...(round > 1 ? [`Sent the tests back for rework ${round - 1} time(s).`] : []),
+      `Opened the pull request as ${approved ? 'ready for review' : 'a draft'}.`,
+    ],
+  };
+}
+
+/** The lead's notes for an analysis: the verdict and what the code decided around the agents. */
+export function analysisNotes(request: Request, req: Requirements | null, strategy: Strategy | null): { title: string; verdict: string; decisions: string[] } {
+  const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
+  const verdict = !req
+    ? 'The analysis did not finish.'
+    : blocked
+      ? 'Not ready: blocking questions went back to the ticket.'
+      : !strategy
+        ? 'The plan did not finish.'
+        : strategy.health.score >= config.minPlanScore
+          ? `Ready for tests: plan health ${strategy.health.score}/100.`
+          : `Below the pass mark: plan health ${strategy.health.score}/100 of ${config.minPlanScore} needed.`;
+  const decisions = [
+    ...(strategy ? [`Scored the plan ${strategy.health.score}/100 (pass mark ${config.minPlanScore}).`] : []),
+    ...(strategy?.adjustments ?? []).map((a) => `Corrected an answer: ${a}`),
+    ...(blocked ? ['Held the plan back until the blocking questions are answered.'] : []),
+  ];
+  return { title: `QA analysis of ${request.key}`, verdict, decisions };
 }
 
 /** What the test workflow posts on the ticket when it finishes. */

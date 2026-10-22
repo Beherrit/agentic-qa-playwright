@@ -63,6 +63,10 @@ the working directory, and its own prompts and templates next to its code.
 
 ## Agent roles
 
+Each role runs on a model tier (decide, build, research, read), opens its prompt with a persona card, and hands in a
+handoff next to its answer; the pipeline turns the ledger into a run report. [AGENT-RULES.md](AGENT-RULES.md) has
+the tiers, the cards, the handoff and the report.
+
 Every agent runs with `permissionMode: dontAsk` and no user settings, hooks or MCP servers: whatever is not on its
 list is refused. "Read" means Read, Glob and Grep inside the repository. "Browser" means the Playwright MCP server
 at one of three levels, each the smaller one plus what the job needs (`agents/lib/agent.ts`):

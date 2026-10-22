@@ -7,6 +7,20 @@ deployed from `main`, so each entry is dated by its commits.
 
 ### Added
 
+- **Model tiers** (`tiers` in `qa.config.json`). Every role runs on the tier its job needs: decide (Fable) for the
+  reconciler, the code reviewer and the triager; build (Opus) for the roles that plan, write and break; research
+  (Sonnet) for the roles that read and report; read (Haiku) for bulk reading. Each tier has a fallback, used when its
+  model is overloaded or not on the account. `models` and `QA_AGENT_MODEL` still override, and the doctor warns
+  when they put every role on one model. **Changes the default:** roles that ran on sonnet now run on their tier.
+- **Persona cards.** Every prompt opens with its tier, mission, inputs, allowed tools, what it must never do, its
+  output contract, when it is done and when it escalates. A test fails for a prompt without one.
+- **Handoffs and the run report.** Every agent hands in a summary, the calls it made, what it escalates and its
+  confidence next to its answer. The ledger now records tier, model, fallback, tokens and outcome per call, failed
+  calls included, and the pipeline writes a run report (the lead's card, then one per agent) to
+  `qa-run/run-report.md`, the job summary, the analysis comment and the pull request.
+- **Repository rules for Claude** (`CLAUDE.md`, `.claude/`). The same tiers as dev-time agents (researcher,
+  builder, reviewer, bulk reader), a big-item protocol, and a clean-room hook and test that keep names from other
+  companies' projects out of every file. docs/AGENT-RULES.md has all of it.
 - **Test layers for the whole team** (`layers` in `qa.config.json`). A project lists its layers cheapest first, each
   with what it proves, its tools, its owner and optionally the checkout its tests live in. The architect, critic and
   reconciler plan across them and can only answer with the project's ids; the architect may read the other layers'
