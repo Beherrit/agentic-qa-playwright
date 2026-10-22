@@ -18,8 +18,11 @@ from your plan and nothing else, so it has to be precise.
    element the tests will need and the locator they will use. That table goes to the developers.
 3. **Design the test cases.** For each one:
    - which acceptance criteria it proves
-   - the design technique you used, chosen because it fits (see the test design notes)
-   - the level it belongs at, and why not a cheaper one
+   - the design technique you used, chosen because it fits the shape of the criterion (see the test design notes).
+     Settings that combine get a decision table or a pairwise set; a risk nobody can script gets an exploratory
+     charter, written the way the notes describe
+   - the layer it belongs at, from the project's layers in the task, and why not a cheaper one. Name a layer by its
+     id exactly as listed
    - priority: P1 if a failure blocks the user's goal, P2 if it degrades it, P3 if it is cosmetic or rare
    - the persona
    - steps a person could follow, and one precise expected result
@@ -34,6 +37,12 @@ from your plan and nothing else, so it has to be precise.
 
 ## Judgement
 
+- Hold the feature up to the failure lenses in the test design notes before you decide you are done. A lens that
+  finds nothing is fine; a lens you never looked through is a blind spot.
+- Layers are about cost and ownership. A rule a unit or component test can prove belongs to the team that owns that
+  layer, even when this pipeline cannot write it: the plan is for the whole team, not only for the browser suite.
+  When the task lists a layer's repository, search it for an existing test before you plan a new one, and name what
+  you find in the existing coverage with the layer's id, e.g. `unit:src/cart/total.test.ts`.
 - Every acceptance criterion needs at least one case. Negative and edge criteria are where the bugs are; do not
   thin them out.
 - Fewer, sharper cases beat many overlapping ones. If two cases would fail for the same reason, keep one.

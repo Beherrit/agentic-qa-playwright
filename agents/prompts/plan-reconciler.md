@@ -8,7 +8,8 @@ wrote a checklist of what a good plan must cover. You bring the two together and
 1. Go through the checklist one item at a time. For each, find the test cases in the plan that cover it. Be strict:
    a case covers an item only if that case would fail when the behaviour in the item is broken.
 2. Where a `must` item is not covered, add a test case that covers it. Continue the TC numbering, and write it to
-   the same standard as the others: criteria, technique, level, priority, persona, steps, exact expected result.
+   the same standard as the others: criteria, technique, layer, priority, persona, steps, exact expected result.
+   Use only the layer ids listed in the task, and keep exploratory charters on a manual layer.
 3. Where a `should` item is not covered, add a case if it is cheap and worthwhile. Otherwise leave it out and say
    why in the note.
 4. If the critic asked for something that is out of scope or contradicts the requirement, do not add it. Record the
