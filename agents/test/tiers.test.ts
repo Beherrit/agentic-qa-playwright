@@ -152,7 +152,7 @@ describe('the run report', () => {
 });
 
 describe('the size of what is posted', async () => {
-  const { analysisMd, COMMENT_LIMIT, reportFold } = await import('../lib/render.ts');
+  const { analysisMd, COMMENT_LIMIT, fitted, reportFold } = await import('../lib/render.ts');
   const handoff = { summary: 'x'.repeat(4000), decisions: [], escalations: [], confidence: 'high' as const, confidenceReason: 'r' };
   const ledger: RunRecord[] = Array.from({ length: 8 }, (_, i) => ({ role: `role-${i}`, turns: 1, seconds: 1, costUsd: 0, tier: 'build', model: 'm', outcome: 'ok', handoff }));
   const notes = { title: 't', verdict: 'v' };
@@ -167,5 +167,19 @@ describe('the size of what is posted', async () => {
     assert.ok(COMMENT_LIMIT < 65_536);
     const request = { key: 'REQ-1', title: 't', source: 'github', ref: '1', body: '', mode: 'built' } as unknown as Parameters<typeof analysisMd>[0]['request'];
     assert.ok(analysisMd({ request, requirements: null, strategy: null, runUrl: null, ledger }).length < COMMENT_LIMIT);
+  });
+
+  it('gives up detail one level at a time, and cuts the last level only when nothing else fits', () => {
+    const sizes = [90_000, 70_000, 40_000];
+    const seen: number[] = [];
+    const text = fitted((level) => {
+      seen.push(level);
+      return `L${level}\n${'y'.repeat(sizes[level])}`;
+    }, 2);
+    assert.deepEqual(seen, [0, 1, 2]);
+    assert.ok(text.startsWith('L2'));
+    const cut = fitted(() => `${'z\n'.repeat(40_000)}`, 1);
+    assert.ok(cut.length <= COMMENT_LIMIT);
+    assert.match(cut, /Cut short to fit GitHub's size limit/);
   });
 });
