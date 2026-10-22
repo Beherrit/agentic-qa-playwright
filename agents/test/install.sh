@@ -11,7 +11,10 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 say() { printf '\n== %s\n' "$*"; }
-fail() { printf '\nFAILED: %s\n' "$*" >&2; exit 1; }
+# On GitHub Actions a failure is also an annotation, so the reason shows on the check without opening the log.
+annotate() { if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=install.sh::%s\n' "$*"; fi; }
+fail() { annotate "$*"; printf '\nFAILED: %s\n' "$*" >&2; exit 1; }
+trap 'annotate "line $LINENO: $BASH_COMMAND exited $?"' ERR
 
 say "pack"
 cd "$root"
