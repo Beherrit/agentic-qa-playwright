@@ -1,6 +1,6 @@
 ## QA run history
 
-**69 runs: 13 analysis, 13 tests, 43 regression.** Gates passed in 80% of tests runs; the review approved 31% at first review.
+**70 runs: 13 analysis, 13 tests, 44 regression.** Gates passed in 80% of tests runs; the review approved 31% at first review.
 
 Average plan score 98, estimated cost $0.44 per run, $30.57 in all.
 
@@ -8,7 +8,7 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 
 ### Totals
 
-- Runs: 69 (13 analysis, 13 tests, 43 regression)
+- Runs: 70 (13 analysis, 13 tests, 44 regression)
 - Flaky lately: none recorded
 - Gates passed (tests runs): 80%
 - Approved at first review: 31%
@@ -17,12 +17,12 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 - Average plan score: 98
 - Total cost: $30.57
 - Average cost per run: $0.44
-- Average agent time: 2m 23s
+- Average agent time: 2m 21s
 - Gate failing most often: Full suite (2)
 
 ### Last 7 days
 
-**17 runs since 2026-10-15, $9.95 in all, $0.59 per run.** 2 failed. Today: $9.86.
+**18 runs since 2026-10-15, $9.95 in all, $0.55 per run.** 2 failed. Today: $9.86.
 
 | Role | Runs | Avg turns | Avg time | Est. cost |
 | --- | ---: | ---: | ---: | ---: |
@@ -38,17 +38,18 @@ Written by the "QA run history" workflow after every analysis, tests and regress
 | request-screener | 2 | 2 | 8s | $0.10 |
 | failure-triager | 1 | 6 | 15s | $0.09 |
 
-Most expensive tickets: REQ-57 $9.86 (2 runs), (no ticket) $0.09 (15 runs).
+Most expensive tickets: REQ-57 $9.86 (2 runs), (no ticket) $0.09 (16 runs).
 
 
 ### Runs
 
-69 runs, newest first.
+70 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-22 07:40 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39741370379) |
 | 2026-10-22 07:15 | REQ-57 | Requirement: Checkout overview price summary and finishing the order | tests (failure) | 99 | 10/11 passed, failed: Accessibility (advisory) | approved, round 1, 3 findings | 19m 39s | $6.70 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39735612134) |
 | 2026-10-22 06:40 | REQ-57 | Requirement: Checkout overview price summary and finishing the order | analysis | 99 | - | - | 10m 0s | $3.16 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39733900991) |
 | 2026-10-22 06:28 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39733858133) |
