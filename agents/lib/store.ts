@@ -40,6 +40,8 @@ export type RunRecord = {
   turns: number;
   seconds: number;
   costUsd: number;
+  /** The turn limit the call ran under. */
+  maxTurns?: number;
   tier?: Tier;
   /** The model asked for, and where that choice came from. */
   model?: string;

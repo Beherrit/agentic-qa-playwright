@@ -175,7 +175,26 @@ export const ConfigSchema = z.object({
    * The most a single pipeline run may spend on agents, in dollars as the SDK estimates them, and the most a day's
    * runs may add up to on the history page before it warns. 0 is no cap.
    */
-  budget: z.object({ maxUsdPerRun: z.number().min(0).default(0), maxUsdPerDay: z.number().min(0).default(0) }).prefault({}),
+  budget: z
+    .object({
+      maxUsdPerRun: z.number().min(0).default(0),
+      maxUsdPerDay: z.number().min(0).default(0),
+      /** The most one agent call may cost, by tier, e.g. { "decide": 2, "build": 5 }. Unset is no cap of its own. */
+      maxUsdPerAgent: z
+        .object({ decide: z.number().min(0).optional(), build: z.number().min(0).optional(), research: z.number().min(0).optional(), read: z.number().min(0).optional() })
+        .default({}),
+    })
+    .prefault({}),
+  /**
+   * A big item: a requirement with this many criteria or more, or a high risk. The analysis says so, and the tests of
+   * a big item never start by themselves: a person reads the plan and adds the label.
+   */
+  bigItem: z
+    .object({
+      criteria: z.number().int().min(1).default(10),
+      highRisk: z.boolean().default(true),
+    })
+    .prefault({}),
   /**
    * Where test cases can live, cheapest first: the browser suite this pipeline writes, and the layers other people own
    * (unit, component, API, contract) and manual. The fields are in agents/lib/layers.ts. Without a list, the plan uses

@@ -8,6 +8,7 @@ import { checkCoverage, coverageRoots, isE2e, layerIds, layersText, placeCases }
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
 import { analysisMd, analysisNotes, testsNotes, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
+import { bigItem } from './lib/big-item.ts';
 import { runReportMd } from './lib/report.ts';
 import {
   Checklist,
@@ -752,7 +753,8 @@ export async function notifyAnalysis(runUrl: string | null, options: { post: boo
   }
 
   // The workflow starts the test half on this when the configuration says a good plan may go straight on.
-  setOutput('autorun', ready && !blocked && (config.autoRun?.testsWhenPlanIsReady ?? false));
+  // A big item never starts its own tests: a person reads the plan first.
+  setOutput('autorun', ready && !blocked && !bigItem(requirementsDoc, config.bigItem) && (config.autoRun?.testsWhenPlanIsReady ?? false));
 }
 
 /**

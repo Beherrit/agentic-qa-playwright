@@ -3,12 +3,10 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { z } from 'zod';
 import { blockedNames, textOfEdit } from '../lib/clean-room.ts';
 import { withHandoff } from '../lib/handoff.ts';
-import { Conversion, Settings } from '../lib/migrate/schemas.ts';
-import { PerfAnalysis } from '../lib/perf/analyst.ts';
-import * as S from '../lib/schemas.ts';
+import { contractsMd, ROLE_ANSWERS } from '../lib/contracts.ts';
+import { ROLE_POLICY } from '../lib/policy.ts';
 import { ROLE_TIERS, Tier } from '../lib/tiers.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
@@ -53,28 +51,28 @@ describe('agent rules', () => {
   });
 
   it('gives every role an object answer, so every agent hands in a handoff', () => {
-    const { Plan, Reconciled } = S.strategySchemas(['e2e']);
-    const answers: Record<string, z.ZodType> = {
-      'request-screener': S.Screening,
-      skeptic: S.Skepticism,
-      'requirements-analyst': S.Requirements,
-      'technical-reviewer': S.TechnicalReview,
-      'test-architect': Plan,
-      'plan-critic': S.Checklist,
-      'plan-reconciler': Reconciled,
-      'automation-engineer': S.Generation,
-      saboteur: S.Sabotage,
-      'code-reviewer': S.Review,
-      'failure-triager': S.Triage,
-      'test-healer': S.Healing,
-      'suite-surveyor': S.Survey,
-      'ticket-writer': S.TicketDraft,
-      'performance-analyst': PerfAnalysis,
-      'settings-migrator': Settings,
-      'test-migrator': Conversion,
-    };
-    assert.deepEqual(Object.keys(answers).sort(), roles);
-    for (const [role, schema] of Object.entries(answers)) assert.notEqual(withHandoff(schema), schema, `${role} gets a handoff`);
+    assert.deepEqual(Object.keys(ROLE_ANSWERS).sort(), roles);
+    for (const [role, { schema }] of Object.entries(ROLE_ANSWERS)) assert.notEqual(withHandoff(schema), schema, `${role} gets a handoff`);
+  });
+
+  it('gives every role a policy, and keeps each card\'s tools to what the policy grants', () => {
+    assert.deepEqual(Object.keys(ROLE_POLICY).sort(), roles);
+    for (const role of roles) {
+      const policy = ROLE_POLICY[role];
+      const text = fs.readFileSync(path.join(PROMPTS, `${role}.md`), 'utf8');
+      const tools = /^- \*\*Allowed tools:\*\* (.+)$/m.exec(text)?.[1] ?? '';
+      assert.equal(/\bEdit\b/.test(tools), policy.access === 'write', `${role}: Edit in the card iff it may write`);
+      if (policy.browser) assert.match(tools, new RegExp(`\\(${policy.browser} level\\)`), `${role}: the browser level`);
+      else assert.match(tools, /No browser/, `${role}: no browser`);
+      assert.equal(/other layers|old project/.test(tools), policy.otherRepos, `${role}: other repositories`);
+      const output = /^- \*\*Output contract:\*\* `(\w+)`/m.exec(text)?.[1];
+      assert.equal(output, ROLE_ANSWERS[role].name, `${role}: the output contract names its schema`);
+    }
+  });
+
+  it('keeps docs/CONTRACTS.md the same as the code generates it', () => {
+    const page = fs.readFileSync(path.join(ROOT, 'docs/CONTRACTS.md'), 'utf8');
+    assert.equal(page, contractsMd(), 'run: node agents/lib/contracts.ts --write');
   });
 
   it('keeps the repository rules and the dev-time agents in step with the tiers', () => {
@@ -117,7 +115,8 @@ describe('the clean room', () => {
     }
     const dirty = files.filter((file) => {
       const full = path.join(ROOT, file);
-      if (!fs.existsSync(full) || fs.statSync(full).size > 2_000_000) return false;
+      const stat = fs.existsSync(full) ? fs.lstatSync(full) : null;
+      if (!stat?.isFile() || stat.size > 2_000_000) return false;
       const buffer = fs.readFileSync(full);
       if (buffer.includes(0)) return false; // binary
       return blockedNames(`${file}\n${buffer.toString('utf8')}`) > 0;

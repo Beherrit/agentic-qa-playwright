@@ -132,4 +132,20 @@ describe('runAgent', () => {
     assert.equal(last.outcome, 'failed');
     assert.match(String(last.error), /Invalid API key/);
   });
+
+  it('refuses a call that asks for more than the role\'s policy, before any agent starts', async () => {
+    const fake = fakeQuery([{ structured_output: { summary: 'x', handoff }, cost: 0, turns: 1 }]);
+    await assert.rejects(
+      runAgent({ role: 'code-reviewer', instructions: '', task: 'Review.', schema: Answer, access: 'write' }, fake.query),
+      /code-reviewer was asked for more than its policy allows: write access/,
+    );
+    assert.equal(fake.calls.length, 0);
+  });
+
+  it('runs a role on its policy\'s turn limit when the stage names none, and records it', async () => {
+    const fake = fakeQuery([{ structured_output: { summary: 'x', handoff }, cost: 0, turns: 2 }]);
+    const run = await runAgent({ role: 'plan-reconciler', instructions: '', task: 'Reconcile.', schema: Answer, access: 'read' }, fake.query);
+    assert.equal(fake.calls[0].maxTurns, 10);
+    assert.equal(run.record.maxTurns, 10);
+  });
 });

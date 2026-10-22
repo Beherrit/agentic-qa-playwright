@@ -7,6 +7,7 @@ import { config, ROOT } from './paths.ts';
 import { HANDOFF_RULES, handoffIn, withHandoff } from './handoff.ts';
 import { recordRun, spent, type RunRecord, type TokenCount } from './store.ts';
 import { commands, prepareAuth, storageStatePath } from './suite.ts';
+import { beyondPolicy, policyOf } from './policy.ts';
 import { isModelUnavailable, resolveModel } from './tiers.ts';
 
 /**
@@ -263,6 +264,10 @@ const NUDGE_TURNS = 3;
 export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: QueryFn = query): Promise<AgentResult<z.infer<S>>> {
   // An agent with a browser starts from the same signed-in state as the tests, when the project has one.
   const browser = browserAccess(spec.browser);
+  // A stage may give a role less than its policy, never more (agents/lib/policy.ts).
+  const over = beyondPolicy(spec.role, { access: spec.access, browser, maxTurns: spec.maxTurns, readDirs: spec.readDirs });
+  if (over.length) throw new Error(`${spec.role} was asked for more than its policy allows: ${over.join(', ')}. See agents/lib/policy.ts.`);
+  const maxTurns = spec.maxTurns ?? policyOf(spec.role).maxTurns;
   if (browser) prepareAuth();
   const tools = spec.access === 'write' ? [...READ_TOOLS, 'Write', 'Edit', 'Bash'] : READ_TOOLS;
   const allowed = [
@@ -271,8 +276,11 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     ...(browser ? browserTools(browser) : []),
   ];
 
-  const left = budgetLeft();
   const chosen = resolveModel(spec.role, { models: config.models, tiers: config.tiers });
+  // The run's budget left, and the tier's cap for one call: the smaller of the two applies.
+  const runLeft = budgetLeft();
+  const tierCap = config.budget.maxUsdPerAgent[chosen.tier] || null;
+  const left = runLeft === null ? tierCap : tierCap === null ? runLeft : Math.min(runLeft, tierCap);
   // Every role answers with a handoff next to its answer: what it did, the calls it made, what a person must check.
   const outputSchema = withHandoff(spec.schema);
   const handsOff = outputSchema !== spec.schema;
@@ -301,7 +309,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     settingSources: [],
     strictMcpConfig: true,
     mcpServers: browser ? browserServer(browser) : {},
-    maxTurns: spec.maxTurns ?? 40,
+    maxTurns,
     outputFormat: { type: 'json_schema', schema: jsonSchema(outputSchema) },
   };
 
@@ -402,6 +410,7 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
     seconds,
     // A resumed session's result carries the cost of the whole session, so the latest result is the total.
     costUsd: message.total_cost_usd,
+    maxTurns,
     tier: chosen.tier,
     model: fellBack ? chosen.fallback : chosen.model,
     modelSource: chosen.source,

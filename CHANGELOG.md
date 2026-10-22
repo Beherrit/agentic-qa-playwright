@@ -18,6 +18,12 @@ deployed from `main`, so each entry is dated by its commits.
   confidence next to its answer. The ledger now records tier, model, fallback, tokens and outcome per call, failed
   calls included, and the pipeline writes a run report (the lead's card, then one per agent) to
   `qa-run/run-report.md`, the job summary, the analysis comment and the pull request.
+- **Role policies and generated contracts.** `agents/lib/policy.ts` sets the most each role may be given (access,
+  browser level, turns, other checkouts); `runAgent` refuses a call that asks for more. docs/CONTRACTS.md is
+  generated from the policies, tiers and answer schemas, and a test fails when it, or a card, disagrees with the code.
+- **Budgets by tier and big items.** `budget.maxUsdPerAgent` caps one call per tier; a call that used nine tenths of
+  its turns is escalated in the run report. A requirement with many criteria or a high risk is a big item, and its
+  tests never start by themselves.
 - **Repository rules for Claude** (`CLAUDE.md`, `.claude/`). The same tiers as dev-time agents (researcher,
   builder, reviewer, bulk reader), a big-item protocol, and a clean-room hook and test that keep names from other
   companies' projects out of every file. docs/AGENT-RULES.md has all of it.

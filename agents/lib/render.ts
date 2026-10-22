@@ -2,6 +2,7 @@ import type { GateReport } from '../gates.ts';
 import { technicalSection } from './draft.ts';
 import { countByLayer, isE2e, layerById, type Layer } from './layers.ts';
 import { config, LABELS } from './paths.ts';
+import { bigItem } from './big-item.ts';
 import { leadMd, runReportMd, type LeadNotes } from './report.ts';
 import type { Doubt, Generation, Request, Requirements, Review, Skepticism, Strategy, Triage } from './schemas.ts';
 import type { RunRecord } from './store.ts';
@@ -525,6 +526,7 @@ export function analysisMd(input: {
   const { request, requirements: req, doubts = null, strategy, technical = null, runUrl, compact = false, fromWriter = false, ledger = [] } = input;
   const run = runUrl ? ` [See the run](${runUrl}).` : '';
   const blocked = req?.openQuestions.some((q) => q.blocking) ?? false;
+  const big = bigItem(req, config.bigItem);
 
   let status: string;
   if (!req) status = `**The analysis did not finish.**${run}`;
@@ -535,7 +537,7 @@ export function analysisMd(input: {
   else
     status = `**Ready for tests.** Plan health ${strategy.health.score}/100. Add the \`${LABELS.generate}\` label to have the tests written and a pull request opened.${
       request.mode === 'test-first' ? ' The feature is marked as not built yet, so the tests will be written first, against the contract below.' : ''
-    }`;
+    }${big ? ` This is a big item (${big}), so the tests start only when a person adds the label.` : ''}`;
 
   const facts = req
     ? [
@@ -624,8 +626,10 @@ export function analysisNotes(request: Request, req: Requirements | null, strate
         : strategy.health.score >= config.minPlanScore
           ? `Ready for tests: plan health ${strategy.health.score}/100.`
           : `Below the pass mark: plan health ${strategy.health.score}/100 of ${config.minPlanScore} needed.`;
+  const big = bigItem(req, config.bigItem);
   const decisions = [
     ...(strategy ? [`Scored the plan ${strategy.health.score}/100 (pass mark ${config.minPlanScore}).`] : []),
+    ...(big ? [`Marked it a big item (${big}): the tests wait for a person, whatever autoRun says.`] : []),
     ...(strategy?.adjustments ?? []).map((a) => `Corrected an answer: ${a}`),
     ...(blocked ? ['Held the plan back until the blocking questions are answered.'] : []),
   ];
