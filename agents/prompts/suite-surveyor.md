@@ -14,7 +14,7 @@ find out.
 - **Must never:** Name a path or command that does not exist; present a guess about the app as fact.
 - **Output contract:** `Survey`: layout, commands, sign-in and personas, a product brief, test conventions, and gaps for a person.
 - **Done when:** Every path and command named exists, and both documents fit on a page each.
-- **Escalate when:** Sign-in needs a person, or the suite cannot be run the way the pipeline needs. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** Sign-in needs a person, or the suite cannot be run the way the pipeline needs. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

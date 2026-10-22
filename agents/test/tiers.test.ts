@@ -11,6 +11,8 @@ describe('model tiers', () => {
     assert.deepEqual(resolveModel('code-reviewer', {}, {}), { tier: 'decide', model: 'claude-fable-5-1', fallback: 'claude-opus-5-5', source: 'tier' });
     assert.equal(resolveModel('automation-engineer', {}, {}).model, 'claude-opus-5-5');
     assert.equal(resolveModel('skeptic', {}, {}).model, 'claude-sonnet-5-5');
+    // Every fallback is a model the SDK knows.
+    assert.equal(resolveModel('skeptic', {}, {}).fallback, 'claude-opus-5-5');
   });
 
   it('lets a person override, most specific first, and says who did', () => {
@@ -18,10 +20,11 @@ describe('model tiers', () => {
     assert.deepEqual(resolveModel('code-reviewer', { models }, { QA_AGENT_MODEL: 'sonnet' }), {
       tier: 'decide',
       model: 'claude-opus-5-5',
-      // The override is the tier's fallback, so there is nothing to fall back to.
+      // A person's choice runs alone: no quiet switch to another model.
       fallback: '',
       source: 'role',
     });
+    assert.equal(resolveModel('code-reviewer', { models: { '*': 'haiku' } }, {}).fallback, '');
     assert.equal(resolveModel('skeptic', { models }, { QA_AGENT_MODEL: 'sonnet' }).source, 'all-roles');
     assert.equal(resolveModel('skeptic', {}, { QA_AGENT_MODEL: 'sonnet' }).source, 'QA_AGENT_MODEL');
     assert.deepEqual(resolveModel('plan-reconciler', { tiers: { decide: { model: 'claude-opus-5-5', fallback: '' } } }, {}), {
@@ -54,7 +57,8 @@ describe('the handoff', () => {
     const wrapped = withHandoff(Answer);
     const raw = { cases: ['TC-1'], handoff };
     assert.equal(wrapped.safeParse(raw).success, true);
-    assert.equal(wrapped.safeParse({ cases: [] }).success, false, 'the handoff is required');
+    // Optional where the CLI enforces it, so a forgotten handoff never costs the answer.
+    assert.equal(wrapped.safeParse({ cases: [] }).success, true);
     assert.deepEqual(Answer.parse(raw), { cases: ['TC-1'] });
     assert.deepEqual(handoffIn(raw), handoff);
   });

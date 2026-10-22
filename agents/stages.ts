@@ -7,7 +7,7 @@ import { checkedRisks } from './lib/draft.ts';
 import { checkCoverage, coverageRoots, isE2e, layerIds, layersText, placeCases } from './lib/layers.ts';
 import { branchFor } from './lib/keys.ts';
 import { config, LABELS, projectDoc, ROOT } from './lib/paths.ts';
-import { analysisMd, analysisNotes, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
+import { analysisMd, analysisNotes, testsNotes, gatesMd, pullRequestMd, requirementsMd, reviewMd, strategyMd, technicalMd, testsReadyMd } from './lib/render.ts';
 import { runReportMd } from './lib/report.ts';
 import {
   Checklist,
@@ -686,6 +686,12 @@ export function report(): void {
     technical: technicalReview(),
   });
   save('pull-request.md', body);
+  const ledger = exists('ledger.json') ? load<RunRecord[]>('ledger.json') : [];
+  const gates = load<GateReport>('gates.json');
+  const round = exists('round.json') ? load<{ round: number }>('round.json').round : 1;
+  const runReport = runReportMd(ledger, testsNotes(req, gates, round, reviewDoc.verdict === 'approve'));
+  save('run-report.md', runReport);
+  jobSummary(runReport);
   setOutput('title', `test: ${requirementsDoc.title} (${req.key})`);
   setOutput('branch', branchFor(req.key));
   setOutput('draft', reviewDoc.verdict !== 'approve');

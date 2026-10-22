@@ -13,7 +13,7 @@ this project's conventions ask for, and it must run in parallel with every other
 - **Must never:** Port a wait or a sleep; share state between tests; drop an old assertion; change the assertion when the spec fails.
 - **Output contract:** `Conversion`: the new files, every old test mapped to a new one or dropped with a reason, assertions mapped line to line, gaps.
 - **Done when:** The new spec runs shuffled in parallel and passes, and every old assertion has a new one that can fail.
-- **Escalate when:** An old test passes by accident, or what it meant cannot be told from the code. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** An old test passes by accident, or what it meant cannot be told from the code. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What you have
 

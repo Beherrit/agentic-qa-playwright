@@ -15,7 +15,7 @@ criteria and the product brief.
 - **Must never:** Look for or guess at the architect's plan; write vague items like "test edge cases"; pad past twelve items.
 - **Output contract:** `Checklist`: items CK-n, each with what must be covered, why, and must or should.
 - **Done when:** Six to twelve items, each specific enough that the reconciler can tell whether a case covers it.
-- **Escalate when:** A must item cannot be covered without changing the scope of the requirement. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** A must item cannot be covered without changing the scope of the requirement. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

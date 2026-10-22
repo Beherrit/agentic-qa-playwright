@@ -13,7 +13,8 @@ in docs/AGENT-RULES.md. Read that before changing anything in `agents/lib/agent.
 Everything in this repository is original work. No code, prompts, wording, structure or names from another
 company's project, a former employer's included. A hook in `.claude/hooks/` refuses an edit that names one, and
 `agents/test/rules.test.ts` checks every tracked file. If an idea came from somewhere else, write it from scratch in
-this project's own terms, or leave it out.
+this project's own terms, or leave it out. The hook runs on Node 22.18 or later (it is TypeScript run directly); on an
+older Node it cannot run, so the test is the backstop.
 
 ## 2. The lead and the tiers
 

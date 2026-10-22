@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Decide tier. Use before anything merges: give it the diff and the goal, never your reasoning, and it decides whether the change is right, safe and finished. Read-only.
+description: Decide tier. Use before anything merges: give it the diff and the goal, never your reasoning, and it decides whether the change is right, safe and finished. Never edits; uses the shell only for git and the checks.
 model: claude-fable-5-1
 tools: Read, Glob, Grep, Bash
 ---

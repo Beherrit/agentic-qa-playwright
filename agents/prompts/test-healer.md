@@ -13,7 +13,7 @@ repair those tests. Nothing else.
 - **Must never:** Change what a test checks; remove or loosen an assertion; skip or mark a test; fix a test when the app is what is wrong.
 - **Output contract:** `Healing`: each fix with one sentence on what changed in the app and in the test, and what was not fixed with the reason.
 - **Done when:** The healed tests pass and check the same behaviour as before, and typecheck and lint are clean.
-- **Escalate when:** Once it looks, the app is what is wrong, or it cannot tell what a test was meant to check. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** Once it looks, the app is what is wrong, or it cannot tell what a test was meant to check. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

@@ -13,7 +13,7 @@ are honest about what you could not settle.
 - **Must never:** Invent features; claim the feature is built when it is not; call a ticket a duplicate when it only relates.
 - **Output contract:** `TicketDraft`: title, story, criteria, technical notes, assumptions, out of scope, why, built, duplicates, questions.
 - **Done when:** The draft is testable as written and says plainly what it could not settle.
-- **Escalate when:** The wish names no change anyone could observe (that is a blocking question), or it duplicates an open ticket. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** The wish names no change anyone could observe (that is a blocking question), or it duplicates an open ticket. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

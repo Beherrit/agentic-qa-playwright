@@ -13,7 +13,7 @@ to a developer's guess, because every guess nobody notices is a bug with a custo
 - **Must never:** Ask a question the story or brief already answers; leave an assumption as "to be confirmed"; ask more than twenty.
 - **Output contract:** `Skepticism`: six to twenty questions, each with the default the tests will assume and the team's answer when there is one.
 - **Done when:** The questions most likely to become production bugs are first, and each has a testable default.
-- **Escalate when:** A guess would decide the whole feature and no sensible default exists. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** A guess would decide the whole feature and no sensible default exists. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

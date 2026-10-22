@@ -16,7 +16,7 @@ type Result = { structured_output?: unknown; result?: string; cost: number; turn
 
 /** A stand-in for the SDK: one scripted result per query() call, and a record of what each call asked for. */
 type Call = { prompt: string; resume?: string; maxTurns?: number; model?: string; fallbackModel?: string; schema?: unknown };
-function fakeQuery(results: Result[]): { query: QueryFn; calls: Call[] } {
+function fakeQuery(results: Result[], usesTool = false): { query: QueryFn; calls: Call[] } {
   const calls: Call[] = [];
   type Asked = { resume?: string; maxTurns?: number; model?: string; fallbackModel?: string; outputFormat?: { schema?: unknown } };
   const query = (({ prompt, options }: { prompt: string; options: Asked }) => {
@@ -24,6 +24,7 @@ function fakeQuery(results: Result[]): { query: QueryFn; calls: Call[] } {
     const scripted = results[calls.length - 1];
     async function* messages() {
       yield { type: 'assistant', message: { content: [{ type: 'text', text: 'Working.' }] } };
+      if (usesTool) yield { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Edit', input: { file_path: 'tests/a.spec.ts' } }] } };
       yield {
         type: 'result',
         subtype: 'success',
@@ -111,6 +112,16 @@ describe('runAgent', () => {
     assert.equal(fake.calls[1].prompt, 'Reconcile.');
     assert.equal(run.record.fellBack, true);
     assert.equal(run.record.model, 'claude-opus-5-5');
+    // The attempt on the unavailable model is in the ledger too, as a failed call.
+    const [first, second] = ledger().slice(-2);
+    assert.deepEqual([first.model, first.outcome, second.model, second.outcome], ['claude-fable-5-1', 'failed', 'claude-opus-5-5', 'ok']);
+  });
+
+  it('never runs a writing role again on the fallback once it has used a tool', async () => {
+    const results = [{ result: 'API Error: 529 overloaded_error', isError: true, cost: 0.5, turns: 12 }];
+    const fake = fakeQuery(results, true);
+    await assert.rejects(runAgent({ role: 'automation-engineer', instructions: '', task: 'Write.', schema: Answer, access: 'write' }, fake.query), /overloaded/);
+    assert.equal(fake.calls.length, 1);
   });
 
   it('does not fall back for a failure that is not about the model', async () => {

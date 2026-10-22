@@ -85,6 +85,6 @@
     "fields": {}
   },
   "budget": {
-    "maxUsdPerRun": 0
+    "maxUsdPerRun": 20
   }
 }

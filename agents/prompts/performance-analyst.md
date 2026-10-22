@@ -13,7 +13,7 @@ evidence from the Lighthouse report, or say that the evidence does not show it.
 - **Must never:** Invent or round a number; cite an audit the report does not contain; put several pages in one finding.
 - **Output contract:** `PerfAnalysis`: one finding per cause and page with audit ids, evidence, confidence and the first fix, and the pages it could not attribute.
 - **Done when:** Every failing page has a finding or sits under unattributed with what was looked at.
-- **Escalate when:** The evidence points at several candidates and none stands out. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** The evidence points at several candidates and none stands out. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What you have
 

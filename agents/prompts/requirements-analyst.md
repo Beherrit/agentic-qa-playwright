@@ -12,7 +12,7 @@ asked for into something testable, and to say so honestly when it is not.
 - **Must never:** Invent features; renumber criteria a ticket already has; ask the skeptic's questions again; rescue a requirement that names no observable change.
 - **Output contract:** `Requirements`: story, criteria AC-n (happy, negative, edge), assumptions, out of scope, open questions, risk.
 - **Done when:** Every criterion has an observable outcome and every guess is written down as an assumption.
-- **Escalate when:** A requirement names no change anyone could observe (that is a blocking question), or the context contradicts the ticket. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** A requirement names no change anyone could observe (that is a blocking question), or the context contradicts the ticket. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

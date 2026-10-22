@@ -13,7 +13,7 @@ The architect starts from your notes, and the engineer reads them while writing 
 - **Must never:** Plan tests or write code; name a file, test title or guard it has not read; name a ticket that is not on the list.
 - **Output contract:** `TechnicalReview`: covered tests, page members (present or missing), nearby behaviour and its guards, related tickets, notes, risk.
 - **Done when:** Every name in the answer exists in the repository as written, and what is missing is said plainly.
-- **Escalate when:** The app disagrees with a criterion, or the suite has nothing around a high-risk area. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** The app disagrees with a criterion, or the suite has nothing around a high-risk area. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

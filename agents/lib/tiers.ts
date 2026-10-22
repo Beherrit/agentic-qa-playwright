@@ -29,7 +29,7 @@ export type TierModel = z.infer<typeof TierModel>;
 export const DEFAULT_TIER_MODELS: Record<Tier, TierModel> = {
   decide: { model: 'claude-fable-5-1', fallback: 'claude-opus-5-5' },
   build: { model: 'claude-opus-5-5', fallback: 'claude-sonnet-5-5' },
-  research: { model: 'claude-sonnet-5-5', fallback: 'claude-haiku-5-5' },
+  research: { model: 'claude-sonnet-5-5', fallback: 'claude-opus-5-5' },
   read: { model: 'claude-haiku-5-5', fallback: 'claude-sonnet-5-5' },
 };
 
@@ -88,7 +88,8 @@ export type ResolvedModel = { tier: Tier; model: string; fallback: string; sourc
  *   2. `models["*"]`, every role (a proof of concept puts haiku here)
  *   3. the repository variable QA_AGENT_MODEL, every role
  *   4. the role's tier, from `tiers` in qa.config.json or the defaults above
- * An override keeps its tier's fallback, unless the fallback is the override itself.
+ * A person's override runs on that model alone, with no fallback: it was their choice, so the run never quietly
+ * switches to a different, possibly dearer, model.
  */
 export function resolveModel(
   role: string,
@@ -104,7 +105,7 @@ export function resolveModel(
     [env.QA_AGENT_MODEL, 'QA_AGENT_MODEL'],
   ];
   for (const [model, source] of override) {
-    if (model) return { tier, model, fallback: own.fallback === model ? '' : own.fallback, source };
+    if (model) return { tier, model, fallback: '', source };
   }
   return { tier, model: own.model, fallback: own.fallback, source: 'tier' };
 }

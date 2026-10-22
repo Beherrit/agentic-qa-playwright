@@ -2,7 +2,7 @@ import type { GateReport } from '../gates.ts';
 import { technicalSection } from './draft.ts';
 import { countByLayer, isE2e, layerById, type Layer } from './layers.ts';
 import { config, LABELS } from './paths.ts';
-import { leadMd, runReportMd } from './report.ts';
+import { leadMd, runReportMd, type LeadNotes } from './report.ts';
 import type { Doubt, Generation, Request, Requirements, Review, Skepticism, Strategy, Triage } from './schemas.ts';
 import type { RunRecord } from './store.ts';
 import type { TechnicalResult } from './technical.ts';
@@ -448,18 +448,7 @@ ${fold('Test strategy', strategyMd(request, strategy, false, 3))}
 
 ${fold('Code review', reviewMd(review, round, 3))}
 
-${fold(
-  'Run report: the lead and every agent',
-  runReportMd(ledger, {
-    title: `tests for ${request.key}`,
-    verdict: `${approved ? 'Approved by the automated review' : 'A draft with open review findings'}; gates ${gates.passed ? 'passed' : 'failed'}.`,
-    decisions: [
-      `Gates: ${gates.results.map((g) => `${g.name} ${g.passed ? 'pass' : 'FAIL'}${g.advisory ? ' (advisory)' : ''}`).join(', ')}.`,
-      ...(round > 1 ? [`Sent the tests back for rework ${round - 1} time(s).`] : []),
-      `Opened the pull request as ${approved ? 'ready for review' : 'a draft'}.`,
-    ],
-  }).replace(/^## Run report\n\n/, ''),
-)}
+${reportFold(ledger, testsNotes(request, gates, round, approved))}
 ${request.source === 'github' ? `\nCloses #${request.ref}\n` : ''}`;
 }
 
@@ -566,9 +555,35 @@ ${status}
 ${facts ? `${facts}.` : ''}
 ${req ? requirementsMd(request, req, technical, 3, doubts, fromWriter) : ''}
 ${strategy ? strategyMd(request, strategy, compact, 3) : ''}
-${ledger.length ? fold('Run report: the lead and every agent', compact ? leadMd(ledger, analysisNotes(request, req, strategy)) : runReportMd(ledger, analysisNotes(request, req, strategy)).replace(/^## Run report\n\n/, '')) : ''}
+${ledger.length ? reportFold(ledger, analysisNotes(request, req, strategy), compact) : ''}
 ${runUrl ? `\n_Full details, including each agent's cost: [run](${runUrl})._\n` : ''}`;
   return `${body.replace(/\n{3,}/g, '\n\n').trim()}\n`;
+}
+
+/** The longest run report a ticket comment or pull request carries in full. GitHub refuses a body over 65,536. */
+const REPORT_LIMIT = 20_000;
+
+/**
+ * The run report, folded, for a ticket or a pull request: the lead's card and every agent's, or the lead's card alone
+ * when the space is short (Jira) or the full report would be too long. The whole report is always in run-report.md.
+ */
+export function reportFold(ledger: RunRecord[], notes: LeadNotes, compact = false): string {
+  const full = runReportMd(ledger, notes).replace(/^## Run report\n\n/, '');
+  const body = compact || full.length > REPORT_LIMIT ? `${leadMd(ledger, notes)}\n\n_Every agent's card is in run-report.md in the run's artifact._` : full;
+  return fold('Run report: the lead and every agent', body);
+}
+
+/** The lead's notes for a test run: the verdict, the gates, the rework, the pull request. */
+export function testsNotes(request: Request, gates: GateReport, round: number, approved: boolean): LeadNotes {
+  return {
+    title: `tests for ${request.key}`,
+    verdict: `${approved ? 'Approved by the automated review' : 'A draft with open review findings'}; gates ${gates.passed ? 'passed' : 'failed'}.`,
+    decisions: [
+      `Gates: ${gates.results.map((g) => `${g.name} ${g.passed ? 'pass' : 'FAIL'}${g.advisory ? ' (advisory)' : ''}`).join(', ')}.`,
+      ...(round > 1 ? [`Sent the tests back for rework ${round - 1} time(s).`] : []),
+      `Opened the pull request as ${approved ? 'ready for review' : 'a draft'}.`,
+    ],
+  };
 }
 
 /** The lead's notes for an analysis: the verdict and what the code decided around the agents. */

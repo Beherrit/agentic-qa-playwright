@@ -353,11 +353,34 @@ export async function runAgent<S extends z.ZodType>(spec: AgentSpec<S>, run: Que
   let message = await converse(spec.task);
   let fellBack = false;
   const failureText = (m: SDKResultMessage): string => (m.subtype === 'success' ? (m.is_error ? m.result : '') : m.errors.join('; '));
-  if (chosen.fallback && isModelUnavailable(failureText(message))) {
-    // The account cannot use this tier's model, or it is overloaded past what the SDK retried. The task goes once
-    // to the fallback, from the start, and the report says so.
+  // The account cannot use this tier's model, or it is overloaded past what the SDK retried. The task goes once to
+  // the fallback, from the start. Never for a role that writes and has already used a tool: the files may be half
+  // edited, and a second agent starting over on them would not know.
+  const touched = spec.access === 'write' && calls.size > 0;
+  if (chosen.fallback && !touched && isModelUnavailable(failureText(message))) {
     console.log(`  ${chosen.model} is not available (${firstLine(failureText(message))}). Running on ${chosen.fallback}.`);
-    current = { ...options, model: chosen.fallback, fallbackModel: undefined };
+    // The first attempt is in the ledger as its own failed call, with whatever it cost.
+    recordRun({
+      role: spec.role,
+      turns: message.num_turns,
+      seconds: Math.round((Date.now() - started) / 1000),
+      costUsd: message.total_cost_usd,
+      tier: chosen.tier,
+      model: chosen.model,
+      modelSource: chosen.source,
+      modelsUsed: Object.keys(message.modelUsage ?? {}),
+      tokens: tokensFrom(message.modelUsage),
+      outcome: 'failed',
+      error: firstLine(failureText(message)),
+      handoff: null,
+    });
+    calls.clear();
+    asked.clear();
+    commands.length = 0;
+    browserCalls.calls = 0;
+    browserCalls.worked = 0;
+    const again = budgetLeft();
+    current = { ...options, model: chosen.fallback, fallbackModel: undefined, ...(again === null ? {} : { maxBudgetUsd: again }) };
     fellBack = true;
     message = await converse(spec.task);
   }

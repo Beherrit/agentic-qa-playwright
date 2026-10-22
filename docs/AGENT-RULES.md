@@ -30,7 +30,7 @@ Every role runs on the tier its job needs. The tier picks the model; a person ca
 |---|---|---|---|---|
 | decide | Fable (`claude-fable-5-1`) | Opus | settles something: the final plan, whether tests ship, bug or test defect | `plan-reconciler`, `code-reviewer`, `failure-triager` |
 | build | Opus (`claude-opus-5-5`) | Sonnet | does the work: plans, test code, faults, repairs | `test-architect`, `plan-critic`, `automation-engineer`, `saboteur`, `test-healer`, `test-migrator`, `settings-migrator`, `ticket-writer` |
-| research | Sonnet (`claude-sonnet-5-5`) | Haiku | reads and reports: requirements, code, suites, measurements | `request-screener`, `requirements-analyst`, `skeptic`, `technical-reviewer`, `suite-surveyor`, `performance-analyst` |
+| research | Sonnet (`claude-sonnet-5-5`) | Opus | reads and reports: requirements, code, suites, measurements | `request-screener`, `requirements-analyst`, `skeptic`, `technical-reviewer`, `suite-surveyor`, `performance-analyst` |
 | read | Haiku (`claude-haiku-5-5`) | Sonnet | bulk reading where a cheap pass is enough | none by default; for a project's own roles |
 
 Why it is split this way:
@@ -57,7 +57,8 @@ Most specific first:
 4. `tiers: { "<tier>": { "model": "...", "fallback": "..." } }` in `qa.config.json`: one tier.
 5. The defaults above.
 
-The first three skip the tiers altogether, and the run report says so on every agent it touched. `npx agentic-qa
+The first three skip the tiers altogether, fallback included: an overridden role runs on that model alone. The run
+report says so on every agent it touched. `npx agentic-qa
 doctor` lists what each tier resolves to.
 
 ## The persona card
@@ -74,7 +75,7 @@ without one, or with a tier that disagrees with `agents/lib/tiers.ts`.
 | Must never | the mistakes that would make its answer worthless or unsafe |
 | Output contract | the schema it answers in, and what is in it |
 | Done when | how the agent knows it has finished |
-| Escalate when | what it must raise for a person, in its handoff |
+| Escalate when | what it must raise for a person: in its answer's own field where there is one, and in its handoff |
 
 The card describes what the code enforces; it does not replace it. A tool that is not on a role's allowlist in
 `agents/lib/agent.ts` is refused whatever the card says.
@@ -91,8 +92,10 @@ before the stage sees the answer, so no role's own contract changes.
 | `escalations` | what a person must check before trusting the answer |
 | `confidence`, `confidenceReason` | high, medium or low, and why |
 
-Nobody is there to answer a question, so the handoff is how an agent escalates. A missing or malformed handoff is
-noted in the report and never stops the run: the answer is what the pipeline runs on.
+Nobody is there to answer a question, so an agent escalates in writing. Where its answer has a field for the concern
+(a blocking open question, a suspected bug, a case not automated), it goes there first, because that is what the
+pipeline acts on; the handoff's escalations name it again for the person reading the run. The handoff is optional
+in the schema, so a missing one is noted in the report and never stops the run.
 
 ## The run report
 
@@ -104,8 +107,9 @@ to (failed calls included):
 - **One card per agent:** tier and model (and whether it fell back or was overridden), turns, time, tokens, cost,
   outcome, and its handoff.
 
-It goes in `qa-run/run-report.md` and the job summary, folded into the comment on the ticket (the lead's card alone
-on Jira), and folded into the pull request.
+It goes in `qa-run/run-report.md` and the job summary, and is folded into the comment on the ticket and into the
+pull request. On Jira, or when every card together would make the comment too long, only the lead's card is folded
+in and the rest stays in `run-report.md`.
 
 ## Guardrails
 

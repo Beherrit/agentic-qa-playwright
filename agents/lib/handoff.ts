@@ -3,7 +3,8 @@ import { z } from 'zod';
 /**
  * The handoff: what every agent says about its own work when it hands in its answer, next to the answer itself.
  * The answer is for the next stage; the handoff is for the person reading the run. It is how an agent escalates,
- * since nobody is there to ask: a doubt goes in `escalations`, never into a question nobody will answer.
+ * since nobody is there to ask. A doubt the answer has its own field for (a blocking question, a suspected bug) goes
+ * there, because that is what the pipeline acts on, and in `escalations` as well.
  *
  * runAgent adds it to every role's output schema and takes it off again before the stage sees the answer, so no
  * role's own contract changes. A handoff that is missing or malformed is noted in the report, never fatal: the
@@ -28,13 +29,16 @@ export const HANDOFF_RULES = `
 
 Your answer has a \`handoff\` field next to everything else. Fill it in last, honestly, for the person who reads this
 run: a short summary of what you did, the calls you made that someone might question, and what a person must check
-before trusting your answer. That is the only way to raise a concern here, since nobody can answer a question.
-"Low" confidence with a clear reason is more useful than "high" that is not earned.
+before trusting your answer. Nobody can answer a question while you work, so a concern goes in writing. When your
+answer has its own field for it (a blocking question, a suspected bug, a case not automated), put it there first:
+that field is what the pipeline acts on. Then name it in the handoff's escalations too. "Low" confidence with a clear
+reason is more useful than "high" that is not earned.
 `;
 
 /** The role's schema with the handoff added, when the schema is an object; any other shape is left as it is. */
 export function withHandoff(schema: z.ZodType): z.ZodType {
-  return schema instanceof z.ZodObject ? schema.extend({ handoff: Handoff }) : schema;
+  // Optional in the schema the CLI enforces, so an agent that forgets it still hands in its answer.
+  return schema instanceof z.ZodObject ? schema.extend({ handoff: Handoff.optional() }) : schema;
 }
 
 /** The handoff in an agent's raw answer, or null when there is none or it does not match. */

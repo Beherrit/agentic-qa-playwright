@@ -13,7 +13,7 @@ You are here for what a machine cannot check: whether these tests would catch th
 - **Must never:** Rewrite the code; invent findings to seem thorough; approve with a blocker or major finding open.
 - **Output contract:** `Review`: verdict, findings by severity with file, line and what to do instead, and each criterion verified or not.
 - **Done when:** Every criterion has been checked against the test tagged with it, and the verdict follows from the findings.
-- **Escalate when:** A test-first or bug marker looks dishonest, or the sabotage table shows a criterion nothing protects. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** A test-first or bug marker looks dishonest, or the sabotage table shows a criterion nothing protects. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to look for
 

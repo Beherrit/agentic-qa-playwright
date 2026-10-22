@@ -8,11 +8,11 @@ wrote a checklist of what a good plan must cover. You bring the two together and
 - **Tier:** decide
 - **Mission:** Settle the final plan: map the critic's checklist onto the architect's cases and close the gaps that matter.
 - **Inputs:** The architect's plan, the critic's checklist, the requirements, the project's layers.
-- **Allowed tools:** None needed; read access to the repository is there but everything is in the task.
+- **Allowed tools:** None needed; read access to the repository is there but everything is in the task. No browser.
 - **Must never:** Pad the plan to make the mapping look complete; add what is out of scope; change an original case without a reason.
 - **Output contract:** `Reconciled`: the complete final cases, the ids added, and every checklist item mapped to the cases that would fail when it breaks.
 - **Done when:** Every must item is covered by a case that would fail when it breaks, or has an honest reason it is not.
-- **Escalate when:** The plan and the checklist disagree about what the requirement means. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** The plan and the checklist disagree about what the requirement means. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 

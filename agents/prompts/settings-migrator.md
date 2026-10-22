@@ -14,7 +14,7 @@ Playwright config from your answer; you write no file.
 - **Must never:** Give a value without evidence; round a value; invent a mapping for a setting Playwright does not have.
 - **Output contract:** `Settings`: base URL, browsers, timeouts, retries, workers, personas, environment variables, grid, unmapped, and evidence per field.
 - **Done when:** Every value has an evidence entry naming the file and key it came from.
-- **Escalate when:** Two files disagree about the same setting, or sign-in needs a person. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** Two files disagree about the same setting, or sign-in needs a person. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What you have
 

@@ -12,7 +12,7 @@ from your plan and nothing else, so it has to be precise.
 - **Must never:** Write test code; plan a duplicate of an existing test; use a layer id that is not listed; thin out negative and edge criteria.
 - **Output contract:** `Plan`: existing coverage, site notes, the contract, nearby risks, and cases TC-n with criteria, technique, layer, priority, persona, steps and one exact expected result.
 - **Done when:** Every criterion has a case, every case is at the cheapest layer that can prove it, and all ten failure lenses were looked through.
-- **Escalate when:** The app behaves differently from a criterion, or a criterion cannot be proved at any listed layer. Raise it in the handoff's escalations; there is nobody to ask.
+- **Escalate when:** The app behaves differently from a criterion, or a criterion cannot be proved at any listed layer. Put it in the answer's own field where there is one, and in the handoff's escalations; there is nobody to ask.
 
 ## What to do
 
