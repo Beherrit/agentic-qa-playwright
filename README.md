@@ -1,54 +1,55 @@
 ## QA run history
 
-**72 runs: 13 analysis, 14 tests, 45 regression.** Gates passed in 82% of tests runs; the review approved 29% at first review.
+**73 runs: 13 analysis, 15 tests, 45 regression.** Gates passed in 83% of tests runs; the review approved 27% at first review.
 
-Average plan score 98, estimated cost $0.55 per run, $39.63 in all.
+Average plan score 98, estimated cost $0.68 per run, $49.32 in all.
 
 Written by the "QA run history" workflow after every analysis, tests and regression run on the default branch.
 
 ### Totals
 
-- Runs: 72 (13 analysis, 14 tests, 45 regression)
+- Runs: 73 (13 analysis, 15 tests, 45 regression)
 - Flaky lately: none recorded
-- Gates passed (tests runs): 82%
-- Approved at first review: 29%
-- Approved after rework: 14%
-- Not approved: 57%
+- Gates passed (tests runs): 83%
+- Approved at first review: 27%
+- Approved after rework: 20%
+- Not approved: 53%
 - Average plan score: 98
-- Total cost: $39.63
-- Average cost per run: $0.55
-- Average agent time: 2m 38s
+- Total cost: $49.32
+- Average cost per run: $0.68
+- Average agent time: 2m 59s
 - Gate failing most often: Full suite (2)
 
 ### Last 7 days
 
-**20 runs since 2026-10-15, $19.01 in all, $0.95 per run.** 3 failed. Today: $18.92.
+**21 runs since 2026-10-15, $28.70 in all, $1.37 per run.** 3 failed. Today: $28.61.
 
 | Role | Runs | Avg turns | Avg time | Est. cost |
 | --- | ---: | ---: | ---: | ---: |
-| code-reviewer | 3 | 13 | 2m 30s | $4.70 |
-| plan-reconciler | 3 | 2 | 2m 42s | $3.82 |
-| test-architect | 3 | 61 | 4m 1s | $3.44 |
-| automation-engineer | 5 | 22 | 2m 13s | $3.14 |
-| saboteur | 2 | 16 | 3m 26s | $1.59 |
-| technical-reviewer | 3 | 25 | 1m 23s | $0.87 |
-| plan-critic | 3 | 2 | 40s | $0.66 |
-| requirements-analyst | 3 | 4 | 25s | $0.29 |
-| skeptic | 3 | 3 | 41s | $0.27 |
-| request-screener | 3 | 2 | 8s | $0.15 |
+| code-reviewer | 5 | 14 | 2m 45s | $8.49 |
+| plan-reconciler | 4 | 2 | 2m 42s | $5.10 |
+| automation-engineer | 7 | 24 | 2m 36s | $4.98 |
+| test-architect | 4 | 61 | 4m 1s | $4.58 |
+| saboteur | 3 | 17 | 3m 37s | $2.49 |
+| technical-reviewer | 4 | 25 | 1m 23s | $1.16 |
+| plan-critic | 4 | 2 | 40s | $0.87 |
+| requirements-analyst | 4 | 4 | 25s | $0.38 |
+| skeptic | 4 | 3 | 41s | $0.35 |
+| request-screener | 4 | 2 | 8s | $0.20 |
 | failure-triager | 1 | 6 | 15s | $0.09 |
 
-Most expensive tickets: REQ-57 $18.92 (3 runs), (no ticket) $0.09 (17 runs).
+Most expensive tickets: REQ-57 $28.61 (4 runs), (no ticket) $0.09 (17 runs).
 
 
 ### Runs
 
-72 runs, newest first.
+73 runs, newest first.
 
 <details><summary>Show the runs</summary>
 
 | Date (UTC) | Ticket | Title | Half | Plan score | Gates | Review | Agent time | Est. cost | Run |
 | --- | --- | --- | --- | ---: | --- | --- | ---: | ---: | --- |
+| 2026-10-22 09:07 | REQ-57 | Requirement: Checkout overview price summary and finishing the order | tests | 99 | 10/11 passed, failed: Accessibility (advisory) | approved, round 2, 2 findings | 27m 23s | $9.70 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39747368540) |
 | 2026-10-22 08:25 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39747361585) |
 | 2026-10-22 08:16 | REQ-57 | Requirement: Checkout overview price summary and finishing the order | tests (failure) | 99 | 10/11 passed, failed: Accessibility (advisory) | approved, round 2, 4 findings | 25m 50s | $9.06 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39741437803) |
 | 2026-10-22 07:40 | - | Regression: 0 failed, 0 flaky | regression | - | - | - | 0s | $0.00 | [run](https://github.com/Beherrit/agentic-qa-playwright/actions/runs/39741370379) |
