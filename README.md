@@ -405,10 +405,13 @@ new app.
   This is what the demo uses. It is meant for personal use, so a team should use option (b).
 - (b) An API key, saved as `ANTHROPIC_API_KEY`.
 
-The optional repository variable `QA_AGENT_MODEL` picks the model for every role; `models` in `qa.config.json`
-picks one per role, and its `*` entry covers the rest (for example `{ "*": "haiku", "automation-engineer": "sonnet" }`).
-The default is `sonnet`, and this repository's demo says so explicitly. Haiku is cheaper per token, but on the
-role that writes code it took six times longer and many more edit-and-run loops, so it is not cheaper per run.
+Every role runs on its tier: Fable for the roles that decide (the reconciler, the code reviewer, the triager), Opus
+for the roles that do the work, Sonnet for the roles that read and report, each with a fallback for an account
+without that model. [docs/AGENT-RULES.md](docs/AGENT-RULES.md) has the list and the reasons. `tiers` in
+`qa.config.json` changes a tier's model; `models` picks one per role, and its `*` entry, like the repository
+variable `QA_AGENT_MODEL`, puts every role on one model (for example `{ "*": "haiku" }` for a proof of concept).
+Haiku is cheaper per token, but on the role that writes code it took six times longer and many more edit-and-run
+loops, so it is not cheaper per run.
 
 **Repository settings.**
 

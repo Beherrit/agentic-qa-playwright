@@ -41,7 +41,7 @@ went through both halves of the pipeline on a clean repository, with nothing pre
      purpose, to see which tests catch a broken app. That is the reviewer's question, "would this test fail if the
      behaviour broke?", answered by running it
    - **Accessibility**: an axe scan of the pages the tests ended on. Advisory, and it never says "passed"
-   - "Agent runs" at the bottom: turns, time and estimated cost per agent
+   - "Run report" at the bottom: the lead's verdict and escalations, then each agent's tier, model, tokens, cost and handoff
 4. **How it ran:** the [Actions tab](https://github.com/Beherrit/agentic-qa-playwright/actions). Open the "QA
    tests" run for this ticket. Each stage is a job in the graph. Click a code generation job to see the agent's work
    line by line, including the tools it was refused.
@@ -195,7 +195,8 @@ ticket, run an analysis, see the coverage map, the run history or what is in fli
 stage is also a command, so another CI system runs it in one job.
 
 **What does a run cost?** The pull request and the run history record turns, time and estimated cost per agent.
-This demo runs every role on sonnet (`models` in `qa.config.json`). A test half on sonnet came to about a dollar;
+This demo runs every role on its tier (docs/AGENT-RULES.md), and the run report in each pull request and analysis
+says what each agent ran on and used. Before the tiers, a test half with every role on sonnet came to about a dollar;
 haiku was tried and took six times longer on the role that writes code.
 
 ## Running one live

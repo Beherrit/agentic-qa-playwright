@@ -75,7 +75,8 @@ Everything specific to the app is in `qa.config.json`. `npm run doctor` checks i
 | `perf.analyst` | true | on | Ask the performance analyst to attribute a failure. It runs only when a page failed |
 | `autoRun.analysisWhenWriterFiles` | true | off | A ready ticket from the ticket writer starts its own analysis |
 | `autoRun.testsWhenPlanIsReady` | true | off | A plan that passes starts the test half without a person adding `qa-generate` |
-| `models` | `{ "*": "sonnet" }` | `QA_AGENT_MODEL`, then `sonnet` | A model per role; `*` covers every role not named. Keep `sonnet` for the roles that write code (`automation-engineer`, `test-healer`) and the architect; the reading roles (skeptic, critic, reconciler, triager) can go on `haiku` |
+| `tiers` | `{}` | decide Fable, build Opus, research Sonnet, read Haiku, each with a fallback | The model and fallback of a tier, e.g. `{ "decide": { "model": "claude-opus-5-5", "fallback": "" } }`. docs/AGENT-RULES.md says which role is on which tier |
+| `models` | `{}` | each role on its tier | A model per role, overriding its tier; `*` puts every role not named on one model, as `QA_AGENT_MODEL` does. The doctor warns when every role is overridden |
 | `jira.fields` | `{}` | description only | Jira custom fields to read with the description, by display name |
 | `jira.project` | unset | | The Jira project for new tickets and open-ticket lists |
 | `app.previewUrl` | unset | tests run against `baseUrl` | Where a pull request's build answers, with `{number}` and `{branch}` filled in |
@@ -262,13 +263,14 @@ requirement as a Jira issue when the tag is a Jira key, a TestRail CSV with the 
 ## Cost
 
 Each agent run's turns, time and estimated cost are recorded per run in the history: in `ledger.json` in the run's
-artifact, in the "Agent runs" table of every pull request, and in the totals on the `qa-history` branch (average cost
+artifact, in the run report folded into every pull request and analysis comment (tier, model, tokens and handoff per agent), and in the totals on the `qa-history` branch (average cost
 per run, total cost, average agent time). Read the numbers there rather than estimating them; they vary with the
 size of the ticket.
 
-What moves them most: the model per role (`models`). Haiku costs a fraction of sonnet per token, but on the role
-that writes code it took six times longer with many more edit-and-run loops, so it is not cheaper per run there;
-sonnet is the default for that reason. A smaller model sometimes ends with a written summary instead of the answer tool; the
+What moves them most: the model per role. The tiers put the strongest models where a wrong call costs the most
+(docs/AGENT-RULES.md); `models: { "*": "sonnet" }` runs everything on one mid-priced model instead. Haiku costs a
+fraction of sonnet per token, but on the role that writes code it took six times longer with many more edit-and-run
+loops, so it is not cheaper per run there. A smaller model sometimes ends with a written summary instead of the answer tool; the
 engine resumes its session and asks for the answer alone, which shows in the log as "finished without handing in
 its answer" and costs a turn or two. Then how often a run goes back for a second pass (the gate report and the
 review say why), and whether the halves start by themselves (`autoRun`). A ticket stopped by a blocking question
