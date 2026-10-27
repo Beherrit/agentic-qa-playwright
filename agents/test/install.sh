@@ -85,7 +85,10 @@ printf '%s\n' "$doctor" | grep -q '^ok    Writable folders' || fail "doctor did 
 printf '%s\n' "$doctor" | grep -q 'Agent instructions   1[0-9] roles' || fail "doctor did not find the prompts in the package"
 
 say "suite, check, coverage and an export through the configured commands"
-npx agentic-qa suite --list | grep -q 'Total: 1 test' || fail "suite --list"
+# Captured first, not piped into grep -q: a reader that quits on its first match closes the pipe and the
+# CLI dies on EPIPE under Windows before the test runner is done listing.
+listed=$(npx agentic-qa suite --list 2>&1) || { printf '%s\n' "$listed"; fail "suite --list"; }
+printf '%s\n' "$listed" | grep -q 'Total: 1 test' || { printf '%s\n' "$listed"; fail "suite --list did not count the test"; }
 check=$(npx agentic-qa check 2>&1) || { printf '%s\n' "$check"; fail "check failed"; }
 printf '%s\n' "$check" | grep -q '^> echo lint' || { printf '%s\n' "$check"; fail "check did not run the configured lint"; }
 npx agentic-qa suite --reporter=line >/dev/null || fail "the suite did not pass"

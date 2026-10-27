@@ -3,7 +3,8 @@ import playwright from 'eslint-plugin-playwright';
 
 export default tseslint.config(
   // qa-run-second-host and perf-history are local run folders; the perf fixtures are deliberately plain page scripts.
-  { ignores: ['node_modules', 'playwright-report', 'test-results', 'qa-run', 'qa-run-second-host', 'perf-history', 'agents/evals/fixtures/perf'] },
+  // .claude holds the desktop app's session worktrees: whole checkouts whose tsconfig would otherwise make the parser's root ambiguous.
+  { ignores: ['node_modules', 'playwright-report', 'test-results', 'qa-run', 'qa-run-second-host', 'perf-history', 'agents/evals/fixtures/perf', '.claude'] },
   ...tseslint.configs.recommended,
   {
     files: ['tests/**/*.ts'],
