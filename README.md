@@ -301,7 +301,14 @@ the review verdict, the rounds it took, and the time and estimated cost of every
 `README.md` there is a table of all runs with totals (gate pass rate, how often the review approved first time, which
 gate fails most, average cost per run); `index.html` is the same as a dashboard in one file with no external
 scripts, served live at <https://beherrit.github.io/agentic-qa-playwright/> by `pages.yml`, which redeploys the site
-whenever the history or the performance page changes.
+whenever the history or the performance page changes. The site root is now an executive summary across projects: pass
+rate, durations, retries, what triage made of the failures, and a 30-day trend, every figure counted by code. The
+pipeline's own run history, the table above, moved to `pipeline/`. Each project has a page under `projects/<slug>/`
+with its recent runs, test health, regressions (passed last run, failed this one), flaky tests, failure clusters and
+the slowest tests. Those rows come from the suite's JSON report, one per test per regression run, kept as
+`tests.jsonl` on the same branch, and the verdicts from triage. A "QA hours saved" figure appears only when
+`history.manualMinutesPerTest` is set in `qa.config.json`, and it is labelled as that assumption: tests run times the
+minutes you say a person would spend running one by hand.
 
 ### Reports
 
@@ -652,6 +659,7 @@ and the pull request with tests that fail, for the right reason, until someone b
 | `agents/screen.ts`, `agents/lib/safety.ts` | The safety screen: the screener agent and the stage that saves `qa-run/screening.json`, and the fixed rules |
 | `agents/triage.ts`, `agents/heal.ts` | Failure triage and self-healing for a regression run |
 | `agents/coverage.ts`, `agents/doctor.ts`, `agents/history.ts` | The traceability map, the preflight check, the run history |
+| `agents/lib/history.ts`, `agents/lib/history/` | The run history: the pipeline entries and their page, then the test-level rows (`tests`), the aggregates (`stats`), the shared page pieces (`html`) and the summary and project pages |
 | `agents/perf.ts`, `agents/lib/perf/` | The performance gate (`npm run perf -- run`): routes, the shared browser, Lighthouse, budgets and regressions, the analyst and its checker, the `qa-perf` page, and `prove` |
 | `fixtures/perf-setup.ts` | How the performance gate signs in before it audits |
 | `agents/migrate.ts`, `agents/lib/migrate/` | The Selenium migration (`npm run migrate`): inventory and plan, the settings renderer, the wave runner, the parity check, the rules, the gates, the report |

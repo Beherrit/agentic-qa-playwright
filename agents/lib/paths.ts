@@ -177,6 +177,12 @@ export const ConfigSchema = z.object({
    */
   budget: z.object({ maxUsdPerRun: z.number().min(0).default(0), maxUsdPerDay: z.number().min(0).default(0) }).prefault({}),
   /**
+   * The run history pages. `manualMinutesPerTest` is the minutes a person would spend running one test by hand; it is
+   * used only for the "QA hours saved" figure on the executive summary, which is an estimate from this number. 0 leaves
+   * the figure out.
+   */
+  history: z.object({ manualMinutesPerTest: z.number().min(0).max(600).default(0) }).prefault({}),
+  /**
    * Where test cases can live, cheapest first: the browser suite this pipeline writes, and the layers other people own
    * (unit, component, API, contract) and manual. The fields are in agents/lib/layers.ts. Without a list, the plan uses
    * e2e, lower-layer and manual.
