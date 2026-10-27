@@ -1,33 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildEntry, cleanEntry, historyHtml, historyMd, mergeEntries, newestFirst, parseRunLog, rollup, type RunEntry, type RunFiles } from './lib/history.ts';
+import { companionFile, readJson, readTestRows, writeUnder } from './lib/history/files.ts';
+import type { TestEntry } from './lib/history/types.ts';
+import { projectHtml } from './lib/history/project-page.ts';
+import { summaryHtml } from './lib/history/summary-page.ts';
+import { mergeTestLog, serialiseTestLog, slug, testEntries } from './lib/history/tests.ts';
 import { config } from './lib/paths.ts';
 
 /**
  * The run history, kept by .github/workflows/qa-history.yml:
  *   npx tsx agents/history.ts record <qa-run dir> <out file>   one finished run, read from its artifact
- *   npx tsx agents/history.ts render <history dir> [entry]     runs.jsonl, README.md and index.html
- * Only this script reads the artifact, and it only parses JSON. Nothing in it is executed.
+ *   npx tsx agents/history.ts render <history dir> [entry]     runs.jsonl, tests.jsonl and the pages
+ * The site root is the executive summary, pipeline/ the run history of the agents, projects/<slug>/ one page per
+ * project. Only this script reads the artifact, and it only parses JSON. Nothing in it is executed.
  */
 
 const FILES = ['request.json', 'requirements.json', 'strategy.json', 'generation.json', 'gates.json', 'review.json', 'round.json', 'ledger.json', 'triage.json'];
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_REPORT_BYTES = 20 * 1024 * 1024;
 const WORKFLOWS: Record<string, 'analysis' | 'tests' | 'regression'> = { 'QA analysis': 'analysis', 'QA tests': 'tests', Regression: 'regression' };
-
-/** The parsed file, or undefined when it is missing, too big or not JSON. */
-function readJson(file: string): unknown {
-  try {
-    if (fs.statSync(file).size > MAX_BYTES) return undefined;
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch {
-    return undefined;
-  }
-}
 
 export function record(dir: string, out: string): void {
   const files: RunFiles = {};
   for (const name of FILES) {
-    const value = readJson(path.join(dir, name));
+    const value = readJson(path.join(dir, name), MAX_BYTES);
     if (value !== undefined) files[name] = value;
   }
   // A regression run leaves no request; a green one leaves no artifact at all, and still counts (nothing was flaky).
@@ -50,24 +47,53 @@ export function record(dir: string, out: string): void {
   fs.mkdirSync(path.dirname(path.resolve(out)), { recursive: true });
   fs.writeFileSync(out, `${JSON.stringify(entry, null, 2)}\n`);
   console.log(`Recorded run ${entry.runId} (${entry.workflow}, ${entry.key ?? 'no key'}).`);
+  if (workflow === 'regression') recordTests(dir, out, entry, files['triage.json']);
+}
+
+/** The suite's own JSON report as test rows, written next to the entry for render to merge. */
+function recordTests(dir: string, out: string, entry: RunEntry, triage: unknown): void {
+  const report = readJson(path.join(dir, 'test-results', 'results.json'), MAX_REPORT_BYTES);
+  if (report === undefined) {
+    console.log('No test-results/results.json in the artifact: no test rows recorded.');
+    return;
+  }
+  const rows = testEntries({ runId: entry.runId, finishedAt: entry.finishedAt, project: slug(config.app.name) }, report, triage);
+  fs.writeFileSync(companionFile(out), serialiseTestLog(rows));
+  console.log(`Recorded ${rows.length} test rows.`);
 }
 
 const readLog = (file: string): RunEntry[] => (fs.existsSync(file) ? parseRunLog(fs.readFileSync(file, 'utf8')) : []);
 
+/** The display name of a project slug: the app's own name for this repository's app, the slug otherwise. */
+const projectName = (project: string): string => (project === slug(config.app.name) ? config.app.name : project);
+
+/** Writes the three kinds of page: the summary at the root, the pipeline history, one page per project. */
+function writePages(dir: string, entries: RunEntry[], rows: TestEntry[]): void {
+  const cap = config.budget.maxUsdPerDay;
+  const named = [...new Set(rows.map((r) => r.project))].sort().map((s) => ({ slug: s, name: projectName(s) }));
+  writeUnder(dir, 'README.md', historyMd(entries, undefined, cap));
+  writeUnder(dir, 'pipeline/index.html', historyHtml(entries, cap));
+  writeUnder(dir, 'index.html', summaryHtml({ rows, runs: entries, projects: named, manualMinutesPerTest: config.history.manualMinutesPerTest }));
+  for (const p of named) writeUnder(dir, `projects/${p.slug}/index.html`, projectHtml({ slug: p.slug, name: p.name, rows: rows.filter((r) => r.project === p.slug) }));
+}
+
 export function render(dir: string, entryFile?: string): void {
   fs.mkdirSync(dir, { recursive: true });
   const log = path.join(dir, 'runs.jsonl');
+  const testLog = path.join(dir, 'tests.jsonl');
   let entries = newestFirst(readLog(log));
+  let rows = readTestRows(testLog);
   if (entryFile) {
-    const entry = cleanEntry(readJson(entryFile));
+    const entry = cleanEntry(readJson(entryFile, MAX_BYTES));
     if (!entry) throw new Error(`${entryFile} does not hold a usable run entry.`);
     entries = mergeEntries(entries, entry);
+    rows = mergeTestLog(rows, readTestRows(companionFile(entryFile)));
   }
   fs.writeFileSync(log, entries.map((e) => JSON.stringify(e)).join('\n') + (entries.length ? '\n' : ''));
+  fs.writeFileSync(testLog, serialiseTestLog(rows));
   const cap = config.budget.maxUsdPerDay;
-  fs.writeFileSync(path.join(dir, 'README.md'), historyMd(entries, undefined, cap));
-  fs.writeFileSync(path.join(dir, 'index.html'), historyHtml(entries, cap));
-  console.log(`History has ${entries.length} runs.`);
+  writePages(dir, entries, rows);
+  console.log(`History has ${entries.length} runs and ${rows.length} test rows.`);
   const today = rollup(entries, 1).todayUsd;
   // The workflow log shows it as a warning; the cap itself stops nothing, since the history is written after the run.
   if (cap && today > cap) console.log(`::warning title=Daily agent budget::Today's runs have cost $${today.toFixed(2)}, over the $${cap.toFixed(2)} cap in qa.config.json (budget.maxUsdPerDay).`);

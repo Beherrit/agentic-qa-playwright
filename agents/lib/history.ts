@@ -48,11 +48,11 @@ const WORKFLOWS = ['analysis', 'tests', 'regression'] as const;
 
 // ── Reading untrusted values ─────────────────────────────────────────────────
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** A string with control characters turned into spaces and the length capped. Anything else is null. */
-function text(value: unknown, max: number): string | null {
+export function text(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const clean = value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').trim();
   return clean ? clean.slice(0, max) : null;
@@ -78,17 +78,17 @@ export function safeUrl(value: unknown): string {
   return typeof value === 'string' && /^https:\/\/github\.com\/[A-Za-z0-9._/-]+$/.test(value) ? value : '';
 }
 
-function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+export function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | null {
   return allowed.find((item) => item === value) ?? null;
 }
 
-function isoDate(value: unknown): string {
+export function isoDate(value: unknown): string {
   if (typeof value !== 'string' || value.length > 40) return '';
   const time = Date.parse(value);
   return Number.isNaN(time) ? '' : new Date(time).toISOString();
 }
 
-function idText(value: unknown): string {
+export function idText(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value).replace(/[^0-9A-Za-z_-]/g, '').slice(0, 40) : '';
 }
 

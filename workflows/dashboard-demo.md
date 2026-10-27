@@ -9,19 +9,30 @@ page rebuilds itself from two branches whenever a run finishes. There is no serv
 
 ## 0. What you are looking at (30 seconds)
 
-Open the root. Say: one static site, built by GitHub Actions from two branches the pipeline writes to. The run
-history lives on `qa-history`, the performance page on `qa-perf`, and a third workflow stitches them together and
-deploys. No database, no hosting bill, and the HTML has no external scripts, so it works on a locked-down laptop.
+Open the root. Say: one static site, built by GitHub Actions from two branches the pipeline writes to. The root is
+the executive summary: year-to-date figures, what the failures turned out to be, CI efficiency and a 30-day trend.
+Three places sit under it: `pipeline/` (the pipeline's own run history), `projects/<slug>/` (one page per project
+the regression suite covers) and `perf/` (performance). The history lives on `qa-history`, the performance page on
+`qa-perf`, and a third workflow stitches them together and deploys. No database, no hosting bill, and the HTML has
+no external scripts, so it works on a locked-down laptop.
 
 ## 1. Run history: what the pipeline costs and how often it is right (1 minute)
 
-Point at the tiles: runs, how often the gates passed, how often the reviewer approved first time, the average cost
+Open `/pipeline/`; this used to be the root. Point at the tiles: runs, how often the gates passed, how often the reviewer approved first time, the average cost
 per run. Then the seven-day rollup underneath: cost per role, the tickets that cost the most, the gates that
 blocked. Say: this is the manager's view. Each row below is one run of the analysis or test half, with the plan
 score, every gate's verdict, the review verdict, agent time and estimated cost, and a link to the run.
 
 Type a ticket key into the filter. The table narrows to that ticket's runs. Say: the data is in the page itself,
 read back from a JSON block; the filter is thirty lines of script and nothing is fetched.
+
+## 1b. A project page (1 minute)
+
+Open `/projects/<slug>/`. Start at the recent runs table: one row per regression run with pass rate and duration.
+Then the regressions table, which lists exactly the tests that passed last run and failed in this one, with the
+first line of the error. Point at the failure clusters: the same error across several tests and runs is one cause,
+not five. Type a test name or a browser into the filter in Test health and the table narrows; the data is in the
+page, nothing is fetched.
 
 ## 2. Performance: the pages a shopper actually sees (1.5 minutes)
 
