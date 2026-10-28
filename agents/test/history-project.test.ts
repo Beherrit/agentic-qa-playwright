@@ -91,10 +91,28 @@ describe('projectHtml: regressions', () => {
 describe('projectHtml: recent runs', () => {
   it('lists the runs newest first with their totals', () => {
     assert.deepEqual(rowsOf(page, 'Recent runs'), [
-      ['2026-10-03', '503', '6', '3', '1', '1', '1', '80.0%', '16.5s'],
-      ['2026-10-02', '502', '5', '5', '0', '0', '0', '100.0%', '16.5s'],
-      ['2026-10-01', '501', '5', '3', '1', '1', '0', '80.0%', '16.5s'],
+      ['2026-10-03', '503', '6', '3', '1', '0', '1', '1', '80.0%', '16.5s'],
+      ['2026-10-02', '502', '5', '5', '0', '0', '0', '0', '100.0%', '16.5s'],
+      ['2026-10-01', '501', '5', '3', '1', '0', '1', '0', '80.0%', '16.5s'],
     ]);
+  });
+});
+
+describe('projectHtml: expected failures', () => {
+  // One run: A passes, B and C are marked as known failures. All three count as passing in the end: 100.0%.
+  const rows = [row(0, A, 'passed'), row(0, B, 'expected-failure', 'known: expected 1 got 2'), row(0, C, 'expected-failure', 'known: expected 3 got 4')];
+  const html = projectHtml({ slug: 'swag-labs', name: 'Swag Labs', rows, now: NOW });
+  it('has a tile for them on the latest run, so the tests add up', () => {
+    assert.equal(statValue(html, 'Tests'), '3');
+    assert.equal(statValue(html, 'Failed'), '0');
+    assert.equal(statValue(html, 'Expected failures'), '2');
+    assert.equal(statValue(html, 'Pass rate'), '100.0%');
+  });
+  it('has a column for them in recent runs, between failed and flaky', () => {
+    assert.deepEqual(rowsOf(html, 'Recent runs'), [['2026-10-01', '501', '3', '1', '0', '2', '0', '0', '100.0%', '4.5s']]);
+  });
+  it('shows the tile with a dash when there is no run', () => {
+    assert.equal(statValue(projectHtml({ slug: 'swag-labs', name: 'Swag Labs', rows: [], now: NOW }), 'Expected failures'), '-');
   });
 });
 

@@ -27,12 +27,14 @@ function chipFor(latest: number | null, before: number | null): { text: string; 
 
 function latestCard(latest: RunTotals | null, previous: RunTotals | null): string {
   if (!latest) {
-    return card('Latest run', '', stats([stat('Pass rate', '-'), stat('Tests', '-'), stat('Failed', '-'), stat('Flaky', '-'), stat('Skipped', '-'), stat('Duration', '-')]));
+    const empty = ['Pass rate', 'Tests', 'Failed', 'Expected failures', 'Flaky', 'Skipped', 'Duration'].map((label) => stat(label, '-'));
+    return card('Latest run', '', stats(empty));
   }
   return card('Latest run', `${dateText(latest.finishedAt)}, run ${latest.runId}`, stats([
     stat('Pass rate', pct(latest.passRate), 'skipped tests left out', chipFor(latest.passRate, previous?.passRate ?? null)),
     stat('Tests', count(latest.tests)),
     stat('Failed', count(latest.failed)),
+    stat('Expected failures', count(latest.expectedFailures), 'marked as known failures, counted as passing'),
     stat('Flaky', count(latest.flaky)),
     stat('Skipped', count(latest.skipped)),
     stat('Duration', secs(latest.durationMs), 'sum of the tests'),
@@ -51,9 +53,12 @@ function regressionsCard(rows: TestEntry[], slug: string): string {
 function recentRunsCard(rows: TestEntry[]): string {
   const runs = runTotals(rows).slice(0, 30);
   return card('Recent runs', 'newest first, up to 30', table(
-    ['Date', 'Run', 'Tests', 'Passed', 'Failed', 'Flaky', 'Skipped', 'Pass rate', 'Duration'],
-    runs.map((t) => [dateText(t.finishedAt), t.runId, count(t.tests), count(t.passed), count(t.failed), count(t.flaky), count(t.skipped), pct(t.passRate), secs(t.durationMs)]),
-    { numeric: [2, 3, 4, 5, 6, 7, 8], empty: 'No run has been recorded yet.' },
+    ['Date', 'Run', 'Tests', 'Passed', 'Failed', 'Expected failures', 'Flaky', 'Skipped', 'Pass rate', 'Duration'],
+    runs.map((t) => [
+      dateText(t.finishedAt), t.runId, count(t.tests), count(t.passed), count(t.failed), count(t.expectedFailures),
+      count(t.flaky), count(t.skipped), pct(t.passRate), secs(t.durationMs),
+    ]),
+    { numeric: [2, 3, 4, 5, 6, 7, 8, 9], empty: 'No run has been recorded yet.' },
   ));
 }
 
